@@ -1,65 +1,72 @@
-import Image from "next/image";
+import { taoSupabaseMayChu } from "@/lib/supabase/may-chu";
+import { TheBaiViet } from "@/components/bai-viet/the-bai-viet";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function TrangChu() {
+  const supabase = await taoSupabaseMayChu();
+
+  const { data: cauHinh } = await supabase
+    .from("cau_hinh_website")
+    .select("ten_website, mo_ta_website, so_bai_moi_trang")
+    .limit(1)
+    .maybeSingle();
+
+  const soBaiMoi = cauHinh?.so_bai_moi_trang || 12;
+
+  const { data: danhSachBaiViet } = await supabase
+    .from("bai_viet")
+    .select(`
+      id,
+      tieu_de,
+      duong_dan,
+      tom_tat,
+      google_drive_anh_dai_dien_file_id,
+      ngay_dang,
+      luot_xem
+    `)
+    .eq("trang_thai", "da_dang")
+    .is("ngay_xoa", null)
+    .order("ngay_dang", { ascending: false })
+    .limit(soBaiMoi);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <main className="min-h-[calc(100vh-64px)]">
+      <section className="bg-gradient-to-r from-blue-700 to-indigo-700 px-4 py-16 text-white">
+        <div className="mx-auto max-w-7xl">
+          <p className="font-semibold uppercase tracking-wider text-blue-200">
+            duongnt.io.vn
+          </p>
+          <h1 className="mt-3 text-4xl font-black md:text-5xl">
+            {cauHinh?.ten_website || "Chia sẻ kiến thức"}
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mt-4 max-w-2xl text-lg text-blue-100">
+            {cauHinh?.mo_ta_website ||
+              "Nơi chia sẻ bài viết, kiến thức và kinh nghiệm."}
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-10">
+        <div className="mb-6">
+          <p className="font-semibold text-blue-600">Nội dung mới</p>
+          <h2 className="text-3xl font-bold text-slate-900">
+            Bài viết mới nhất
+          </h2>
         </div>
-      </main>
-    </div>
+
+        {danhSachBaiViet && danhSachBaiViet.length > 0 ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {danhSachBaiViet.map((baiViet) => (
+              <TheBaiViet key={baiViet.id} baiViet={baiViet} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-sm">
+            Chưa có bài viết nào được đăng.
+          </div>
+        )}
+      </section>
+    </main>
   );
 }
