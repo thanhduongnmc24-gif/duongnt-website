@@ -482,3 +482,197 @@ export async function PATCH(yeuCau: Request) {
     thong_bao: "Cap nhat tai khoan thanh cong.",
   });
 }
+type DuLieuCapNhatTaiKhoan = {
+  id?: string;
+  ten_hien_thi?: string;
+  email?: string;
+  vai_tro?: "quan_tri" | "nguoi_dung";
+  dang_hoat_dong?: boolean;
+};
+
+export async function PATCH(yeuCau: Request) {
+  const quyen = await kiemTraQuyenQuanTri();
+
+  if (!quyen.hopLe || !quyen.user) {
+    return NextResponse.json(
+      {
+        thanh_cong: false,
+        loi: "Anh Hai không có quyền quản trị.",
+      },
+      {
+        status: 403,
+      }
+    );
+  }
+
+  let duLieu: DuLieuCapNhatTaiKhoan;
+
+  try {
+    duLieu = await yeuCau.json();
+  } catch {
+    return NextResponse.json(
+      {
+        thanh_cong: false,
+        loi: "Dữ liệu gửi lên không hợp lệ.",
+      },
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const id = String(duLieu.id || "").trim();
+  const tenHienThi = String(
+    duLieu.ten_hien_thi || ""
+  ).trim();
+
+  const email = String(duLieu.email || "").trim();
+
+  const vaiTro =
+    duLieu.vai_tro === "quan_tri"
+      ? "quan_tri"
+      : "nguoi_dung";
+
+  const dangHoatDong =
+    duLieu.dang_hoat_dong !== false;
+
+  if (!id) {
+    return NextResponse.json(
+      {
+        thanh_cong: false,
+        loi: "Thiếu ID tài khoản.",
+      },
+      {
+        status: 400,
+      }
+    );
+  }
+
+  if (!tenHienThi) {
+    return NextResponse.json(
+      {
+        thanh_cong: false,
+        loi: "Tên hiển thị không được để trống.",
+      },
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const supabaseQuanTri = taoSupabaseQuanTri();
+
+  const {
+    data: taiKhoanCu,
+    error: loiDocTaiKhoan,
+  } = await supabaseQuanTri
+    .from("nguoi_dung")
+    .select(
+      "id, ten_dang_nhap, ten_hien_thi, email, vai_tro, dang_hoat_dong"
+    )
+    .eq("id", id)
+    .single();
+
+  if (loiDocTaiKhoan || !taiKhoanCu) {
+    return NextResponse.json(
+      {
+        thanh_cong: false,
+        loi: "Không tìm thấy tài khoản.",
+      },
+      {
+        status: 404,
+      }
+    );
+  }
+
+  const { error: loiCapNhatDatabase } =
+    await supabaseQuanTri
+      .from("nguoi_dung")
+      .update({
+        ten_hien_thi: tenHienThi,
+        email: email || null,
+        vai_tro: vaiTro,
+        dang_hoat_dong: dangHoatDong,
+        ngay_cap_nhat: new Date().toISOString(),
+      })
+      .eq("id", id);
+
+  if (loiCapNhatDatabase) {
+    return NextResponse.json(
+      {
+        thanh_cong: false,
+        loi: loiCapNhatDatabase.message,
+      },
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const { error: loiCapNhatAuth } =
+    await supabaseQuanTri.auth.admin.updateUserById(
+      id,
+      {
+        ban_duration: dangHoatDong
+          ? "none"
+          : "876000h",
+
+        user_metadata: {
+          ten_dang_nhap:
+            taiKhoanCu.ten_dang_nhap,
+          ten_hien_thi: tenHienThi,
+        },
+
+        app_metadata: {
+          vai_tro: vaiTro,
+        },
+      }
+    );
+
+  if (loiCapNhatAuth) {
+    await supabaseQuanTri
+      .from("nguoi_dung")
+      .update({
+        ten_hien_thi:
+          taiKhoanCu.ten_hien_thi,
+        email: taiKhoanCu.email,
+        vai_tro: taiKhoanCu.vai_tro,
+        dang_hoat_dong:
+          taiKhoanCu.dang_hoat_dong,
+      })
+      .eq("id", id);
+
+    return NextResponse.json(
+      {
+        thanh_cong: false,
+        loi:
+          "Không thể cập nhật Supabase Auth: " +
+          loiCapNhatAuth.message,
+      },
+      {
+        status: 400,
+      }
+    );
+  }
+
+  await supabaseQuanTri
+    .from("lich_su_quan_tri")
+    .insert({
+      nguoi_thuc_hien_id: quyen.user.id,
+      hanh_dong: "cap_nhat_tai_khoan",
+      doi_tuong: "nguoi_dung",
+      doi_tuong_id: id,
+      du_lieu_cu: taiKhoanCu,
+      du_lieu_moi: {
+        ten_hien_thi: tenHienThi,
+        email: email || null,
+        vai_tro: vaiTro,
+        dang_hoat_dong: dangHoatDong,
+      },
+    });
+
+  return NextResponse.json({
+    thanh_cong: true,
+    thong_bao: "Cập nhật tài khoản thành công.",
+  });
+}

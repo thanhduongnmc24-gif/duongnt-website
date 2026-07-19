@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { taoSupabaseMayChu } from "@/lib/supabase/may-chu";
+import Link from "next/link";
 
 export default async function TrangQuanTri() {
   const supabase = await taoSupabaseMayChu();
@@ -58,7 +59,7 @@ export default async function TrangQuanTri() {
 
         <div className="mt-8 grid gap-5 md:grid-cols-3">
           <div className="rounded-2xl border p-5">
-            <h2 className="font-bold">Quản lý tài khoản</h2>
+            <h2 className="font-bold">Quản lý tài khoản</h2>3 4  <p className="mt-2 text-sm text-slate-600">5    Tạo, khóa và phân quyền người dùng.6  </p>
             <p className="mt-2 text-sm text-slate-600">
               Tạo và phân quyền người dùng.
             </p>
