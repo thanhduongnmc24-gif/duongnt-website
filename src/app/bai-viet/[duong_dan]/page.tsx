@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation";
 import { taoSupabaseMayChu } from "@/lib/supabase/may-chu";
+import {
+  chuyenVanBanSangHtml,
+  lamSachHtml,
+} from "@/lib/bao-mat/lam-sach-html";
 
 export const dynamic = "force-dynamic";
 
@@ -7,19 +11,7 @@ type ThuocTinhTrang = {
   params: Promise<{ duong_dan: string }>;
 };
 
-function chuyenNoiDungThuongSangHtml(noiDung: string) {
-  return noiDung
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;")
-    .replaceAll("\\n", "<br />");
-}
-
-export default async function TrangChiTietBaiViet({
-  params,
-}: ThuocTinhTrang) {
+export default async function TrangChiTietBaiViet({ params }: ThuocTinhTrang) {
   const { duong_dan } = await params;
   const supabase = await taoSupabaseMayChu();
 
@@ -34,16 +26,9 @@ export default async function TrangChiTietBaiViet({
       google_drive_anh_dai_dien_file_id,
       ngay_dang,
       luot_xem,
-      trang_thai,
-      nguoi_dung (
-        ten_hien_thi
-      ),
-      de_muc (
-        ten_de_muc
-      ),
-      de_muc_con (
-        ten_de_muc_con
-      )
+      nguoi_dung (ten_hien_thi),
+      de_muc (ten_de_muc),
+      de_muc_con (ten_de_muc_con)
     `)
     .eq("duong_dan", duong_dan)
     .eq("trang_thai", "da_dang")
@@ -54,8 +39,8 @@ export default async function TrangChiTietBaiViet({
 
   const noiDungHtml =
     baiViet.loai_noi_dung === "html"
-      ? baiViet.noi_dung
-      : chuyenNoiDungThuongSangHtml(baiViet.noi_dung);
+      ? lamSachHtml(baiViet.noi_dung)
+      : chuyenVanBanSangHtml(baiViet.noi_dung);
 
   const nguoiDung = Array.isArray(baiViet.nguoi_dung)
     ? baiViet.nguoi_dung[0]
@@ -85,13 +70,9 @@ export default async function TrangChiTietBaiViet({
           <h1 className="mt-2 text-4xl font-black leading-tight text-slate-900">
             {baiViet.tieu_de}
           </h1>
-
           {baiViet.tom_tat ? (
-            <p className="mt-4 text-lg leading-8 text-slate-600">
-              {baiViet.tom_tat}
-            </p>
+            <p className="mt-4 text-lg leading-8 text-slate-600">{baiViet.tom_tat}</p>
           ) : null}
-
           <div className="mt-5 flex flex-wrap gap-4 border-y border-slate-200 py-4 text-sm text-slate-500">
             <span>Tác giả: {nguoiDung?.ten_hien_thi || "Người dùng"}</span>
             <span>
@@ -101,7 +82,6 @@ export default async function TrangChiTietBaiViet({
             </span>
             <span>{baiViet.luot_xem || 0} lượt xem</span>
           </div>
-
           <div
             className="mt-8 whitespace-normal text-base leading-8 text-slate-800"
             dangerouslySetInnerHTML={{ __html: noiDungHtml }}
