@@ -4,6 +4,7 @@ import {
   chuyenVanBanSangHtml,
   lamSachHtml,
 } from "@/lib/bao-mat/lam-sach-html";
+import { BoDemLuotXem } from "@/components/bai-viet/bo-dem-luot-xem";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +81,10 @@ export default async function TrangChiTietBaiViet({ params }: ThuocTinhTrang) {
                 ? new Date(baiViet.ngay_dang).toLocaleString("vi-VN")
                 : "Không có"}
             </span>
-            <span>{baiViet.luot_xem || 0} lượt xem</span>
+            <BoDemLuotXem
+              baiVietId={baiViet.id}
+              luotXemBanDau={baiViet.luot_xem || 0}
+            />
           </div>
           <div
             className="mt-8 whitespace-normal text-base leading-8 text-slate-800"
