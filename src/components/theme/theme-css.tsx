@@ -1,0 +1,62 @@
+import { layThemeWebsite } from "@/lib/theme/theme";
+
+export async function ThemeCss() {
+  const theme = await layThemeWebsite();
+
+  const css = `
+    :root {
+      --theme-primary: ${theme.mauChinh};
+      --theme-secondary: ${theme.mauPhu};
+      --theme-background: ${theme.mauNen};
+      --theme-text: ${theme.mauChu};
+      --theme-radius: ${theme.ma === "minimal-light" ? "6px" : "16px"};
+      --theme-shadow: ${theme.ma === "minimal-light" ? "none" : "0 10px 30px rgba(15,23,42,.10)"};
+    }
+
+    body {
+      background: var(--theme-background);
+      color: var(--theme-text);
+    }
+
+    .theme-primary { color: var(--theme-primary) !important; }
+    .theme-primary-bg {
+      background: var(--theme-primary) !important;
+      color: white !important;
+    }
+    .theme-card {
+      border-radius: var(--theme-radius);
+      box-shadow: var(--theme-shadow);
+    }
+
+    html[data-theme="dark-tech"] body {
+      background: #020617;
+      color: #e2e8f0;
+    }
+    html[data-theme="dark-tech"] .bg-white {
+      background-color: #0f172a !important;
+    }
+    html[data-theme="dark-tech"] .text-slate-900 {
+      color: #f8fafc !important;
+    }
+    html[data-theme="dark-tech"] .text-slate-600,
+    html[data-theme="dark-tech"] .text-slate-500 {
+      color: #94a3b8 !important;
+    }
+    html[data-theme="dark-tech"] .border-slate-200,
+    html[data-theme="dark-tech"] .border-slate-300 {
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark-tech"] input,
+    html[data-theme="dark-tech"] textarea,
+    html[data-theme="dark-tech"] select {
+      background: #111827;
+      color: #f8fafc;
+    }
+
+    html[data-theme="minimal-light"] * {
+      box-shadow: none !important;
+    }
+  `;
+
+  return <style dangerouslySetInnerHTML={{ __html: css }} />;
+}

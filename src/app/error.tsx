@@ -1,0 +1,2 @@
+"use client";
+export default function TrangLoi({reset}:{error:Error&{digest?:string};reset:()=>void}){return <main className="flex min-h-[70vh] items-center justify-center p-6"><div className="max-w-lg text-center"><h1 className="text-3xl font-black">Website vừa gặp lỗi</h1><p className="mt-3 text-slate-500">Anh Hai thử tải lại trang hoặc quay về trang chủ.</p><button onClick={reset} className="mt-6 rounded-xl bg-blue-600 px-6 py-3 font-bold text-white">Thử lại</button></div></main>}

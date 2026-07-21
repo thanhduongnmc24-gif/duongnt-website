@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function KhongTimThay(){return <main className="flex min-h-[70vh] items-center justify-center p-6"><div className="text-center"><p className="text-7xl font-black text-blue-600">404</p><h1 className="mt-3 text-3xl font-black">Không tìm thấy trang</h1><p className="mt-3 text-slate-500">Đường dẫn có thể đã thay đổi hoặc nội dung không còn tồn tại.</p><Link href="/" className="mt-6 inline-block rounded-xl bg-blue-600 px-6 py-3 font-bold text-white">Về trang chủ</Link></div></main>}
