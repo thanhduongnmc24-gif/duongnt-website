@@ -18,13 +18,17 @@ export function TheBaiViet({ baiViet }: ThuocTinh) {
   return (
     <article className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
       <Link href={`/bai-viet/${baiViet.duong_dan}`} className="block">
-        <div className="flex aspect-video items-center justify-center bg-gradient-to-br from-blue-100 via-slate-100 to-indigo-100">
+        <div className="aspect-video overflow-hidden bg-gradient-to-br from-blue-100 via-slate-100 to-indigo-100">
           {baiViet.google_drive_anh_dai_dien_file_id ? (
-            <span className="px-4 text-center text-sm font-semibold text-slate-500">
-              Ảnh đại diện sẽ hiển thị sau khi tích hợp Google Drive
-            </span>
+            <img
+              src={`/api/google-drive/tep/${baiViet.google_drive_anh_dai_dien_file_id}`}
+              alt={baiViet.tieu_de}
+              className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+            />
           ) : (
-            <span className="text-5xl font-black text-blue-200">D</span>
+            <div className="flex h-full items-center justify-center">
+              <span className="text-5xl font-black text-blue-200">D</span>
+            </div>
           )}
         </div>
 
@@ -32,18 +36,15 @@ export function TheBaiViet({ baiViet }: ThuocTinh) {
           <h2 className="line-clamp-2 text-xl font-bold text-slate-900 transition group-hover:text-blue-600">
             {baiViet.tieu_de}
           </h2>
-
           <p className="mt-3 line-clamp-3 min-h-18 text-sm leading-6 text-slate-600">
             {baiViet.tom_tat || "Bài viết chưa có phần tóm tắt."}
           </p>
-
           <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-500">
             <span>
               {baiViet.ngay_dang
                 ? new Date(baiViet.ngay_dang).toLocaleDateString("vi-VN")
                 : "Chưa có ngày đăng"}
             </span>
-
             <span>{baiViet.luot_xem || 0} lượt xem</span>
           </div>
         </div>
