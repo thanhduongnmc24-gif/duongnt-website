@@ -1,3 +1,4 @@
+import { ThaoTacNguoiDung } from "@/components/menu/thao-tac-nguoi-dung";
 import Link from "next/link";
 import { taoSupabaseMayChu } from "@/lib/supabase/may-chu";
 
@@ -108,47 +109,18 @@ export async function ThanhDieuHuong() {
           ))}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          {user && vaiTro ? (
-            <>
-              <span className="hidden max-w-40 truncate text-sm text-slate-600 xl:block">
-                {tenHienThi}
-              </span>
-
-              <Link
-                href="/dang-bai"
-                className="whitespace-nowrap rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white transition hover:bg-blue-700"
-              >
-                Đăng bài
-              </Link>
-
-              {vaiTro === "quan_tri" ? (
-                <Link
-                  href="/quan-tri"
-                  className="whitespace-nowrap rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white transition hover:bg-slate-700"
-                >
-                  Quản trị
-                </Link>
-              ) : null}
-
-              <form action="/api/dang-xuat" method="post">
-                <button
-                  type="submit"
-                  className="whitespace-nowrap rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-100"
-                >
-                  Đăng xuất
-                </button>
-              </form>
-            </>
-          ) : (
+        {user && vaiTro ? (
+          <ThaoTacNguoiDung tenHienThi={tenHienThi} vaiTro={vaiTro} />
+        ) : (
+          <div className="flex shrink-0 items-center">
             <Link
               href="/dang-nhap"
               className="whitespace-nowrap rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white transition hover:bg-blue-700"
             >
               Đăng nhập
             </Link>
-          )}
-        </div>
+          </div>
+        )}
       </nav>
     </header>
   );

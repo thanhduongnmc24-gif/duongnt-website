@@ -1,10 +1,75 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { taoSupabaseMayChu } from "@/lib/supabase/may-chu";
-import Link from "next/link";
+
+export const dynamic = "force-dynamic";
+
+const nhomChucNang = [
+  {
+    ten: "Nội dung",
+    moTa: "Quản lý toàn bộ nội dung hiển thị trên website.",
+    chucNang: [
+      {
+        href: "/quan-tri/noi-dung",
+        tieuDe: "Tổng quan nội dung",
+        moTa: "Thống kê bài đăng, bản nháp, bài ẩn và thùng rác.",
+        kyHieu: "TK",
+        mau: "bg-blue-600",
+      },
+      {
+        href: "/quan-tri/bai-viet",
+        tieuDe: "Quản lý bài viết",
+        moTa: "Sửa, ẩn, đăng lại và xóa bài viết.",
+        kyHieu: "BV",
+        mau: "bg-indigo-600",
+      },
+      {
+        href: "/quan-tri/de-muc",
+        tieuDe: "Quản lý đề mục",
+        moTa: "Sắp xếp menu cấp 1 và menu cấp 2.",
+        kyHieu: "DM",
+        mau: "bg-cyan-600",
+      },
+      {
+        href: "/quan-tri/thung-rac",
+        tieuDe: "Thùng rác",
+        moTa: "Khôi phục hoặc xóa vĩnh viễn bài viết.",
+        kyHieu: "TR",
+        mau: "bg-rose-600",
+      },
+    ],
+  },
+  {
+    ten: "Hệ thống",
+    moTa: "Quản lý tài khoản, giao diện và cấu hình website.",
+    chucNang: [
+      {
+        href: "/quan-tri/tai-khoan",
+        tieuDe: "Tài khoản",
+        moTa: "Tạo, khóa và phân quyền người dùng.",
+        kyHieu: "TK",
+        mau: "bg-violet-600",
+      },
+      {
+        href: "/quan-tri/giao-dien",
+        tieuDe: "Giao diện",
+        moTa: "Chọn theme và màu sắc của website.",
+        kyHieu: "GD",
+        mau: "bg-emerald-600",
+      },
+      {
+        href: "/quan-tri/cau-hinh",
+        tieuDe: "Cấu hình website",
+        moTa: "Đổi tên, mô tả và số bài trên trang chủ.",
+        kyHieu: "CH",
+        mau: "bg-amber-600",
+      },
+    ],
+  },
+];
 
 export default async function TrangQuanTri() {
   const supabase = await taoSupabaseMayChu();
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -15,11 +80,9 @@ export default async function TrangQuanTri() {
 
   const { data: nguoiDung } = await supabase
     .from("nguoi_dung")
-    .select(
-      "ten_dang_nhap, ten_hien_thi, vai_tro, dang_hoat_dong"
-    )
+    .select("ten_dang_nhap, ten_hien_thi, vai_tro, dang_hoat_dong")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   if (
     !nguoiDung ||
@@ -30,56 +93,69 @@ export default async function TrangQuanTri() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 p-6">
-      <section className="mx-auto max-w-6xl rounded-2xl bg-white p-8 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-blue-600">
-              Trang quản trị
-            </p>
+    <main className="min-h-[calc(100vh-64px)] bg-slate-100 px-4 py-7 md:px-6">
+      <div className="mx-auto max-w-7xl">
+        <header className="rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 p-6 text-white shadow-lg md:p-8">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="font-semibold text-blue-300">Bảng điều khiển</p>
+              <h1 className="mt-1 text-3xl font-black md:text-4xl">
+                Xin chào, {nguoiDung.ten_hien_thi}
+              </h1>
+              <p className="mt-2 text-slate-300">
+                Quản lý nội dung và hệ thống tại một nơi.
+              </p>
+            </div>
 
-            <h1 className="mt-1 text-3xl font-bold text-slate-900">
-              Xin chào, {nguoiDung.ten_hien_thi}
-            </h1>
-
-            <p className="mt-2 text-slate-600">
-              Tài khoản: {nguoiDung.ten_dang_nhap}
-            </p>
-          </div>
-
-          <form action="/api/dang-xuat" method="post">
-            <button
-              type="submit"
-              className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white"
+            <Link
+              href="/dang-bai"
+              className="inline-flex h-12 items-center justify-center rounded-xl bg-blue-600 px-6 font-bold text-white transition hover:bg-blue-500"
             >
-              Đăng xuất
-            </button>
-          </form>
+              Tạo bài viết mới
+            </Link>
+          </div>
+        </header>
+
+        <div className="mt-6 space-y-7">
+          {nhomChucNang.map((nhom) => (
+            <section key={nhom.ten}>
+              <div className="mb-3">
+                <h2 className="text-xl font-black text-slate-900">
+                  {nhom.ten}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {nhom.moTa}
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {nhom.chucNang.map((chucNang) => (
+                  <Link
+                    key={chucNang.href}
+                    href={chucNang.href}
+                    className="group flex min-h-32 items-start gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+                  >
+                    <span
+                      className={`${chucNang.mau} flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black text-white`}
+                    >
+                      {chucNang.kyHieu}
+                    </span>
+
+                    <span className="min-w-0">
+                      <span className="block font-black text-slate-900 transition group-hover:text-blue-600">
+                        {chucNang.tieuDe}
+                      </span>
+                      <span className="mt-1.5 block text-sm leading-6 text-slate-500">
+                        {chucNang.moTa}
+                      </span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
-
-        <div className="mt-8 grid gap-5 md:grid-cols-3">
-          <div className="rounded-2xl border p-5">
-            <h2 className="font-bold">Quản lý tài khoản</h2>3 4  <p className="mt-2 text-sm text-slate-600">5    Tạo, khóa và phân quyền người dùng.6  </p>
-            <p className="mt-2 text-sm text-slate-600">
-              Tạo và phân quyền người dùng.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border p-5">
-            <h2 className="font-bold">Quản lý đề mục</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Quản lý menu cấp 1 và menu cấp 2.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border p-5">
-            <h2 className="font-bold">Quản lý giao diện</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Chọn giao diện và màu sắc website.
-            </p>
-          </div>
-        </div>
-      </section>
+      </div>
     </main>
   );
 }
