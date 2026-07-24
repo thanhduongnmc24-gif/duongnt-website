@@ -72,7 +72,7 @@ export async function POST(yeuCau: Request) {
         : "/";
 
     return NextResponse.redirect(
-      new URL(duongDanSauDangNhap, yeuCau.url),
+      taoUrlWebsite(duongDanSauDangNhap, yeuCau),
       303
     );
   } catch (loi) {
