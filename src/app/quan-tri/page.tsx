@@ -9,6 +9,7 @@ const nhomChucNang = [
     ten: "Nội dung",
     moTa: "Quản lý toàn bộ nội dung hiển thị trên website.",
     chucNang: [
+      { href: "/quan-tri/catalog", tieuDe: "Catalog thiết bị", moTa: "Quản lý danh mục thiết bị trong xưởng.", kyHieu: "CT", mau: "bg-teal-600" },
       {
         href: "/quan-tri/noi-dung",
         tieuDe: "Tổng quan nội dung",
