@@ -1,0 +1,7 @@
+Theme V2 mở rộng đã cài đặt:
+- Header theo theme
+- Footer theo theme
+- Card bài viết theo theme
+- Trang đề mục dùng lớp theme
+- Trang chi tiết dùng lớp theme
+- Xem trước theme bằng dữ liệu thật
