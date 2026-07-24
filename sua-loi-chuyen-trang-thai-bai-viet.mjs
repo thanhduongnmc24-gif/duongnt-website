@@ -1,57 +1,25 @@
-import { NextResponse } from "next/server";
-import { Readable } from "node:stream";
-import { taoSupabaseMayChu } from "@/lib/supabase/may-chu";
-import { taoSupabaseQuanTri } from "@/lib/supabase/quan-tri";
-import { taoGoogleDrive, layGoogleDriveFolderId } from "@/lib/google-drive/ket-noi";
-import { taoDuongDan } from "@/lib/tien-ich/tao-duong-dan";
+import fs from "node:fs";
 
-type VaiTro = "quan_tri" | "nguoi_dung";
-type TrangThai = "ban_nhap" | "da_dang" | "da_an";
+const file = "src/app/api/quan-tri/bai-viet/route.ts";
 
-async function layQuyen() {
-  const supabase = await taoSupabaseMayChu();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { hopLe: false, loi: "Chưa đăng nhập.", userId: "", vaiTro: null as VaiTro | null };
-  const { data } = await supabase.from("nguoi_dung")
-    .select("vai_tro, dang_hoat_dong").eq("id", user.id).maybeSingle();
-  if (!data?.dang_hoat_dong) return { hopLe: false, loi: "Tài khoản đang bị khóa.", userId: "", vaiTro: null as VaiTro | null };
-  return { hopLe: true, loi: "", userId: user.id, vaiTro: data.vai_tro as VaiTro };
+if (!fs.existsSync(file)) {
+  console.error("Khong tim thay API quan ly bai viet.");
+  process.exit(1);
 }
 
-function coQuyen(vaiTro: VaiTro | null, userId: string, chuBaiId: string) {
-  return vaiTro === "quan_tri" || userId === chuBaiId;
+const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+fs.copyFileSync(file, `${file}.bak-${stamp}`);
+
+let source = fs.readFileSync(file, "utf8");
+const start = source.indexOf("export async function PATCH");
+const end = source.indexOf("export async function DELETE", start);
+
+if (start < 0 || end < 0) {
+  console.error("Khong tim thay ham PATCH hoac DELETE.");
+  process.exit(1);
 }
 
-function duoiAnh(mime: string) {
-  if (mime === "image/png") return "png";
-  if (mime === "image/webp") return "webp";
-  return "jpg";
-}
-
-export async function GET(yeuCau: Request) {
-  const quyen = await layQuyen();
-  if (!quyen.hopLe) return NextResponse.json({ thanh_cong: false, loi: quyen.loi }, { status: 403 });
-  const url = new URL(yeuCau.url);
-  const thungRac = url.searchParams.get("thung_rac") === "true";
-  const trangThai = url.searchParams.get("trang_thai") || "tat_ca";
-  const tuKhoa = (url.searchParams.get("tu_khoa") || "").trim();
-  const supabase = taoSupabaseQuanTri();
-  let q = supabase.from("bai_viet").select(`
-    id,tieu_de,duong_dan,tom_tat,loai_noi_dung,noi_dung,trang_thai,
-    ngay_dang,ngay_tao,ngay_cap_nhat,ngay_xoa,nguoi_dang_id,de_muc_id,de_muc_con_id,
-    google_drive_anh_dai_dien_file_id,ten_tep_anh_dai_dien,kieu_tep_anh_dai_dien,
-    nguoi_dung(ten_hien_thi),de_muc(ten_de_muc),de_muc_con(ten_de_muc_con)
-  `).order("ngay_cap_nhat", { ascending: false });
-  q = thungRac ? q.not("ngay_xoa", "is", null) : q.is("ngay_xoa", null);
-  if (quyen.vaiTro !== "quan_tri") q = q.eq("nguoi_dang_id", quyen.userId);
-  if (!thungRac && ["ban_nhap","da_dang","da_an"].includes(trangThai)) q = q.eq("trang_thai", trangThai);
-  if (tuKhoa) q = q.ilike("tieu_de", `%${tuKhoa}%`);
-  const { data, error } = await q;
-  if (error) return NextResponse.json({ thanh_cong: false, loi: error.message }, { status: 500 });
-  return NextResponse.json({ thanh_cong: true, du_lieu: data || [] });
-}
-
-export async function PATCH(yeuCau: Request) {
+const patchFunction = `export async function PATCH(yeuCau: Request) {
   const quyen = await layQuyen();
 
   if (!quyen.hopLe) {
@@ -242,7 +210,7 @@ export async function PATCH(yeuCau: Request) {
       }
 
       const drive = taoGoogleDrive();
-      tenTep = `anh-dai-dien__${taoDuongDan(tieuDe)}-${Date.now()}.${duoiAnh(anh.type)}`;
+      tenTep = \`anh-dai-dien__\${taoDuongDan(tieuDe)}-\${Date.now()}.\${duoiAnh(anh.type)}\`;
 
       const { data } = await drive.files.create({
         requestBody: {
@@ -271,7 +239,7 @@ export async function PATCH(yeuCau: Request) {
     const duongDan =
       tieuDe === cu.tieu_de
         ? cu.duong_dan
-        : `${taoDuongDan(tieuDe) || "bai-viet"}-${Date.now()}`;
+        : \`\${taoDuongDan(tieuDe) || "bai-viet"}-\${Date.now()}\`;
 
     const capNhat = {
       tieu_de: tieuDe,
@@ -346,24 +314,9 @@ export async function PATCH(yeuCau: Request) {
   }
 }
 
-export async function DELETE(yeuCau: Request) {
-  const quyen = await layQuyen();
-  if (!quyen.hopLe) return NextResponse.json({ thanh_cong: false, loi: quyen.loi }, { status: 403 });
-  const url = new URL(yeuCau.url);
-  const id = url.searchParams.get("id") || "";
-  const vinhVien = url.searchParams.get("vinh_vien") === "true";
-  const supabase = taoSupabaseQuanTri();
-  const { data: bai } = await supabase.from("bai_viet").select("*").eq("id", id).maybeSingle();
-  if (!bai) return NextResponse.json({ thanh_cong: false, loi: "Không tìm thấy bài viết." }, { status: 404 });
-  if (!coQuyen(quyen.vaiTro, quyen.userId, bai.nguoi_dang_id)) return NextResponse.json({ thanh_cong: false, loi: "Không có quyền xóa bài viết này." }, { status: 403 });
-  if (vinhVien) {
-    if (!bai.ngay_xoa) return NextResponse.json({ thanh_cong: false, loi: "Phải xóa mềm trước khi xóa vĩnh viễn." }, { status: 400 });
-    const { error } = await supabase.from("bai_viet").delete().eq("id", id);
-    if (error) return NextResponse.json({ thanh_cong: false, loi: error.message }, { status: 400 });
-    if (bai.google_drive_anh_dai_dien_file_id) await taoGoogleDrive().files.delete({ fileId: bai.google_drive_anh_dai_dien_file_id }).catch(() => undefined);
-    return NextResponse.json({ thanh_cong: true, thong_bao: "Đã xóa vĩnh viễn bài viết và ảnh đại diện." });
-  }
-  const { error } = await supabase.from("bai_viet").update({ ngay_xoa: new Date().toISOString(), trang_thai: "da_an", ngay_cap_nhat: new Date().toISOString() }).eq("id", id);
-  if (error) return NextResponse.json({ thanh_cong: false, loi: error.message }, { status: 400 });
-  return NextResponse.json({ thanh_cong: true, thong_bao: "Đã chuyển bài viết vào thùng rác." });
-}
+`;
+
+source = source.slice(0, start) + patchFunction + source.slice(end);
+fs.writeFileSync(file, source, "utf8");
+console.log("Da sua API chuyen trang thai bai viet.");
+console.log("API bay gio ho tro ca JSON va FormData.");
