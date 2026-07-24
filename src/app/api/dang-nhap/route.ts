@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { taoSupabaseMayChu } from "@/lib/supabase/may-chu";
 import { taoEmailDangNhapNoiBo } from "@/lib/tien-ich/tao-duong-dan";
+import { taoUrlWebsite } from "@/lib/tien-ich/url-website";
 
 export async function POST(yeuCau: Request) {
   try {
@@ -16,10 +17,7 @@ export async function POST(yeuCau: Request) {
 
     if (!tenDangNhap || !matKhau) {
       return NextResponse.redirect(
-        new URL(
-          "/dang-nhap?loi=thieu_thong_tin",
-          yeuCau.url
-        ),
+        taoUrlWebsite("/dang-nhap?loi=thieu_thong_tin", yeuCau),
         303
       );
     }
@@ -39,10 +37,7 @@ export async function POST(yeuCau: Request) {
 
     if (loiDangNhap || !duLieuDangNhap.user) {
       return NextResponse.redirect(
-        new URL(
-          "/dang-nhap?loi=sai_thong_tin",
-          yeuCau.url
-        ),
+        taoUrlWebsite("/dang-nhap?loi=sai_thong_tin", yeuCau),
         303
       );
     }
@@ -66,10 +61,7 @@ export async function POST(yeuCau: Request) {
       await supabase.auth.signOut();
 
       return NextResponse.redirect(
-        new URL(
-          "/dang-nhap?loi=tai_khoan_bi_khoa",
-          yeuCau.url
-        ),
+        taoUrlWebsite("/dang-nhap?loi=tai_khoan_bi_khoa", yeuCau),
         303
       );
     }
@@ -87,10 +79,7 @@ export async function POST(yeuCau: Request) {
     console.error("Loi dang nhap:", loi);
 
     return NextResponse.redirect(
-      new URL(
-        "/dang-nhap?loi=he_thong",
-        yeuCau.url
-      ),
+      taoUrlWebsite("/dang-nhap?loi=he_thong", yeuCau),
       303
     );
   }

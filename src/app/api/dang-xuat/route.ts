@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { taoSupabaseMayChu } from "@/lib/supabase/may-chu";
+import { taoUrlWebsite } from "@/lib/tien-ich/url-website";
 
 export async function POST(yeuCau: Request) {
   const supabase = await taoSupabaseMayChu();
@@ -7,7 +8,7 @@ export async function POST(yeuCau: Request) {
   await supabase.auth.signOut();
 
   return NextResponse.redirect(
-    new URL("/dang-nhap", yeuCau.url),
+    taoUrlWebsite("/dang-nhap", yeuCau),
     303
   );
 }
