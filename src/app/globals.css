@@ -24,3 +24,50 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* FONT_INTER_TOAN_WEBSITE_START */
+:root {
+  --font-website: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+html,
+body {
+  font-family: var(--font-website);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+textarea,
+select,
+option {
+  font: inherit;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+a,
+span,
+label,
+article,
+section,
+nav,
+header,
+footer,
+.prose,
+.prose * {
+  font-family: inherit;
+}
+
+.font-serif {
+  font-family: var(--font-website) !important;
+}
+/* FONT_INTER_TOAN_WEBSITE_END */

@@ -5,6 +5,14 @@ import { ThemeCss } from "@/components/theme/theme-css";
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThanhDieuHuong } from "@/components/menu/thanh-dieu-huong";
+import { Inter } from "next/font/google";
+
+const inter = Inter({
+  subsets: ["latin", "vietnamese"],
+  display: "swap",
+  variable: "--font-inter",
+  fallback: ["Arial", "Helvetica", "sans-serif"],
+});
 
 export const metadata: Metadata = {
   title: {
@@ -23,7 +31,7 @@ export default async function RootLayout({
 
   return (
     <html lang="vi" data-theme={theme.ma}>
-      <body className="min-h-screen bg-slate-100 text-slate-900">
+      <body className={`${inter.className} min-h-screen bg-slate-100 text-slate-900`}>
         <ThemeCss />
         <ThanhDieuHuong />
         {children}
