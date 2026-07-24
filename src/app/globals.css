@@ -71,3 +71,49 @@ footer,
   font-family: var(--font-website) !important;
 }
 /* FONT_INTER_TOAN_WEBSITE_END */
+
+/* THEME_ARTICLE_CONTRAST_START */
+.theme-article-content {
+  color: inherit;
+}
+
+.theme-article-content,
+.theme-article-content p,
+.theme-article-content li,
+.theme-article-content div,
+.theme-article-content span,
+.theme-article-content strong,
+.theme-article-content em,
+.theme-article-content h1,
+.theme-article-content h2,
+.theme-article-content h3,
+.theme-article-content h4,
+.theme-article-content h5,
+.theme-article-content h6 {
+  color: inherit !important;
+}
+
+html[data-theme="dark-tech"] .theme-article-content,
+html[data-theme="dark-tech"] .theme-article-content p,
+html[data-theme="dark-tech"] .theme-article-content li,
+html[data-theme="dark-tech"] .theme-article-content div,
+html[data-theme="dark-tech"] .theme-article-content span,
+html[data-theme="dark-tech"] .theme-article-content strong,
+html[data-theme="dark-tech"] .theme-article-content em {
+  color: #dbe4f0 !important;
+}
+
+html[data-theme="dark-tech"] .theme-article-content h1,
+html[data-theme="dark-tech"] .theme-article-content h2,
+html[data-theme="dark-tech"] .theme-article-content h3,
+html[data-theme="dark-tech"] .theme-article-content h4,
+html[data-theme="dark-tech"] .theme-article-content h5,
+html[data-theme="dark-tech"] .theme-article-content h6 {
+  color: #ffffff !important;
+}
+
+html[data-theme="dark-tech"] .theme-article-content a {
+  color: #e879f9 !important;
+  text-decoration: underline;
+}
+/* THEME_ARTICLE_CONTRAST_END */

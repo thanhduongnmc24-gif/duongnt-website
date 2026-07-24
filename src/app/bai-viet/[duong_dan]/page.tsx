@@ -87,7 +87,7 @@ export default async function TrangChiTietBaiViet({ params }: ThuocTinhTrang) {
             />
           </div>
           <div
-            className="mt-8 whitespace-normal text-base leading-8 text-slate-800"
+            className="theme-article-content mt-8 whitespace-normal text-base leading-8"
             dangerouslySetInnerHTML={{ __html: noiDungHtml }}
           />
         </div>
