@@ -70,9 +70,10 @@ export default async function TrangChiTietThietBi({
       .from("catalog_thiet_bi")
       .select("*,catalog_gia_tri(cot_id,gia_tri)")
       .eq("catalog_id", catalog.id)
-      .eq("duong_dan", thiet_bi)
+      .or(`id.eq.${thiet_bi},duong_dan.eq.${thiet_bi}`)
       .eq("dang_hien_thi", true)
       .is("ngay_xoa", null)
+      .limit(1)
       .maybeSingle(),
     db
       .from("catalog_cot")
