@@ -1,4 +1,16 @@
-import { notFound } from "next/navigation";
+import fs from "node:fs";
+
+const file = "src/app/de-muc/[duong_dan]/[duong_dan_con]/page.tsx";
+
+if (!fs.existsSync(file)) {
+  console.error(`Khong tim thay: ${file}`);
+  process.exit(1);
+}
+
+const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+fs.copyFileSync(file, `${file}.bak-${stamp}`);
+
+const content = `import { notFound } from "next/navigation";
 import { taoSupabaseQuanTri } from "@/lib/supabase/quan-tri";
 import { TheBaiViet } from "@/components/bai-viet/the-bai-viet";
 import { CatalogCongKhai } from "@/components/catalog/catalog-cong-khai";
@@ -125,7 +137,7 @@ export default async function TrangDeMucCapHai({
         catalog={catalog}
         cot={cot || []}
         thietBi={thietBi || []}
-        duongDanChiTiet={`/de-muc/${duong_dan}/${duong_dan_con}`}
+        duongDanChiTiet={\`/de-muc/\${duong_dan}/\${duong_dan_con}\`}
       />
     );
   }
@@ -177,3 +189,10 @@ export default async function TrangDeMucCapHai({
     </main>
   );
 }
+`;
+
+fs.writeFileSync(file, content, "utf8");
+
+console.log("Da sua trang de muc cap 2 tim Catalog theo ca hai chieu.");
+console.log("Khong con bat buoc Catalog phai co trang_thai da_dang de mo tu menu quan tri.");
+console.log("Da them log loi ro rang tren terminal neu du lieu Supabase bi sai.");
