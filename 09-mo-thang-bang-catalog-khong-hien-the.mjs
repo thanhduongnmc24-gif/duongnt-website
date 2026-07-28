@@ -1,4 +1,16 @@
-"use client";
+import fs from "node:fs";
+
+const file = "src/app/quan-tri/catalog/page.tsx";
+
+if (!fs.existsSync(file)) {
+  console.error(`Khong tim thay: ${file}`);
+  process.exit(1);
+}
+
+const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+fs.copyFileSync(file, `${file}.bak-${stamp}`);
+
+const content = `"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -47,7 +59,7 @@ export default function TrangQuanTriCatalog() {
             new Date(a.ngay_cap_nhat).getTime()
         )[0];
 
-        router.replace(`/quan-tri/catalog/${catalogGanNhat.id}`);
+        router.replace(\`/quan-tri/catalog/\${catalogGanNhat.id}\`);
       } catch (error) {
         if (!daHuy) {
           setLoi(
@@ -118,3 +130,10 @@ export default function TrangQuanTriCatalog() {
 
   return null;
 }
+`;
+
+fs.writeFileSync(file, content, "utf8");
+
+console.log("Da bo man hinh danh sach Catalog dang the.");
+console.log("/quan-tri/catalog se mo thang bang cua Catalog cap nhat gan nhat.");
+console.log("Neu chua co Catalog, he thong moi hien nut tao Catalog dau tien.");
