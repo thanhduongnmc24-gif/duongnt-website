@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import ytdl from "@distube/ytdl-core";
 
 export const dynamic = "force-dynamic";
 
@@ -8,25 +7,32 @@ export async function GET(request: Request) {
   if (!id) return NextResponse.json({ loi: "Thiếu ID video" }, { status: 400 });
 
   try {
-    // [Suy luận] Server tự động gọi lên YouTube để lấy dữ liệu thô của video
-    const info = await ytdl.getInfo(id);
-    
-    // Lọc ra luồng dữ liệu chỉ chứa âm thanh (nhẹ nhất, mượt nhất)
-    const format = ytdl.chooseFormat(info.formats, { 
-        quality: 'highestaudio', 
-        filter: 'audioonly' 
+    // [Suy luận] Hệ thống Cobalt xử lý vượt tường lửa YouTube rất mạnh bằng cách giả lập các thông số client từ máy chủ của họ. Mình chỉ việc gửi URL và cấu hình yêu cầu lấy riêng luồng âm thanh để né 403.
+    const res = await fetch("https://api.cobalt.tools/api/json", {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: `https://www.youtube.com/watch?v=${id}`,
+        isAudioOnly: true
+      }),
+      cache: "no-store"
     });
-    
-    if (!format || !format.url) {
-      throw new Error("Không thể bóc tách luồng âm thanh cho video này.");
+
+    const data = await res.json();
+
+    // Cobalt trả về status là "error" nếu bị lỗi
+    if (data.status === "error" || !data.url) {
+      throw new Error(data.text || "Cobalt không thể bóc link video này.");
     }
 
-    // Trả link gốc về cho giao diện phát nhạc
-    return NextResponse.json({ url: format.url });
+    return NextResponse.json({ url: data.url });
   } catch (error: any) {
-    console.error("Lỗi ytdl-core:", error);
+    console.error("Lỗi Cobalt API:", error.message);
     return NextResponse.json({ 
-        loi: "Tèo không thể bóc link video này. Có thể do giới hạn độ tuổi hoặc bản quyền của YouTube." 
+        loi: "Không thể bóc tách luồng âm thanh do giới hạn từ YouTube hoặc Cobalt." 
     }, { status: 500 });
   }
 }
