@@ -35,11 +35,11 @@ export default async function RootLayout({
   return (
     <html lang="vi" data-theme={theme.ma}>
       <body className={`${inter.className} min-h-screen ${laDuongTube ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-900"}`}>
-        {!laDuongTube ? <ThemeCss /> : null}
-        {!laDuongTube ? <ThanhDieuHuong /> : null}
+        {!laDuongTube ? {!laDuongTube ? <ThemeCss /> : null} : null}
+        {!laDuongTube ? {!laDuongTube ? <ThanhDieuHuong /> : null} : null}
         {children}
-        {!laDuongTube ? <ChanTrang /> : null}
-        {!laDuongTube ? <NutLenDau /> : null}
+        {!laDuongTube ? {!laDuongTube ? <ChanTrang /> : null} : null}
+        {!laDuongTube ? {!laDuongTube ? <NutLenDau /> : null} : null}
       </body>
     </html>
   );
