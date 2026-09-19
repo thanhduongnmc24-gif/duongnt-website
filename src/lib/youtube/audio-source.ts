@@ -1,6 +1,4 @@
-import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { promises as fs } from 'node:fs';
-import os from 'node:os';
+import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { AudioError, type AudioSource } from './audio-proxy';
 
@@ -8,74 +6,9 @@ type Job = { promise: Promise<AudioSource>; controller: AbortController; consume
 type State = {
   cache: Map<string, AudioSource>;
   pending: Map<string, Job>;
-  provider?: ChildProcess;
-  providerReady?: Promise<void>;
-  cookies?: Promise<string | null>;
 };
 const shared = globalThis as typeof globalThis & { __duongTubeAudio?: State };
 const state: State = shared.__duongTubeAudio ??= { cache: new Map(), pending: new Map() };
-const providerUrl = 'http://127.0.0.1:4416';
-
-async function providerHealthy() {
-  try {
-    const response = await fetch(`${providerUrl}/ping`, { signal: AbortSignal.timeout(1500), cache: 'no-store' });
-    const body = await response.json();
-    return response.ok && body.version === '2.0.0';
-  } catch { return false; }
-}
-
-async function ensureProvider() {
-  if (state.providerReady) return state.providerReady;
-  const job = (async () => {
-    if (await providerHealthy()) return;
-    const server = path.join(process.cwd(), '.yt-pot-provider', 'server');
-    try { await fs.access(path.join(server, 'build', 'main.js')); }
-    catch { throw new AudioError('AUDIO_SETUP', 'Máy chủ âm thanh chưa sẵn sàng. Vui lòng thử lại sau.', 503); }
-    const child = spawn(process.execPath, [path.join(server, 'build', 'main.js'), '--host', '127.0.0.1', '--port', '4416'], {
-      cwd: server, windowsHide: true, stdio: 'ignore', env: { ...process.env, NO_COLOR: '1' },
-    });
-    state.provider = child;
-    let failed = false;
-    const cleanup = () => {
-      failed = true;
-      if (state.provider === child) { state.provider = undefined; state.providerReady = undefined; }
-    };
-    child.once('error', cleanup);
-    child.once('exit', cleanup);
-    const onExit = () => child.kill();
-    process.once('exit', onExit);
-    child.once('exit', () => process.removeListener('exit', onExit));
-    // Keep one private provider warm: the script variant starts Node for every video,
-    // and its fixed 15-second version check times out on small production instances.
-    const deadline = Date.now() + 45_000;
-    while (Date.now() < deadline) {
-      if (await providerHealthy()) return;
-      if (failed) break;
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-    child.kill();
-    throw new AudioError('AUDIO_STARTUP', 'Máy chủ âm thanh đang khởi động. Vui lòng thử lại sau ít giây.', 503);
-  })();
-  state.providerReady = job;
-  try { await job; }
-  catch (error) { if (state.providerReady === job) state.providerReady = undefined; throw error; }
-}
-
-async function cookiePath() {
-  if (!state.cookies) state.cookies = (async () => {
-    const encoded = process.env.YOUTUBE_COOKIES_B64?.trim();
-    if (!encoded) return null;
-    const decoded = Buffer.from(encoded, 'base64').toString('utf8');
-    if (!/^# (?:Netscape )?HTTP Cookie File/.test(decoded) || !decoded.includes('youtube.com')) {
-      throw new AudioError('AUDIO_SETUP', 'Cấu hình âm thanh cần được cập nhật. Vui lòng thử lại sau.', 503);
-    }
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'duongtube-'));
-    const destination = path.join(directory, 'cookies.txt');
-    await fs.writeFile(destination, decoded, { encoding: 'utf8', mode: 0o600 });
-    return destination;
-  })();
-  return state.cookies;
-}
 
 function extractionError(raw: string, signal: AbortSignal) {
   if (signal.aborted) return new AudioError('CANCELLED', 'Đã hủy yêu cầu phát.', 499);
@@ -89,19 +22,23 @@ function extractionError(raw: string, signal: AbortSignal) {
 }
 
 async function extract(id: string, signal: AbortSignal): Promise<AudioSource> {
-  await ensureProvider();
   signal.throwIfAborted();
-  const cookie = await cookiePath();
   const python = path.join(process.cwd(), '.ytdlp-venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python3');
   const args = [
     '-m', 'yt_dlp', '--ignore-config', '--no-playlist', '--no-progress', '--no-warnings',
     '--socket-timeout', '15', '--retries', '1', '--extractor-retries', '1',
     '--js-runtimes', `node:${process.execPath}`,
-    '--extractor-args', 'youtube:player-client=mweb',
-    '--extractor-args', `youtubepot-bgutilhttp:base_url=${providerUrl}`,
+    // web_music currently yields progressive audio URLs that accept byte-range
+    // requests. mweb may return a signed URL that immediately answers 403 even
+    // when its PO token was generated successfully.
+    '--extractor-args', 'youtube:player-client=web_music',
     // Native audio needs a progressive media file; a manifest cannot be proxied as audio/mp4.
-    '-f', 'bestaudio[ext=m4a][protocol=https]/bestaudio[protocol=https]', '-J',
-    ...(cookie ? ['--cookies', cookie] : []), `https://www.youtube.com/watch?v=${id}`,
+    // web_music often exposes a progressive MP4 (format 18) rather than a
+    // separate M4A. HTMLAudioElement can play its audio track directly.
+    '-f', 'bestaudio[ext=m4a][protocol=https]/bestaudio[protocol=https]/best[ext=mp4][protocol=https]', '-J',
+    // web_music is intentionally anonymous. Stale account cookies commonly
+    // make otherwise-public videos appear unavailable to this client.
+    `https://www.youtube.com/watch?v=${id}`,
   ];
   return new Promise((resolve, reject) => {
     execFile(python, args, { timeout: 60_000, maxBuffer: 8 * 1024 * 1024, windowsHide: true, signal, env: { ...process.env, NO_COLOR: '1' } }, (error, stdout, stderr) => {
