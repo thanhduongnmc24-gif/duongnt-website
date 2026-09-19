@@ -48,6 +48,7 @@ export default function DuongTube() {
   const [showQueue, setShowQueue] = useState(false);
   const [help, setHelp] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [embedOrigin, setEmbedOrigin] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pwa = usePwa();
@@ -64,6 +65,7 @@ export default function DuongTube() {
     setLiked(readLibrary("duongtube-liked"));
     setHistory(readLibrary("duongtube-history"));
     const q = new URL(window.location.href).searchParams.get("q") || "";
+    setEmbedOrigin(window.location.origin);
     setQuery(q); setSubmitted(q);
     const syncOnline = () => setOffline(!navigator.onLine);
     syncOnline();
@@ -176,7 +178,7 @@ export default function DuongTube() {
           <button className="yt-text-button" onClick={() => { setExpanded(false); setVideoMode(false); }}><ChevronLeft size={18} /> Quay lại danh sách</button>
           <div className="yt-watch-columns"><div>
             <div className="yt-stage">
-              {videoMode ? <iframe title={activeVideo.title} src={`https://www.youtube.com/embed/${activeVideo.id}?autoplay=1&playsinline=1&rel=0`} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" /> : <><img className="yt-stage-backdrop" src={activeVideo.thumbnail} alt="" /><div className="yt-stage-art"><img src={activeVideo.thumbnail} alt="" /><button className="yt-stage-play" onClick={togglePlayback} aria-label={player.isPlaying ? "Tạm dừng" : "Phát nhạc"}>{player.isLoading ? <LoaderCircle className="yt-spin" /> : player.isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</button></div><span className="yt-stage-label"><Headphones size={16} />Chế độ nghe nền</span></>}
+              {videoMode ? <iframe title={activeVideo.title} src={`https://www.youtube.com/embed/${activeVideo.id}?autoplay=1&playsinline=1&controls=0&enablejsapi=1&fs=0&iv_load_policy=3&rel=0${embedOrigin ? `&origin=${encodeURIComponent(embedOrigin)}` : ""}`} allow="autoplay; encrypted-media; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" /> : <><img className="yt-stage-backdrop" src={activeVideo.thumbnail} alt="" /><div className="yt-stage-art"><img src={activeVideo.thumbnail} alt="" /><button className="yt-stage-play" onClick={togglePlayback} aria-label={player.isPlaying ? "Tạm dừng" : "Phát nhạc"}>{player.isLoading ? <LoaderCircle className="yt-spin" /> : player.isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</button></div><span className="yt-stage-label"><Headphones size={16} />Chế độ nghe nền</span></>}
             </div>
             <h1>{activeVideo.title}</h1><div className="yt-watch-meta"><div className="yt-channel"><span className="yt-channel-avatar">{activeVideo.channel[0] || "♪"}</span><strong>{activeVideo.channel}</strong></div><div className="yt-watch-actions"><button className={currentLiked ? "selected" : ""} aria-pressed={currentLiked} onClick={() => toggleLike(activeVideo)}><Heart size={18} fill={currentLiked ? "currentColor" : "none"} />{currentLiked ? "Đã thích" : "Yêu thích"}</button><button className={videoMode ? "yt-background-action" : ""} onClick={() => videoMode ? listen(activeVideo) : enableVideo()}>{videoMode ? <Headphones size={18} /> : <MonitorPlay size={18} />}{videoMode ? "Nghe trong nền" : "Xem bằng YouTube"}</button></div></div>
             <p className="yt-watch-note">{videoMode ? "Video đang phát bằng trình phát nhúng chính thức của YouTube. Chọn Nghe trong nền để chuyển sang trình phát âm thanh." : "Chế độ nghe nền dùng nguồn âm thanh riêng cùng Media Session để hiện điều khiển trên màn hình khóa."}</p>
