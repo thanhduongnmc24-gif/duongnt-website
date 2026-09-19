@@ -368,7 +368,7 @@ export default function DuongTube() {
                       }}
                       onError={() =>
                         setMsg(
-                          "Luồng âm thanh đã hết hạn hoặc bị máy chủ nguồn từ chối. Hãy chọn lại video để tạo luồng mới.",
+                          "Không phát được audio. Hãy chọn lại video; nếu vẫn lỗi thì xem log Render để biết lỗi yt-dlp.",
                         )
                       }
                     />
