@@ -292,31 +292,180 @@ async function main() {
 
 
   /*
-   * Test plugin.
+   * Test plugin + Node JS runtime.
+   *
+   * Day chi la smoke test.
+   * Khong duoc lam ca deployment that bai
+   * chi vi YouTube tam thoi chan video test.
    */
 
-  run(
-    python,
-    [
-      "-m",
-      "yt_dlp",
-
-      "-v",
-
-      "--simulate",
-
-      "--extractor-args",
-
-      "youtube:player-client=mweb",
-
-      "--extractor-args",
-
-      "youtubepot-bgutilscript:server_home=" +
-        server,
-
-      "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    ],
+  console.log("");
+  console.log(
+    "=== Test yt-dlp + POT + Node JS runtime ===",
   );
+
+  console.log(
+    "Node runtime:",
+    process.execPath,
+  );
+
+
+  const smokeArgs = [
+    "-m",
+    "yt_dlp",
+
+    "-v",
+
+    "--simulate",
+
+    /*
+     * QUAN TRONG:
+     *
+     * Log cu bao:
+     *
+     * JS runtimes: none
+     *
+     * nen signature challenge khong giai duoc.
+     */
+
+    "--js-runtimes",
+
+    "node:" +
+      process.execPath,
+
+    /*
+     * Test dung format audio
+     * ma DuongTube se dung.
+     */
+
+    "-f",
+
+    "m4a/bestaudio/best",
+
+    /*
+     * mweb + POT
+     */
+
+    "--extractor-args",
+
+    "youtube:player-client=mweb",
+
+    "--extractor-args",
+
+    "youtubepot-bgutilscript:server_home=" +
+      server,
+
+    /*
+     * Chi test metadata/format,
+     * khong download file.
+     */
+
+    "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  ];
+
+
+  console.log(
+    ">",
+    python,
+    ...smokeArgs,
+  );
+
+
+  const smoke =
+    spawnSync(
+      python,
+      smokeArgs,
+      {
+        cwd:
+          root,
+
+        stdio:
+          "inherit",
+
+        shell:
+          false,
+
+        env: {
+          ...process.env,
+
+          TOKEN_TTL:
+            "6",
+
+          NO_COLOR:
+            "1",
+        },
+      },
+    );
+
+
+  if (
+    smoke.error
+  ) {
+
+    console.warn("");
+    console.warn(
+      "[CANH BAO] Smoke test khong chay duoc:",
+    );
+
+    console.warn(
+      smoke.error.message,
+    );
+
+    console.warn(
+      "Build se tiep tuc.",
+    );
+
+  } else if (
+    smoke.status !== 0
+  ) {
+
+    console.warn("");
+    console.warn(
+      "==========================================",
+    );
+
+    console.warn(
+      "[CANH BAO] YouTube smoke test that bai.",
+    );
+
+    console.warn(
+      "Exit code:",
+      smoke.status,
+    );
+
+    console.warn("");
+    console.warn(
+      "Dieu nay KHONG co nghia la Next.js build bi loi.",
+    );
+
+    console.warn(
+      "YouTube co the dang chan IP Render hoac video test.",
+    );
+
+    console.warn(
+      "Build se tiep tuc de website van deploy.",
+    );
+
+    console.warn(
+      "==========================================",
+    );
+
+  } else {
+
+    console.log("");
+    console.log(
+      "==========================================",
+    );
+
+    console.log(
+      " YT-DLP + POT + NODE JS TEST OK",
+    );
+
+    console.log(
+      "==========================================",
+    );
+  }
+
 
 
   console.log("");
