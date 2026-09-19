@@ -29,10 +29,17 @@ export default function DuongTube() {
   async function playVideo(v: Video) {
     setVideo(v);
     setStreamUrl("");
-    setMsg("Đang bóc luồng âm thanh, anh hai đợi chút...");
+    setMsg("Đang tìm máy chủ xử lý luồng âm thanh...");
     try {
       const res = await fetch(`/api/youtube/stream?id=${v.id}`);
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error("Lỗi máy chủ nội bộ. Vui lòng thử lại.");
+      }
+      
       if(!res.ok) throw new Error(data.loi || "Không thể lấy link stream");
       setStreamUrl(data.url);
       setMsg("");
@@ -48,7 +55,14 @@ export default function DuongTube() {
     setMsg("");
     try {
       const r = await fetch(`/api/youtube/search?q=${encodeURIComponent(q.trim())}`);
-      const k = await r.json();
+      const text = await r.text();
+      let k;
+      try {
+        k = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error("YouTube API trả về dữ liệu không hợp lệ.");
+      }
+      
       if(!r.ok) throw new Error(k.loi || "Không thể tìm kiếm");
       setItems(k.items || []);
       if(!k.items?.length) setMsg("Không tìm thấy video.");
@@ -81,7 +95,7 @@ export default function DuongTube() {
                   {streamUrl ? (
                     <audio ref={audioRef} controls autoPlay src={streamUrl} playsInline className="w-full max-w-md" />
                   ) : (
-                    <div className="text-white animate-pulse font-medium">{msg || "Đang kết nối..."}</div>
+                    <div className="text-white animate-pulse font-medium text-center">{msg || "Đang kết nối..."}</div>
                   )}
                 </div>
               </>
