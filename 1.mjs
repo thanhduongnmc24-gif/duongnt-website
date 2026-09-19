@@ -2,88 +2,76 @@ import fs from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const target = path.join(
-  root,
-  "scripts/install-youtube-stack.mjs",
-);
 
-const stamp = new Date()
-  .toISOString()
-  .replace(/[:.]/g, "-");
+const inputCandidates = [
+  "cookies.txt",
+  "youtube-cookies.txt",
+];
 
-console.log("");
-console.log("==========================================");
-console.log(" DuongTube - Fix yt-dlp JS runtime test");
-console.log("==========================================");
-console.log("");
-
-if (!fs.existsSync(target)) {
-  console.error(
-    "Khong tim thay scripts/install-youtube-stack.mjs",
+const inputName =
+  inputCandidates.find((name) =>
+    fs.existsSync(
+      path.join(root, name),
+    ),
   );
 
+console.log("");
+console.log("========================================");
+console.log(" Tao YOUTUBE_COOKIES_B64 cho Render");
+console.log("========================================");
+console.log("");
+
+if (!inputName) {
   console.error(
-    "Hay dat file nay o thu muc goc project.",
+    "Khong tim thay cookies.txt hoac youtube-cookies.txt",
+  );
+
+  console.error("");
+  console.error(
+    "Hay dat file cookie YouTube vao thu muc nay.",
   );
 
   process.exit(1);
 }
 
+const inputPath =
+  path.join(
+    root,
+    inputName,
+  );
 
-/*
- * =====================================================
- * Backup
- * =====================================================
- */
-
-const backup =
-  `${target}.bak-${stamp}`;
-
-fs.copyFileSync(
-  target,
-  backup,
-);
-
-console.log(
-  "Backup:",
-  path.basename(backup),
-);
-
-
-/*
- * =====================================================
- * Doc installer hien tai
- * =====================================================
- */
-
-let source =
+const raw =
   fs.readFileSync(
-    target,
+    inputPath,
     "utf8",
   );
 
 
 /*
- * =====================================================
- * Tim block Test plugin
- * =====================================================
+ * Kiem tra format Netscape.
  */
 
-const startMarker =
-`  /*
-   * Test plugin.
-   */`;
-
-
-const start =
-  source.indexOf(
-    startMarker,
+const validHeader =
+  raw.startsWith(
+    "# Netscape HTTP Cookie File",
+  ) ||
+  raw.startsWith(
+    "# HTTP Cookie File",
   );
 
 
-if (start < 0) {
+if (!validHeader) {
   console.error(
-    "Khong tim thay block 'Test plugin'.",
+    "Cookie khong dung Netscape format.",
+  );
+
+  console.error("");
+  console.error(
+    "Dong dau tien phai la:",
+  );
+
+  console.error(
+    "# Netscape HTTP Cookie File",
   );
 
   process.exit(1);
@@ -91,27 +79,19 @@ if (start < 0) {
 
 
 /*
- * Block test ket thuc ngay truoc
- * console.log thong bao thanh cong.
+ * Dam bao day la cookie YouTube.
  */
 
-const endMarker =
-`
-
-
-  console.log("");`;
-
-
-const end =
-  source.indexOf(
-    endMarker,
-    start,
-  );
-
-
-if (end < 0) {
+if (
+  !raw.includes(
+    ".youtube.com",
+  ) &&
+  !raw.includes(
+    "youtube.com",
+  )
+) {
   console.error(
-    "Khong tim thay diem ket thuc block test.",
+    "File cookie khong co youtube.com.",
   );
 
   process.exit(1);
@@ -119,351 +99,258 @@ if (end < 0) {
 
 
 /*
- * =====================================================
- * Block test moi
- * =====================================================
+ * Dem mot so cookie quan trong.
  *
- * Quan trong:
- *
- * 1. Truyen:
- *
- *    --js-runtimes node:/duong/dan/node
- *
- *    de yt-dlp giai signature challenge.
- *
- * 2. Test dung dung format ma app can:
- *
- *    m4a/bestaudio/best
- *
- * 3. Neu YouTube tam thoi chan test video,
- *    BUILD VAN TIEP TUC.
- *
- * Runtime that cua /api/youtube/audio
- * van xu ly loi khi nguoi dung bam video.
+ * Khong in gia tri cookie ra terminal.
  */
 
-const newBlock =
-`  /*
-   * Test plugin + Node JS runtime.
-   *
-   * Day chi la smoke test.
-   * Khong duoc lam ca deployment that bai
-   * chi vi YouTube tam thoi chan video test.
-   */
+const important = [
+  "SID",
+  "HSID",
+  "SSID",
+  "APISID",
+  "SAPISID",
+  "__Secure-1PSID",
+  "__Secure-3PSID",
+  "LOGIN_INFO",
+];
 
-  console.log("");
-  console.log(
-    "=== Test yt-dlp + POT + Node JS runtime ===",
-  );
-
-  console.log(
-    "Node runtime:",
-    process.execPath,
-  );
-
-
-  const smokeArgs = [
-    "-m",
-    "yt_dlp",
-
-    "-v",
-
-    "--simulate",
-
-    /*
-     * QUAN TRONG:
-     *
-     * Log cu bao:
-     *
-     * JS runtimes: none
-     *
-     * nen signature challenge khong giai duoc.
-     */
-
-    "--js-runtimes",
-
-    "node:" +
-      process.execPath,
-
-    /*
-     * Test dung format audio
-     * ma DuongTube se dung.
-     */
-
-    "-f",
-
-    "m4a/bestaudio/best",
-
-    /*
-     * mweb + POT
-     */
-
-    "--extractor-args",
-
-    "youtube:player-client=mweb",
-
-    "--extractor-args",
-
-    "youtubepot-bgutilscript:server_home=" +
-      server,
-
-    /*
-     * Chi test metadata/format,
-     * khong download file.
-     */
-
-    "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-  ];
-
-
-  console.log(
-    ">",
-    python,
-    ...smokeArgs,
+const found =
+  important.filter(
+    (name) =>
+      raw
+        .split(/\r?\n/)
+        .some(
+          (line) =>
+            line
+              .split("\t")
+              .includes(name),
+        ),
   );
 
 
-  const smoke =
-    spawnSync(
-      python,
-      smokeArgs,
-      {
-        cwd:
-          root,
+console.log(
+  "File:",
+  inputName,
+);
 
-        stdio:
-          "inherit",
+console.log(
+  "Kich thuoc:",
+  Buffer.byteLength(
+    raw,
+  ),
+  "bytes",
+);
 
-        shell:
-          false,
-
-        env: {
-          ...process.env,
-
-          TOKEN_TTL:
-            "6",
-
-          NO_COLOR:
-            "1",
-        },
-      },
-    );
-
-
-  if (
-    smoke.error
-  ) {
-
-    console.warn("");
-    console.warn(
-      "[CANH BAO] Smoke test khong chay duoc:",
-    );
-
-    console.warn(
-      smoke.error.message,
-    );
-
-    console.warn(
-      "Build se tiep tuc.",
-    );
-
-  } else if (
-    smoke.status !== 0
-  ) {
-
-    console.warn("");
-    console.warn(
-      "==========================================",
-    );
-
-    console.warn(
-      "[CANH BAO] YouTube smoke test that bai.",
-    );
-
-    console.warn(
-      "Exit code:",
-      smoke.status,
-    );
-
-    console.warn("");
-    console.warn(
-      "Dieu nay KHONG co nghia la Next.js build bi loi.",
-    );
-
-    console.warn(
-      "YouTube co the dang chan IP Render hoac video test.",
-    );
-
-    console.warn(
-      "Build se tiep tuc de website van deploy.",
-    );
-
-    console.warn(
-      "==========================================",
-    );
-
-  } else {
-
-    console.log("");
-    console.log(
-      "==========================================",
-    );
-
-    console.log(
-      " YT-DLP + POT + NODE JS TEST OK",
-    );
-
-    console.log(
-      "==========================================",
-    );
-  }
-`;
+console.log(
+  "Cookie dang nhap tim thay:",
+  found.length,
+  "/",
+  important.length,
+);
 
 
 /*
- * =====================================================
- * Ghi lai installer
- * =====================================================
+ * Base64.
  */
 
-source =
-  source.slice(
-    0,
-    start,
-  ) +
-  newBlock +
-  source.slice(
-    end,
+const encoded =
+  Buffer
+    .from(
+      raw,
+      "utf8",
+    )
+    .toString(
+      "base64",
+    );
+
+
+const outputName =
+  ".youtube-cookies-b64.txt";
+
+const outputPath =
+  path.join(
+    root,
+    outputName,
   );
 
 
 fs.writeFileSync(
-  target,
-  source,
+  outputPath,
+  encoded,
+  {
+    encoding:
+      "utf8",
+    mode:
+      0o600,
+  },
+);
+
+
+/*
+ * Them file nhay cam vao .gitignore.
+ */
+
+const gitignorePath =
+  path.join(
+    root,
+    ".gitignore",
+  );
+
+let gitignore =
+  fs.existsSync(
+    gitignorePath,
+  )
+    ? fs.readFileSync(
+        gitignorePath,
+        "utf8",
+      )
+    : "";
+
+
+const ignoreLines = [
+  "cookies.txt",
+  "youtube-cookies.txt",
+  ".youtube-cookies-b64.txt",
+];
+
+
+for (
+  const line of
+    ignoreLines
+) {
+  const current =
+    gitignore
+      .split(/\r?\n/)
+      .map(
+        (x) =>
+          x.trim(),
+      );
+
+  if (
+    !current.includes(
+      line,
+    )
+  ) {
+    gitignore +=
+      (gitignore.endsWith("\n") ||
+      gitignore.length === 0
+        ? ""
+        : "\n") +
+      line +
+      "\n";
+  }
+}
+
+
+fs.writeFileSync(
+  gitignorePath,
+  gitignore,
   "utf8",
 );
 
 
 console.log("");
 console.log(
-  "Da sua:",
-  "scripts/install-youtube-stack.mjs",
-);
-
-
-/*
- * =====================================================
- * Kiem tra audio route
- * =====================================================
- */
-
-const audioRoute =
-  path.join(
-    root,
-    "src/app/api/youtube/audio/route.ts",
-  );
-
-
-if (
-  fs.existsSync(
-    audioRoute,
-  )
-) {
-
-  const audio =
-    fs.readFileSync(
-      audioRoute,
-      "utf8",
-    );
-
-
-  if (
-    audio.includes(
-      '"--js-runtimes"',
-    ) &&
-    audio.includes(
-      '"node:" +',
-    )
-  ) {
-
-    console.log(
-      "OK: audio runtime da co --js-runtimes node.",
-    );
-
-  } else {
-
-    console.warn("");
-    console.warn(
-      "CANH BAO:",
-    );
-
-    console.warn(
-      "src/app/api/youtube/audio/route.ts",
-    );
-
-    console.warn(
-      "chua thay --js-runtimes node.",
-    );
-
-    console.warn(
-      "Gui file/log cho minh neu gap loi sau deploy.",
-    );
-  }
-}
-
-
-/*
- * =====================================================
- * Hoan thanh
- * =====================================================
- */
-
-console.log("");
-console.log(
-  "==========================================",
-);
-
-console.log(
-  " HOAN THANH",
-);
-
-console.log(
-  "==========================================",
+  "DA TAO:",
+  outputName,
 );
 
 console.log("");
 console.log(
-  "Bay gio chay:",
+  "Gia tri cookie KHONG duoc in ra terminal.",
 );
 
 console.log("");
 console.log(
-  "  npm run build",
+  "========================================",
+);
+
+console.log(
+  " TIEP THEO",
+);
+
+console.log(
+  "========================================",
 );
 
 console.log("");
 console.log(
-  "Sau khi push len GitHub, Render deploy lai.",
+  "1. Mo file:",
 );
 
 console.log("");
 console.log(
-  "Trong log moi, tim dong:",
+  `   ${outputName}`,
 );
 
 console.log("");
 console.log(
-  "  JS runtimes: node",
+  "2. Copy TOAN BO noi dung file.",
 );
 
 console.log("");
 console.log(
-  "thay vi:",
+  "3. Vao Render -> duongnt-website -> Environment",
 );
 
 console.log("");
 console.log(
-  "  JS runtimes: none",
+  "4. Tao Environment Variable:",
+);
+
+console.log("");
+console.log(
+  "   Key:",
+);
+
+console.log(
+  "   YOUTUBE_COOKIES_B64",
+);
+
+console.log("");
+console.log(
+  "   Value:",
+);
+
+console.log(
+  "   [paste noi dung Base64 vao day]",
+);
+
+console.log("");
+console.log(
+  "5. Save Changes va Redeploy.",
+);
+
+console.log("");
+console.log(
+  "6. Sau khi Render chay thanh cong,",
+);
+
+console.log(
+  "   XOA 2 file local nhay cam:",
+);
+
+console.log("");
+console.log(
+  `   ${inputName}`,
+);
+
+console.log(
+  `   ${outputName}`,
+);
+
+console.log("");
+console.log(
+  "KHONG git add 2 file nay.",
+);
+
+console.log(
+  "KHONG gui cookie cho bat ky ai.",
+);
+
+console.log(
+  "KHONG paste cookie vao ChatGPT.",
 );
 
 console.log("");
