@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import ytdl from "@distube/ytdl-core";
 
 export const dynamic = "force-dynamic";
 
@@ -7,47 +8,25 @@ export async function GET(request: Request) {
   if (!id) return NextResponse.json({ loi: "Thiếu ID video" }, { status: 400 });
 
   try {
-    // [Suy luận] Dùng nhiều instance Piped dự phòng vì server công cộng rất hay bị quá tải hoặc sập
-    const instances = [
-      "https://pipedapi.kavin.rocks",
-      "https://pipedapi.tokhmi.xyz",
-      "https://api.piped.projectsegfau.lt",
-      "https://piped-api.garudalinux.org"
-    ];
+    // [Suy luận] Server tự động gọi lên YouTube để lấy dữ liệu thô của video
+    const info = await ytdl.getInfo(id);
     
-    let data = null;
-    let success = false;
-
-    for (const api of instances) {
-      try {
-        const r = await fetch(`${api}/streams/${id}`, { next: { revalidate: 0 } });
-        const text = await r.text(); // Đọc dạng text trước để tránh lỗi Unexpected end of JSON
-        
-        if (!text) continue; 
-        
-        data = JSON.parse(text); 
-        
-        if (data && !data.error) {
-          success = true;
-          break; // Lấy được data chuẩn thì thoát vòng lặp ngay
-        }
-      } catch (e) {
-        console.log(`Bỏ qua server lỗi: ${api}`);
-      }
+    // Lọc ra luồng dữ liệu chỉ chứa âm thanh (nhẹ nhất, mượt nhất)
+    const format = ytdl.chooseFormat(info.formats, { 
+        quality: 'highestaudio', 
+        filter: 'audioonly' 
+    });
+    
+    if (!format || !format.url) {
+      throw new Error("Không thể bóc tách luồng âm thanh cho video này.");
     }
 
-    if (!success || !data) {
-      throw new Error("Tất cả máy chủ trung gian đều đang quá tải, anh hai thử lại sau nhé.");
-    }
-
-    const audioStreams = data.audioStreams || [];
-    if (audioStreams.length === 0) throw new Error("Không tìm thấy luồng âm thanh nào cho video này.");
-    
-    // Ưu tiên lấy stream âm thanh
-    const streamUrl = audioStreams[0].url;
-
-    return NextResponse.json({ url: streamUrl });
+    // Trả link gốc về cho giao diện phát nhạc
+    return NextResponse.json({ url: format.url });
   } catch (error: any) {
-    return NextResponse.json({ loi: error.message || "Lỗi khi lấy stream" }, { status: 500 });
+    console.error("Lỗi ytdl-core:", error);
+    return NextResponse.json({ 
+        loi: "Tèo không thể bóc link video này. Có thể do giới hạn độ tuổi hoặc bản quyền của YouTube." 
+    }, { status: 500 });
   }
 }
