@@ -1,4 +1,89 @@
-"use client";
+import fs from "node:fs";
+import path from "node:path";
+
+const root = process.cwd();
+const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+function full(relative) {
+  return path.join(root, relative);
+}
+
+function exists(relative) {
+  return fs.existsSync(full(relative));
+}
+
+function read(relative) {
+  return fs.readFileSync(full(relative), "utf8");
+}
+
+function backup(relative) {
+  const file = full(relative);
+  if (!fs.existsSync(file)) return null;
+
+  const bak = `${file}.bak-${stamp}`;
+  fs.copyFileSync(file, bak);
+  console.log(`Backup: ${relative} -> ${path.basename(bak)}`);
+  return bak;
+}
+
+function write(relative, content) {
+  const file = full(relative);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  backup(relative);
+  fs.writeFileSync(file, content, "utf8");
+  console.log(`Da tao/cap nhat: ${relative}`);
+}
+
+console.log("\n=== DuongTube Background Media Installer ===\n");
+
+if (!exists("package.json")) {
+  console.error("Khong tim thay package.json.");
+  console.error("Hay dat file nay vao thu muc goc cua project roi chay lai.");
+  process.exit(1);
+}
+
+let pkg;
+
+try {
+  pkg = JSON.parse(read("package.json"));
+} catch {
+  console.error("package.json khong hop le.");
+  process.exit(1);
+}
+
+if (!pkg.dependencies?.next) {
+  console.error("Project nay khong co Next.js trong dependencies.");
+  process.exit(1);
+}
+
+if (!exists("src/app/youtube/page.tsx")) {
+  console.error("Khong tim thay src/app/youtube/page.tsx.");
+  console.error("Hay chay installer DuongTube truoc, sau do chay file nay.");
+  process.exit(1);
+}
+
+if (!exists("src/app/api/youtube/stream/route.ts")) {
+  console.error("Khong tim thay src/app/api/youtube/stream/route.ts.");
+  console.error("Ban DuongTube hien tai chua co API stream audio.");
+  process.exit(1);
+}
+
+const currentPage = read("src/app/youtube/page.tsx");
+
+if (
+  currentPage.includes("MEDIA_ACTIONS") &&
+  currentPage.includes("setPositionState") &&
+  currentPage.includes('safeSetAction("seekbackward"')
+) {
+  console.log(
+    "DuongTube da co Media Session background controls. Khong can cap nhat.",
+  );
+  process.exit(0);
+}
+
+write(
+  "src/app/youtube/page.tsx",
+  `"use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 
@@ -200,7 +285,7 @@ export default function DuongTube() {
 
     try {
       const res = await fetch(
-        `/api/youtube/stream?id=${encodeURIComponent(v.id)}`,
+        \`/api/youtube/stream?id=\${encodeURIComponent(v.id)}\`,
         {
           cache: "no-store",
         },
@@ -250,7 +335,7 @@ export default function DuongTube() {
 
     try {
       const r = await fetch(
-        `/api/youtube/search?q=${encodeURIComponent(q.trim())}`,
+        \`/api/youtube/search?q=\${encodeURIComponent(q.trim())}\`,
       );
 
       const text = await r.text();
@@ -456,3 +541,32 @@ export default function DuongTube() {
     </main>
   );
 }
+`,
+);
+
+console.log("");
+console.log("HOAN THANH");
+console.log("");
+console.log("Da nang cap DuongTube voi:");
+console.log("- Media Session metadata");
+console.log("- Play / Pause tren man hinh khoa");
+console.log("- Stop");
+console.log("- Tua lui / tua toi");
+console.log("- Seek position");
+console.log("- Dong bo playback state");
+console.log("- Dong bo progress voi he dieu hanh");
+console.log("- Xu ly autoplay bi chan");
+console.log("- Canh bao stream het han");
+console.log("");
+console.log("Tiep theo chay:");
+console.log("");
+console.log("  npm run build");
+console.log("");
+console.log("Neu build thanh cong thi deploy lai dich vu.");
+console.log("");
+console.log(
+  "Luu y: background playback tren web con phu thuoc iOS/Android,",
+);
+console.log(
+  "trinh duyet va URL stream audio. Khong co hack web nao dam bao 100%.",
+);
