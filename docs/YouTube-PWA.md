@@ -19,6 +19,12 @@ Worker chỉ lưu trang thông báo ngoại tuyến và các icon. Không lưu A
 
 Worker mới chờ đến khi ứng dụng cũ đóng. Có thể chủ động áp dụng worker đang chờ bằng `registration.waiting.postMessage({ type: "SKIP_WAITING" })`, sau khi người dùng chọn cập nhật. Không tự tải lại trang trong lúc đang phát nhạc.
 
+## Hai chế độ phát
+
+- Chạm vào ảnh hoặc tên video sẽ mở trình phát nhúng chính thức của YouTube. Đây là chế độ mặc định và không gọi dịch vụ lấy nguồn âm thanh.
+- Nút tai nghe trên từng video và nút **Nghe trong nền** trong trang xem mới gọi `/api/youtube/audio`. Luồng này dùng mô hình của YTAudio: trình phát PWA dùng Media Session, còn dịch vụ nguồn riêng phân giải và chuyển tiếp tệp âm thanh.
+- Khi đổi chế độ, ứng dụng dừng trình phát hiện tại trước khi khởi động trình phát còn lại để tránh hai nguồn phát cùng lúc.
+
 ## Kiểm tra tự động
 
 Chạy `node --test scripts/test-youtube-pwa.mjs` để kiểm tra manifest theo từng hostname, kích thước PNG, proxy, phạm vi ngoại tuyến, bỏ qua API/Range và vòng đời cập nhật. Các kiểm tra này mô phỏng service worker trong Node; cần kiểm tra trên trình duyệt thật để xác nhận cài đặt.
