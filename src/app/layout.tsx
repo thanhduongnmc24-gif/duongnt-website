@@ -28,13 +28,16 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const theme = await layThemeWebsite();
   const headerStore = await headers();
   const laDuongTube = headerStore.get("x-duongtube-app") === "1";
+  const theme = laDuongTube ? null : await layThemeWebsite();
 
   return (
-    <html lang="vi" data-theme={theme.ma}>
-      <body className={`${inter.className} min-h-screen ${laDuongTube ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-900"}`}>
+    <html lang="vi" data-theme={laDuongTube ? "duongtube" : theme?.ma}>
+      <body
+        className={`${inter.className} min-h-screen ${laDuongTube ? "bg-[#0f0f0f] text-[#f1f1f1]" : "bg-slate-100 text-slate-900"}`}
+        style={laDuongTube ? { backgroundColor: "#0f0f0f", color: "#f1f1f1", colorScheme: "dark" } : undefined}
+      >
         {!laDuongTube ? <ThemeCss /> : null}
         {!laDuongTube ? <ThanhDieuHuong /> : null}
         {children}

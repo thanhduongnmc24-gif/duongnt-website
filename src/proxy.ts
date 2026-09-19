@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const host = (request.headers.get("host") || "").split(":")[0].toLowerCase();
   const laYoutube =
     host === "youtube.duongnt.io.vn" ||
     host === "youtube.localhost" ||
     host.startsWith("youtube.localhost.");
 
-  if (!laYoutube) return NextResponse.next();
-
   const pathname = request.nextUrl.pathname;
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-duongtube-app", "1");
+  // This header is internal routing context, never trusted from the client.
+  requestHeaders.delete("x-duongtube-app");
+  const laYoutubePreview = pathname === "/youtube" || pathname.startsWith("/youtube/");
+  if (laYoutube || laYoutubePreview) requestHeaders.set("x-duongtube-app", "1");
+
+  if (!laYoutube) return NextResponse.next({ request: { headers: requestHeaders } });
 
   if (
     pathname.startsWith("/_next/") ||
@@ -24,7 +27,7 @@ export function middleware(request: NextRequest) {
   }
 
   const url = request.nextUrl.clone();
-  url.pathname = pathname.startsWith("/youtube")
+  url.pathname = laYoutubePreview
     ? pathname
     : pathname === "/"
       ? "/youtube"

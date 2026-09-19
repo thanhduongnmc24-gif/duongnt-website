@@ -1,504 +1,54 @@
-
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-const root =
-  process.cwd();
+const root = process.cwd();
+const venv = path.join(root, ".ytdlp-venv");
+const provider = path.join(root, ".yt-pot-provider");
+const server = path.join(provider, "server");
+const providerVersion = "2.0.0";
+const python = path.join(venv, process.platform === "win32" ? "Scripts/python.exe" : "bin/python3");
+const marker = path.join(venv, ".duongtube-stack.json");
+const signature = JSON.stringify({ providerVersion, platform: process.platform, node: process.versions.node.split(".")[0], revision: 2 });
 
-const venv =
-  path.join(
-    root,
-    ".ytdlp-venv",
-  );
-
-const provider =
-  path.join(
-    root,
-    ".yt-pot-provider",
-  );
-
-
-function run(
-  command,
-  args,
-  options = {},
-) {
-
-  console.log("");
-  console.log(
-    ">",
-    command,
-    ...args,
-  );
-
-  const r =
-    spawnSync(
-      command,
-      args,
-      {
-        cwd:
-          options.cwd ||
-          root,
-
-        stdio:
-          "inherit",
-
-        shell:
-          false,
-
-        env: {
-          ...process.env,
-        },
-      },
-    );
-
-
-  if (
-    r.error
-  ) {
-    throw r.error;
-  }
-
-
-  if (
-    r.status !== 0
-  ) {
-    throw new Error(
-      command +
-        " that bai, exit code " +
-        r.status,
-    );
-  }
+function run(command, args, cwd = root) {
+  const result = spawnSync(command, args, { cwd, stdio: "inherit", shell: false, windowsHide: true, timeout: 600_000 });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`${path.basename(command)} failed with exit code ${result.status}`);
 }
 
-
-function pythonInVenv() {
-
-  if (
-    process.platform ===
-    "win32"
-  ) {
-    return path.join(
-      venv,
-      "Scripts",
-      "python.exe",
-    );
-  }
-
-
-  return path.join(
-    venv,
-    "bin",
-    "python3",
-  );
+// Invoke npm through Node on Windows: .cmd files cannot be execFile'd safely.
+function npm(args, cwd) {
+  const cli = process.env.npm_execpath || path.join(path.dirname(process.execPath), "node_modules/npm/bin/npm-cli.js");
+  if (fs.existsSync(cli)) run(process.execPath, [cli, ...args], cwd);
+  else if (process.platform !== "win32") run("npm", args, cwd);
+  else throw new Error("Run this installer with npm run build so npm_execpath is available.");
 }
 
-
-async function main() {
-
-  console.log("");
-  console.log(
-    "=== Cai yt-dlp stack ===",
-  );
-
-
-  /*
-   * Xoa ban build cu.
-   */
-
-  fs.rmSync(
-    venv,
-    {
-      recursive: true,
-      force: true,
-    },
-  );
-
-
-  fs.rmSync(
-    provider,
-    {
-      recursive: true,
-      force: true,
-    },
-  );
-
-
-  /*
-   * Tim Python.
-   */
-
-  const pythonCommand =
-    process.platform === "win32"
-      ? "python"
-      : "python3";
-
-
-  /*
-   * Tao virtualenv.
-   */
-
-  run(
-    pythonCommand,
-    [
-      "-m",
-      "venv",
-      venv,
-    ],
-  );
-
-
-  const python =
-    pythonInVenv();
-
-
-  /*
-   * Nang pip.
-   */
-
-  run(
-    python,
-    [
-      "-m",
-      "pip",
-      "install",
-      "--upgrade",
-      "pip",
-      "setuptools",
-      "wheel",
-    ],
-  );
-
-
-  /*
-   * Cai yt-dlp.
-   *
-   * default:
-   * cac dependency khuyen nghi.
-   *
-   * curl-cffi:
-   * TLS/browser impersonation tot hon.
-   */
-
-  run(
-    python,
-    [
-      "-m",
-      "pip",
-      "install",
-      "--upgrade",
-      "yt-dlp[default,curl-cffi]",
-    ],
-  );
-
-
-  /*
-   * POT Provider plugin.
-   *
-   * Pin 2.0.0 de plugin va
-   * generation server cung version.
-   */
-
-  run(
-    python,
-    [
-      "-m",
-      "pip",
-      "install",
-      "--upgrade",
-      "bgutil-ytdlp-pot-provider==2.0.0",
-    ],
-  );
-
-
-  /*
-   * Tai dung source POT provider
-   * version 2.0.0.
-   */
-
-  run(
-    "git",
-    [
-      "clone",
-      "--depth",
-      "1",
-      "--branch",
-      "2.0.0",
-      "https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git",
-      provider,
-    ],
-  );
-
-
-  const server =
-    path.join(
-      provider,
-      "server",
-    );
-
-
-  /*
-   * Cai Node dependency cua
-   * BotGuard/POT generator.
-   */
-
-  run(
-    "npm",
-    [
-      "ci",
-    ],
-    {
-      cwd:
-        server,
-    },
-  );
-
-
-  /*
-   * Compile TypeScript POT generator.
-   */
-
-  const npx =
-    process.platform === "win32"
-      ? "npx.cmd"
-      : "npx";
-
-
-  run(
-    npx,
-    [
-      "tsc",
-    ],
-    {
-      cwd:
-        server,
-    },
-  );
-
-
-  /*
-   * Test yt-dlp.
-   */
-
-  run(
-    python,
-    [
-      "-m",
-      "yt_dlp",
-      "--version",
-    ],
-  );
-
-
-  /*
-   * Test plugin + Node JS runtime.
-   *
-   * Day chi la smoke test.
-   * Khong duoc lam ca deployment that bai
-   * chi vi YouTube tam thoi chan video test.
-   */
-
-  console.log("");
-  console.log(
-    "=== Test yt-dlp + POT + Node JS runtime ===",
-  );
-
-  console.log(
-    "Node runtime:",
-    process.execPath,
-  );
-
-
-  const smokeArgs = [
-    "-m",
-    "yt_dlp",
-
-    "-v",
-
-    "--simulate",
-
-    /*
-     * QUAN TRONG:
-     *
-     * Log cu bao:
-     *
-     * JS runtimes: none
-     *
-     * nen signature challenge khong giai duoc.
-     */
-
-    "--js-runtimes",
-
-    "node:" +
-      process.execPath,
-
-    /*
-     * Test dung format audio
-     * ma DuongTube se dung.
-     */
-
-    "-f",
-
-    "m4a/bestaudio/best",
-
-    /*
-     * mweb + POT
-     */
-
-    "--extractor-args",
-
-    "youtube:player-client=mweb",
-
-    "--extractor-args",
-
-    "youtubepot-bgutilscript:server_home=" +
-      server,
-
-    /*
-     * Chi test metadata/format,
-     * khong download file.
-     */
-
-    "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-  ];
-
-
-  console.log(
-    ">",
-    python,
-    ...smokeArgs,
-  );
-
-
-  const smoke =
-    spawnSync(
-      python,
-      smokeArgs,
-      {
-        cwd:
-          root,
-
-        stdio:
-          "inherit",
-
-        shell:
-          false,
-
-        env: {
-          ...process.env,
-
-          TOKEN_TTL:
-            "6",
-
-          NO_COLOR:
-            "1",
-        },
-      },
-    );
-
-
-  if (
-    smoke.error
-  ) {
-
-    console.warn("");
-    console.warn(
-      "[CANH BAO] Smoke test khong chay duoc:",
-    );
-
-    console.warn(
-      smoke.error.message,
-    );
-
-    console.warn(
-      "Build se tiep tuc.",
-    );
-
-  } else if (
-    smoke.status !== 0
-  ) {
-
-    console.warn("");
-    console.warn(
-      "==========================================",
-    );
-
-    console.warn(
-      "[CANH BAO] YouTube smoke test that bai.",
-    );
-
-    console.warn(
-      "Exit code:",
-      smoke.status,
-    );
-
-    console.warn("");
-    console.warn(
-      "Dieu nay KHONG co nghia la Next.js build bi loi.",
-    );
-
-    console.warn(
-      "YouTube co the dang chan IP Render hoac video test.",
-    );
-
-    console.warn(
-      "Build se tiep tuc de website van deploy.",
-    );
-
-    console.warn(
-      "==========================================",
-    );
-
+try {
+  const ready = fs.existsSync(python) && fs.existsSync(path.join(server, "build/main.js")) &&
+    fs.existsSync(marker) && fs.readFileSync(marker, "utf8") === signature;
+  if (ready && process.env.YOUTUBE_STACK_REFRESH !== "1") {
+    console.log("YouTube audio runtime is already installed.");
   } else {
-
-    console.log("");
-    console.log(
-      "==========================================",
-    );
-
-    console.log(
-      " YT-DLP + POT + NODE JS TEST OK",
-    );
-
-    console.log(
-      "==========================================",
-    );
+    console.log("Installing YouTube audio runtime…");
+    if (!fs.existsSync(python)) run(process.platform === "win32" ? "python" : "python3", ["-m", "venv", venv]);
+    run(python, ["-m", "pip", "install", "--upgrade", "pip", "wheel", "setuptools"]);
+    run(python, ["-m", "pip", "install", "--upgrade", "yt-dlp[default,curl-cffi]", `bgutil-ytdlp-pot-provider==${providerVersion}`]);
+    if (!fs.existsSync(path.join(provider, ".git"))) {
+      run("git", ["clone", "--depth", "1", "--branch", providerVersion, "https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git", provider]);
+    } else {
+      run("git", ["fetch", "--depth", "1", "origin", "tag", providerVersion], provider);
+      run("git", ["checkout", "--detach", providerVersion], provider);
+    }
+    npm(["ci", "--no-audit", "--no-fund"], server);
+    run(process.execPath, [path.join(server, "node_modules/typescript/bin/tsc")], server);
+    run(python, ["-m", "yt_dlp", "--version"]);
+    fs.writeFileSync(marker, signature);
+    console.log("YouTube audio runtime installed. Live media is checked separately from the build.");
   }
-
-
-
-  console.log("");
-  console.log(
-    "======================================",
-  );
-
-  console.log(
-    " YT-DLP + POT PROVIDER SAN SANG",
-  );
-
-  console.log(
-    "======================================",
-  );
+} catch (error) {
+  console.error("YouTube runtime installation failed:", error instanceof Error ? error.message : "Unknown error");
+  process.exitCode = 1;
 }
 
-
-main().catch(
-  (error) => {
-
-    console.error("");
-    console.error(
-      "CAI DAT YOUTUBE STACK THAT BAI",
-    );
-
-    console.error(
-      error instanceof Error
-        ? error.message
-        : error,
-    );
-
-    console.error("");
-
-    process.exit(1);
-  },
-);
