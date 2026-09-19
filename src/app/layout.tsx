@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { layThemeWebsite } from "@/lib/theme/theme";
 import { ChanTrang } from "@/components/giao-dien/chan-trang";
 import { NutLenDau } from "@/components/giao-dien/nut-len-dau";
@@ -28,15 +29,17 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const theme = await layThemeWebsite();
+  const headerStore = await headers();
+  const laDuongTube = headerStore.get("x-duongtube-app") === "1";
 
   return (
     <html lang="vi" data-theme={theme.ma}>
-      <body className={`${inter.className} min-h-screen bg-slate-100 text-slate-900`}>
-        <ThemeCss />
-        <ThanhDieuHuong />
+      <body className={`${inter.className} min-h-screen ${laDuongTube ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-900"}`}>
+        {!laDuongTube ? <ThemeCss /> : null}
+        {!laDuongTube ? <ThanhDieuHuong /> : null}
         {children}
-        <ChanTrang />
-        <NutLenDau />
+        {!laDuongTube ? <ChanTrang /> : null}
+        {!laDuongTube ? <NutLenDau /> : null}
       </body>
     </html>
   );
