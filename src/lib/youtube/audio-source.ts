@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { AudioError, type AudioSource } from './audio-proxy';
 
@@ -6,9 +8,27 @@ type Job = { promise: Promise<AudioSource>; controller: AbortController; consume
 type State = {
   cache: Map<string, AudioSource>;
   pending: Map<string, Job>;
+  cookies?: Promise<string | null>;
 };
 const shared = globalThis as typeof globalThis & { __duongTubeAudio?: State };
 const state: State = shared.__duongTubeAudio ??= { cache: new Map(), pending: new Map() };
+
+async function cookiePath() {
+  if (!state.cookies) state.cookies = (async () => {
+    const encoded = process.env.YOUTUBE_COOKIES_B64?.trim();
+    if (!encoded) return null;
+    const decoded = Buffer.from(encoded, 'base64').toString('utf8');
+    if (!/^# (?:Netscape )?HTTP Cookie File/.test(decoded) || !decoded.includes('youtube.com')) {
+      console.warn('[DuongTube audio] Ignoring invalid YOUTUBE_COOKIES_B64');
+      return null;
+    }
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'duongtube-'));
+    const destination = path.join(directory, 'cookies.txt');
+    await fs.writeFile(destination, decoded, { encoding: 'utf8', mode: 0o600 });
+    return destination;
+  })();
+  return state.cookies;
+}
 
 function extractionError(raw: string, signal: AbortSignal) {
   if (signal.aborted) return new AudioError('CANCELLED', 'Đã hủy yêu cầu phát.', 499);
@@ -23,10 +43,12 @@ function extractionError(raw: string, signal: AbortSignal) {
 
 async function extract(id: string, signal: AbortSignal): Promise<AudioSource> {
   signal.throwIfAborted();
+  const cookie = await cookiePath();
   const python = path.join(process.cwd(), '.ytdlp-venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python3');
   const args = [
     '-m', 'yt_dlp', '--ignore-config', '--no-playlist', '--no-progress', '--no-warnings',
     '--socket-timeout', '15', '--retries', '1', '--extractor-retries', '1',
+    '--impersonate', 'chrome',
     '--js-runtimes', `node:${process.execPath}`,
     // web_music currently yields progressive audio URLs that accept byte-range
     // requests. mweb may return a signed URL that immediately answers 403 even
@@ -36,8 +58,7 @@ async function extract(id: string, signal: AbortSignal): Promise<AudioSource> {
     // web_music often exposes a progressive MP4 (format 18) rather than a
     // separate M4A. HTMLAudioElement can play its audio track directly.
     '-f', 'bestaudio[ext=m4a][protocol=https]/bestaudio[protocol=https]/best[ext=mp4][protocol=https]', '-J',
-    // web_music is intentionally anonymous. Stale account cookies commonly
-    // make otherwise-public videos appear unavailable to this client.
+    ...(cookie ? ['--cookies', cookie] : []),
     `https://www.youtube.com/watch?v=${id}`,
   ];
   return new Promise((resolve, reject) => {

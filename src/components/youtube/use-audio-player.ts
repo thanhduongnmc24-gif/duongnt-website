@@ -55,6 +55,7 @@ export function useAudioPlayer({ onStarted }: AudioPlayerOptions = {}) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, updateVolume] = useState(1);
@@ -65,6 +66,7 @@ export function useAudioPlayer({ onStarted }: AudioPlayerOptions = {}) {
   const clearError = useCallback(() => {
     errorRef.current = null;
     setError(null);
+    setErrorCode(null);
   }, []);
 
   const cancelPending = useCallback(() => {
@@ -113,9 +115,11 @@ export function useAudioPlayer({ onStarted }: AudioPlayerOptions = {}) {
         if (payload && typeof payload === "object") {
           const body = payload as Record<string, unknown>;
           const message = typeof body.loi === "string" ? body.loi : body.error;
+          const code = typeof body.code === "string" ? body.code : null;
           if (typeof message === "string" && message.trim()) {
             errorRef.current = message.slice(0, 600);
             setError(errorRef.current);
+            setErrorCode(code);
           }
         }
       } else {
@@ -401,7 +405,7 @@ export function useAudioPlayer({ onStarted }: AudioPlayerOptions = {}) {
   };
 
   return {
-    audioRef, audioProps, current, queue, isPlaying, isLoading, error,
+    audioRef, audioProps, current, queue, isPlaying, isLoading, error, errorCode,
     position, duration, volume, repeat,
     play, toggle, next, previous, seek, setVolume, setRepeat, retry, close,
   };

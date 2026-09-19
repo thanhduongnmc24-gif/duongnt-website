@@ -118,6 +118,7 @@ export default function DuongTube() {
   function play(video: Video) { setVideoMode(false); player.play(video, visible); }
   function togglePlayback() { setVideoMode(false); player.toggle(); }
   function enableVideo() { if (player.isPlaying) player.toggle(); setVideoMode(true); }
+  function useOfficialPlayer() { setShowQueue(false); setExpanded(true); setVideoMode(true); }
   const heading = view === "liked" ? "Video bạn yêu thích" : view === "history" ? "Nhạc đã nghe" : submitted ? `Kết quả cho “${submitted}”` : "Dành cho bạn";
 
   return (
@@ -171,7 +172,7 @@ export default function DuongTube() {
         </>}
       </main>
       {player.current && <section className="yt-player" aria-label="Trình phát nhạc">
-        {player.error && <div className="yt-player-error" role="alert"><span>{player.error}</span><button onClick={() => { setVideoMode(false); player.retry(); }}>Thử lại</button><a href={`https://www.youtube.com/watch?v=${player.current.id}`} target="_blank" rel="noopener noreferrer">Mở YouTube <ExternalLink size={13} /></a></div>}
+        {player.error && <div className="yt-player-error" role="alert"><span>{player.error}</span><button onClick={() => { setVideoMode(false); player.retry(); }}>Thử lại</button>{player.errorCode === "YOUTUBE_VERIFICATION" && <button onClick={useOfficialPlayer}>Phát bằng YouTube</button>}<a href={`https://www.youtube.com/watch?v=${player.current.id}`} target="_blank" rel="noopener noreferrer">Mở YouTube <ExternalLink size={13} /></a></div>}
         {videoMode && <div className="yt-player-error"><span>Đang xem video · Chuyển sang âm thanh để nghe nền</span><button onClick={() => { setVideoMode(false); player.toggle(); }}>Nghe nhạc</button></div>}
         <input className="yt-progress" type="range" min={0} max={player.duration || 1} step={0.1} value={Math.min(player.position, player.duration || 1)} disabled={!player.duration || videoMode} onChange={e => player.seek(Number(e.target.value))} aria-label="Tua nhạc" style={{ "--progress": `${player.duration ? player.position / player.duration * 100 : 0}%` } as React.CSSProperties} />
         <div className="yt-player-body"><button className="yt-track" onClick={() => { if (expanded) setVideoMode(false); setExpanded(!expanded); }} aria-label="Mở bài đang phát"><img src={player.current.thumbnail} alt="" /><span><strong>{player.current.title}</strong><small>{player.current.channel}</small></span></button>
