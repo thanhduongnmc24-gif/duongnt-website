@@ -66,3 +66,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .yt-dlp-bin/
+.ytdlp-venv/
+.yt-pot-provider/

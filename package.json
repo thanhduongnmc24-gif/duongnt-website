@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/install-ytdlp.mjs && next build --webpack",
+    "build": "node scripts/install-youtube-stack.mjs && next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },

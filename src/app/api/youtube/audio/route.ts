@@ -1,8 +1,15 @@
+
 import {
   execFile,
 } from "node:child_process";
 
+import {
+  promises as fs,
+} from "node:fs";
+
+import os from "node:os";
 import path from "node:path";
+
 
 export const dynamic =
   "force-dynamic";
@@ -25,28 +32,32 @@ type StreamInfo = {
 };
 
 
-type GlobalCache =
+type CacheGlobal =
   typeof globalThis & {
-    __duongTubeAudioCache?:
+
+    __duongTubeCache?:
       Map<
         string,
         StreamInfo
       >;
 
-    __duongTubeAudioPending?:
+    __duongTubePending?:
       Map<
         string,
         Promise<StreamInfo>
       >;
+
+    __duongTubeCookiePath?:
+      string | null;
   };
 
 
 const g =
-  globalThis as GlobalCache;
+  globalThis as CacheGlobal;
 
 
 const cache =
-  g.__duongTubeAudioCache ??
+  g.__duongTubeCache ??
   new Map<
     string,
     StreamInfo
@@ -54,101 +65,319 @@ const cache =
 
 
 const pending =
-  g.__duongTubeAudioPending ??
+  g.__duongTubePending ??
   new Map<
     string,
     Promise<StreamInfo>
   >();
 
 
-g.__duongTubeAudioCache =
+g.__duongTubeCache =
   cache;
 
-g.__duongTubeAudioPending =
+g.__duongTubePending =
   pending;
 
 
 /*
- * Vi tri binary duoc tai
- * trong luc npm run build.
+ * ========================================================
+ * Python
+ * ========================================================
  */
 
-function binary() {
+function pythonPath() {
+
+  if (
+    process.platform ===
+    "win32"
+  ) {
+
+    return path.join(
+      process.cwd(),
+      ".ytdlp-venv",
+      "Scripts",
+      "python.exe",
+    );
+  }
+
+
   return path.join(
     process.cwd(),
-
-    ".yt-dlp-bin",
-
-    process.platform === "win32"
-      ? "yt-dlp.exe"
-      : "yt-dlp",
+    ".ytdlp-venv",
+    "bin",
+    "python3",
   );
 }
 
 
 /*
- * Chay yt-dlp va lay metadata
- * cua format audio.
+ * ========================================================
+ * PO Token Provider
+ * ========================================================
  */
 
-function ytdlp(
+function potServerHome() {
+
+  return path.join(
+    process.cwd(),
+
+    ".yt-pot-provider",
+
+    "server",
+  );
+}
+
+
+/*
+ * ========================================================
+ * Cookie
+ * ========================================================
+ *
+ * Render Environment:
+ *
+ * YOUTUBE_COOKIES_B64
+ *
+ * Gia tri la NOI DUNG cookies.txt
+ * da ma hoa Base64.
+ *
+ * Tuyet doi khong commit cookie vao Git.
+ */
+
+async function cookiePath() {
+
+  if (
+    g.__duongTubeCookiePath !==
+    undefined
+  ) {
+
+    return (
+      g.__duongTubeCookiePath ||
+      null
+    );
+  }
+
+
+  const encoded =
+    process.env
+      .YOUTUBE_COOKIES_B64
+      ?.trim();
+
+
+  if (!encoded) {
+
+    console.log(
+      "[DuongTube] Khong co YOUTUBE_COOKIES_B64. Chay o che do anonymous.",
+    );
+
+
+    g.__duongTubeCookiePath =
+      null;
+
+
+    return null;
+  }
+
+
+  try {
+
+    const decoded =
+      Buffer
+        .from(
+          encoded,
+          "base64",
+        )
+        .toString(
+          "utf8",
+        );
+
+
+    if (
+      !decoded.includes(
+        ".youtube.com",
+      ) &&
+
+      !decoded.includes(
+        "youtube.com",
+      )
+    ) {
+
+      throw new Error(
+        "Cookie khong co youtube.com",
+      );
+    }
+
+
+    if (
+      !decoded.startsWith(
+        "# Netscape HTTP Cookie File",
+      ) &&
+
+      !decoded.startsWith(
+        "# HTTP Cookie File",
+      )
+    ) {
+
+      throw new Error(
+        "Cookie khong phai Netscape cookies.txt",
+      );
+    }
+
+
+    const dest =
+      path.join(
+        os.tmpdir(),
+        "duongtube-youtube-cookies.txt",
+      );
+
+
+    await fs.writeFile(
+      dest,
+
+      decoded,
+
+      {
+        encoding:
+          "utf8",
+
+        mode:
+          0o600,
+      },
+    );
+
+
+    console.log(
+      "[DuongTube] Da nap YouTube cookies.",
+    );
+
+
+    g.__duongTubeCookiePath =
+      dest;
+
+
+    return dest;
+
+  } catch (error) {
+
+    console.error(
+      "[DuongTube] Cookie loi:",
+      error,
+    );
+
+
+    g.__duongTubeCookiePath =
+      null;
+
+
+    return null;
+  }
+}
+
+
+/*
+ * ========================================================
+ * Chay yt-dlp
+ * ========================================================
+ */
+
+async function extract(
   id: string,
 ) {
+
+  const cookie =
+    await cookiePath();
+
+
   return new Promise<StreamInfo>(
     (
       resolve,
       reject,
     ) => {
 
+      const args = [
+        "-m",
+        "yt_dlp",
+
+        "--no-playlist",
+
+        "--no-progress",
+
+        "--no-warnings",
+
+        /*
+         * Cho yt-dlp dung
+         * Node cua Next.js.
+         */
+
+        "--js-runtimes",
+
+        "node:" +
+          process.execPath,
+
+        /*
+         * mweb la client
+         * duoc khuyen nghi voi POT.
+         */
+
+        "--extractor-args",
+
+        "youtube:player-client=mweb",
+
+        /*
+         * BgUtils POT generation script.
+         *
+         * Chay CUNG SERVICE,
+         * khong co HTTP service moi.
+         */
+
+        "--extractor-args",
+
+        "youtubepot-bgutilscript:server_home=" +
+          potServerHome(),
+
+        /*
+         * Uu tien audio m4a.
+         */
+
+        "-f",
+
+        "m4a/bestaudio/best",
+
+        /*
+         * Metadata JSON.
+         */
+
+        "-J",
+      ];
+
+
+      /*
+       * Neu co cookies,
+       * them authentication.
+       */
+
+      if (cookie) {
+
+        args.push(
+          "--cookies",
+          cookie,
+        );
+      }
+
+
+      args.push(
+        "https://www.youtube.com/watch?v=" +
+          id,
+      );
+
+
       execFile(
-        binary(),
+        pythonPath(),
 
-        [
-          "--no-playlist",
-
-          "--no-progress",
-
-          "--no-warnings",
-
-          /*
-           * yt-dlp moi can
-           * JavaScript runtime
-           * de xu ly YouTube.
-           *
-           * Dung chinh Node
-           * dang chay Next.js.
-           */
-
-          "--js-runtimes",
-
-          "node:" +
-            process.execPath,
-
-          /*
-           * Uu tien audio m4a.
-           *
-           * Neu khong co thi
-           * dung bestaudio.
-           */
-
-          "-f",
-
-          "m4a/bestaudio/best",
-
-          /*
-           * Tra metadata JSON,
-           * KHONG download file.
-           */
-
-          "-J",
-
-          "https://www.youtube.com/watch?v=" +
-            id,
-        ],
+        args,
 
         {
           timeout:
-            45_000,
+            60_000,
 
           maxBuffer:
             50 *
@@ -160,6 +389,13 @@ function ytdlp(
 
           env: {
             ...process.env,
+
+            /*
+             * POT cache.
+             */
+
+            TOKEN_TTL:
+              "6",
 
             NO_COLOR:
               "1",
@@ -174,26 +410,7 @@ function ytdlp(
 
           if (error) {
 
-            const err =
-              error as
-                NodeJS.ErrnoException;
-
-
-            if (
-              err.code ===
-              "ENOENT"
-            ) {
-              reject(
-                new Error(
-                  "Khong tim thay yt-dlp. Hay deploy/build lai.",
-                ),
-              );
-
-              return;
-            }
-
-
-            const lines =
+            const raw =
               String(
                 stderr ||
                 error.message,
@@ -202,7 +419,63 @@ function ytdlp(
                   /\x1b\[[0-9;]*m/g,
                   "",
                 )
-                .trim()
+                .trim();
+
+
+            console.error(
+              "[DuongTube yt-dlp raw]",
+              raw,
+            );
+
+
+            /*
+             * Loi age restriction.
+             */
+
+            if (
+              /confirm your age/i.test(
+                raw,
+              ) ||
+
+              /age.?restricted/i.test(
+                raw,
+              )
+            ) {
+
+              reject(
+                new Error(
+                  "Video giới hạn độ tuổi. Hãy cấu hình YOUTUBE_COOKIES_B64 trên Render.",
+                ),
+              );
+
+              return;
+            }
+
+
+            /*
+             * Loi bot.
+             */
+
+            if (
+              /not a bot/i.test(
+                raw,
+              )
+            ) {
+
+              reject(
+                new Error(
+                  cookie
+                    ? "YouTube vẫn yêu cầu xác minh bot dù đã có cookie/POT. Cookie có thể hết hạn hoặc IP Render đang bị chặn."
+                    : "YouTube yêu cầu xác minh bot. POT đã được bật; hãy thêm YOUTUBE_COOKIES_B64 nếu lỗi vẫn tiếp diễn.",
+                ),
+              );
+
+              return;
+            }
+
+
+            const lines =
+              raw
                 .split(
                   /\r?\n/,
                 )
@@ -213,20 +486,19 @@ function ytdlp(
 
             reject(
               new Error(
-                "yt-dlp loi: " +
-
                 (
                   lines[
                     lines.length -
                       1
                   ] ||
-                  error.message
+                  "yt-dlp that bai"
                 ).slice(
                   0,
-                  600,
+                  700,
                 ),
               ),
             );
+
 
             return;
           }
@@ -240,14 +512,7 @@ function ytdlp(
               );
 
 
-            /*
-             * yt-dlp co the dat
-             * URL o root hoac
-             * requested_downloads /
-             * requested_formats.
-             */
-
-            const choices =
+            const candidates =
               [
                 info,
 
@@ -270,7 +535,7 @@ function ytdlp(
 
 
             const selected =
-              choices.find(
+              candidates.find(
                 (x) =>
                   x &&
 
@@ -284,20 +549,14 @@ function ytdlp(
 
 
             if (!selected) {
+
               throw new Error(
                 "yt-dlp khong tra ve URL audio.",
               );
             }
 
 
-            /*
-             * Headers do yt-dlp
-             * tim ra can duoc
-             * gui lai khi server
-             * truy cap googlevideo.
-             */
-
-            const raw =
+            const rawHeaders =
               selected.http_headers ??
               info.http_headers ??
               {};
@@ -311,8 +570,8 @@ function ytdlp(
 
 
             if (
-              raw &&
-              typeof raw ===
+              rawHeaders &&
+              typeof rawHeaders ===
                 "object"
             ) {
 
@@ -322,11 +581,11 @@ function ytdlp(
                   value,
                 ] of
                   Object.entries(
-                    raw,
+                    rawHeaders,
                   )
               ) {
 
-                const k =
+                const lower =
                   key.toLowerCase();
 
 
@@ -334,13 +593,13 @@ function ytdlp(
                   typeof value ===
                     "string" &&
 
-                  k !==
+                  lower !==
                     "host" &&
 
-                  k !==
+                  lower !==
                     "content-length" &&
 
-                  k !==
+                  lower !==
                     "connection"
                 ) {
 
@@ -360,10 +619,8 @@ function ytdlp(
               headers,
 
               /*
-               * Khong cache URL qua lau.
-               *
-               * URL googlevideo co
-               * thoi han.
+               * Googlevideo URL
+               * co thoi han.
                */
 
               expiresAt:
@@ -373,13 +630,13 @@ function ytdlp(
                   1000,
             });
 
-          } catch (e) {
+          } catch (parseError) {
 
             reject(
-              e instanceof Error
-                ? e
+              parseError instanceof Error
+                ? parseError
                 : new Error(
-                    "Khong doc duoc ket qua yt-dlp.",
+                    "Khong doc duoc output yt-dlp.",
                   ),
             );
           }
@@ -391,14 +648,12 @@ function ytdlp(
 
 
 /*
- * Lay stream info co cache.
- *
- * Neu browser gui nhieu Range
- * request lien tuc thi khong
- * can chay yt-dlp moi lan.
+ * ========================================================
+ * Cache metadata
+ * ========================================================
  */
 
-async function getInfo(
+async function info(
   id: string,
 
   force = false,
@@ -406,67 +661,74 @@ async function getInfo(
 
   if (!force) {
 
-    const c =
+    const existing =
       cache.get(id);
 
 
     if (
-      c &&
-      c.expiresAt >
+      existing &&
+      existing.expiresAt >
         Date.now()
     ) {
-      return c;
+
+      return existing;
     }
 
 
-    const p =
+    const active =
       pending.get(id);
 
 
-    if (p) {
-      return p;
+    if (active) {
+
+      return active;
     }
   }
 
 
-  const task =
-    ytdlp(id)
+  const job =
+    extract(id)
 
       .then(
-        (info) => {
+        (value) => {
 
           cache.set(
             id,
-            info,
+            value,
           );
 
-          return info;
+
+          return value;
         },
       )
 
       .finally(
-        () =>
+        () => {
+
           pending.delete(
             id,
-          ),
+          );
+        },
       );
 
 
   pending.set(
     id,
-    task,
+    job,
   );
 
 
-  return task;
+  return job;
 }
 
 
 /*
- * Goi googlevideo tu server.
+ * ========================================================
+ * Fetch Googlevideo
+ * ========================================================
  */
 
-async function source(
+async function fetchSource(
   request: Request,
 
   id: string,
@@ -478,8 +740,8 @@ async function source(
     | "HEAD",
 ) {
 
-  const info =
-    await getInfo(
+  const data =
+    await info(
       id,
       force,
     );
@@ -487,15 +749,12 @@ async function source(
 
   const headers =
     new Headers(
-      info.headers,
+      data.headers,
     );
 
 
   /*
-   * Forward Range cua
-   * audio element.
-   *
-   * Rat quan trong de tua.
+   * Audio element gui Range.
    */
 
   const range =
@@ -505,17 +764,13 @@ async function source(
 
 
   if (range) {
+
     headers.set(
       "range",
       range,
     );
   }
 
-
-  /*
-   * Tranh gzip lam sai
-   * content-length/range.
-   */
 
   headers.set(
     "accept-encoding",
@@ -524,7 +779,7 @@ async function source(
 
 
   return fetch(
-    info.url,
+    data.url,
 
     {
       method,
@@ -542,12 +797,13 @@ async function source(
 
 
 /*
- * Chi forward cac header
- * media can thiet.
+ * ========================================================
+ * Response headers
+ * ========================================================
  */
 
-function copyHeaders(
-  r: Response,
+function responseHeaders(
+  response: Response,
 ) {
 
   const out =
@@ -557,26 +813,22 @@ function copyHeaders(
   for (
     const key of [
       "accept-ranges",
-
       "content-length",
-
       "content-range",
-
       "content-type",
-
       "etag",
-
       "last-modified",
     ]
   ) {
 
     const value =
-      r.headers.get(
+      response.headers.get(
         key,
       );
 
 
     if (value) {
+
       out.set(
         key,
         value,
@@ -609,7 +861,9 @@ function copyHeaders(
 
 
 /*
- * Xu ly GET/HEAD.
+ * ========================================================
+ * Request
+ * ========================================================
  */
 
 async function handle(
@@ -623,7 +877,8 @@ async function handle(
   const id =
     new URL(
       request.url,
-    ).searchParams
+    )
+      .searchParams
       .get("id")
       ?.trim();
 
@@ -652,40 +907,30 @@ async function handle(
 
   try {
 
-    let r =
-      await source(
+    let response =
+      await fetchSource(
         request,
-
         id,
-
         false,
-
         method,
       );
 
 
     /*
-     * Neu URL media
-     * het han hoac YouTube
-     * tu choi, chay yt-dlp
-     * lai mot lan.
+     * URL het han / bi reject:
+     * lay URL moi mot lan.
      */
 
     if (
-      r.status ===
-        401 ||
-
-      r.status ===
-        403 ||
-
-      r.status ===
-        410
+      response.status === 401 ||
+      response.status === 403 ||
+      response.status === 410
     ) {
 
       try {
-        await r.body?.cancel();
+        await response.body?.cancel();
       } catch {
-        // Bo qua.
+        // Ignore.
       }
 
 
@@ -694,82 +939,69 @@ async function handle(
       );
 
 
-      r =
-        await source(
+      response =
+        await fetchSource(
           request,
-
           id,
-
           true,
-
           method,
         );
     }
 
 
-    if (!r.ok) {
+    if (
+      !response.ok
+    ) {
+
+      const status =
+        response.status;
+
 
       try {
-        await r.body?.cancel();
+        await response.body?.cancel();
       } catch {
-        // Bo qua.
+        // Ignore.
       }
 
 
-      return Response.json(
-        {
-          loi:
-            "Nguon YouTube tra ve HTTP " +
-            r.status +
-            ".",
-        },
-
-        {
-          status:
-            r.status >= 400
-              ? r.status
-              : 502,
-        },
+      throw new Error(
+        "YouTube media server tra HTTP " +
+          status +
+          ".",
       );
     }
 
 
-    /*
-     * Stream truc tiep
-     * tu Render ve dien thoai.
-     *
-     * Khong tai ca file
-     * vao RAM.
-     */
-
     return new Response(
       method === "HEAD"
         ? null
-        : r.body,
+        : response.body,
 
       {
         status:
-          r.status,
+          response.status,
 
         headers:
-          copyHeaders(r),
+          responseHeaders(
+            response,
+          ),
       },
     );
 
-  } catch (e) {
+  } catch (error) {
 
     console.error(
       "[DuongTube yt-dlp]",
-      e,
+      error,
     );
 
 
     return Response.json(
       {
         loi:
-          e instanceof Error
-            ? e.message
-            : "Khong lay duoc audio bang yt-dlp.",
+          error instanceof Error
+            ? error.message
+            : "Khong lay duoc audio.",
       },
 
       {
