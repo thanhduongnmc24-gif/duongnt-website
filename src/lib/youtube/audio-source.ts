@@ -12,68 +12,6 @@ type State = {
 };
 const shared = globalThis as typeof globalThis & { __duongTubeAudio?: State };
 const state: State = shared.__duongTubeAudio ??= { cache: new Map(), pending: new Map() };
-const DEFAULT_PIPED = ['https://pipedapi.kavin.rocks'];
-const DEFAULT_INVIDIOUS = ['https://inv.nadeko.net'];
-
-function instances(name: string, defaults: string[]) {
-  const configured = process.env[name]?.split(',').map(value => value.trim()).filter(Boolean);
-  return configured?.length ? configured : defaults;
-}
-
-async function getJson(url: string, signal: AbortSignal) {
-  const controller = new AbortController();
-  const abort = () => controller.abort(signal.reason);
-  signal.addEventListener('abort', abort, { once: true });
-  const timer = setTimeout(() => controller.abort(), 5_000);
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: 'application/json', 'User-Agent': 'DuongTube/1.0' },
-      cache: 'no-store', signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.json() as Record<string, unknown>;
-  } finally {
-    clearTimeout(timer);
-    signal.removeEventListener('abort', abort);
-  }
-}
-
-function mediaSource(urlValue: unknown): AudioSource | null {
-  if (typeof urlValue !== 'string') return null;
-  try {
-    const url = new URL(urlValue);
-    if (url.protocol !== 'https:') return null;
-    return { url: url.href, headers: {}, expiresAt: Date.now() + 4 * 60_000 };
-  } catch { return null; }
-}
-
-async function extractWithPiped(id: string, signal: AbortSignal) {
-  for (const base of instances('PIPED_API_INSTANCES', DEFAULT_PIPED)) {
-    try {
-      const data = await getJson(`${base.replace(/\/$/, '')}/streams/${id}`, signal);
-      const streams = Array.isArray(data.audioStreams) ? data.audioStreams as Record<string, unknown>[] : [];
-      const selected = streams.filter(stream => typeof stream.url === 'string')
-        .sort((a, b) => Number(b.bitrate ?? 0) - Number(a.bitrate ?? 0))[0];
-      const source = mediaSource(selected?.url);
-      if (source) return source;
-    } catch (error) { if (signal.aborted) throw error; }
-  }
-  throw new Error('Piped unavailable');
-}
-
-async function extractWithInvidious(id: string, signal: AbortSignal) {
-  for (const base of instances('INVIDIOUS_API_INSTANCES', DEFAULT_INVIDIOUS)) {
-    try {
-      const data = await getJson(`${base.replace(/\/$/, '')}/api/v1/videos/${id}`, signal);
-      const formats = Array.isArray(data.adaptiveFormats) ? data.adaptiveFormats as Record<string, unknown>[] : [];
-      const selected = formats.filter(format => typeof format.url === 'string' && /^audio\//i.test(String(format.type ?? '')))
-        .sort((a, b) => Number(b.bitrate ?? 0) - Number(a.bitrate ?? 0))[0];
-      const source = mediaSource(selected?.url);
-      if (source) return source;
-    } catch (error) { if (signal.aborted) throw error; }
-  }
-  throw new Error('Invidious unavailable');
-}
 
 async function cookiePath() {
   if (!state.cookies) state.cookies = (async () => {
@@ -103,7 +41,7 @@ function extractionError(raw: string, signal: AbortSignal) {
   return new AudioError('AUDIO_UNAVAILABLE', 'Không lấy được âm thanh từ YouTube. Vui lòng thử lại hoặc chọn video khác.');
 }
 
-async function extractWithYtDlp(id: string, signal: AbortSignal): Promise<AudioSource> {
+async function extract(id: string, signal: AbortSignal): Promise<AudioSource> {
   signal.throwIfAborted();
   const cookie = await cookiePath();
   const python = path.join(process.cwd(), '.ytdlp-venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python3');
@@ -148,23 +86,6 @@ async function extractWithYtDlp(id: string, signal: AbortSignal): Promise<AudioS
       } catch (error) { reject(error); }
     });
   });
-}
-
-async function extract(id: string, signal: AbortSignal): Promise<AudioSource> {
-  try {
-    return await extractWithYtDlp(id, signal);
-  } catch (primaryError) {
-    if (signal.aborted) throw primaryError;
-    console.warn('[DuongTube audio] Direct source failed; trying Piped and Invidious');
-    try {
-      return await Promise.any([
-        extractWithPiped(id, signal),
-        extractWithInvidious(id, signal),
-      ]);
-    } catch {
-      throw primaryError;
-    }
-  }
 }
 
 export async function resolveAudioSource(id: string, refresh: boolean, signal: AbortSignal): Promise<AudioSource> {

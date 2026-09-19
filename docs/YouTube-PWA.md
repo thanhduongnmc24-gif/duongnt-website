@@ -21,11 +21,11 @@ Worker mới chờ đến khi ứng dụng cũ đóng. Có thể chủ động �
 
 ## Hai chế độ phát
 
-- Chạm vào ảnh hoặc tên video sẽ mở trình phát nhúng chính thức của YouTube. Đây là chế độ mặc định và không gọi dịch vụ lấy nguồn âm thanh. Iframe dùng các tham số chính thức `controls=0`, `enablejsapi=1`, `fs=0` và `iv_load_policy=3` để thu gọn giao diện.
-- Nút tai nghe trên từng video và nút **Nghe trong nền** trong trang xem mới gọi `/api/youtube/audio`. Luồng này dùng mô hình của YTAudio: trình phát PWA dùng Media Session, còn dịch vụ nguồn riêng phân giải và chuyển tiếp tệp âm thanh. Nếu nguồn trực tiếp thất bại, máy chủ thử đồng thời Piped và Invidious rồi mới trả lỗi gốc.
+- Chạm vào ảnh hoặc tên video sẽ mở trình phát nhúng chính thức của YouTube với bộ điều khiển đầy đủ.
+- Nút tai nghe trên từng video và nút **Nghe trong nền** khởi tạo một YouTube IFrame Player API 200 × 200 px trong vùng chứa ẩn, dùng `controls=0`, `disablekb=1`, `fs=0` và `playsinline=1`. Thanh phát của DuongTube điều khiển iframe qua các hàm `playVideo`, `pauseVideo`, `seekTo` và Media Session.
 - Khi đổi chế độ, ứng dụng dừng trình phát hiện tại trước khi khởi động trình phát còn lại để tránh hai nguồn phát cùng lúc.
 
-Danh sách API dự phòng được cấu hình bằng `PIPED_API_INSTANCES` và `INVIDIOUS_API_INSTANCES`, phân tách nhiều địa chỉ bằng dấu phẩy. Các instance công khai thay đổi trạng thái thường xuyên; cần kiểm tra lại từ máy chủ triển khai thay vì coi một địa chỉ mặc định là luôn hoạt động.
+Chế độ IFrame ẩn là thử nghiệm và không bảo đảm phát khi khóa màn hình. Trình duyệt hoặc hệ điều hành vẫn có thể đình chỉ iframe khi ứng dụng xuống nền.
 
 ## Kiểm tra tự động
 
