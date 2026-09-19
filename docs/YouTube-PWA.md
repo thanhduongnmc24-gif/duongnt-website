@@ -22,10 +22,10 @@ Worker mới chờ đến khi ứng dụng cũ đóng. Có thể chủ động �
 ## Hai chế độ phát
 
 - Chạm vào ảnh hoặc tên video sẽ mở trình phát nhúng chính thức của YouTube với bộ điều khiển đầy đủ.
-- Nút tai nghe trên từng video và nút **Nghe trong nền** khởi tạo một YouTube IFrame Player API 200 × 200 px trong vùng chứa ẩn, dùng `controls=0`, `disablekb=1`, `fs=0` và `playsinline=1`. Thanh phát của DuongTube điều khiển iframe qua các hàm `playVideo`, `pauseVideo`, `seekTo` và Media Session.
+- Nút tai nghe trên từng video và nút **Nghe trong nền** khởi tạo YouTube IFrame Player API rồi yêu cầu toàn màn hình ngay trong thao tác bấm. Thanh phát của DuongTube điều khiển iframe qua các hàm `playVideo`, `pauseVideo`, `seekTo` và Media Session.
 - Khi đổi chế độ, ứng dụng dừng trình phát hiện tại trước khi khởi động trình phát còn lại để tránh hai nguồn phát cùng lúc.
 
-Chế độ IFrame ẩn là thử nghiệm và không bảo đảm phát khi khóa màn hình. Trình duyệt hoặc hệ điều hành vẫn có thể đình chỉ iframe khi ứng dụng xuống nền.
+Khi khóa màn hình, âm thanh có thể tạm dừng. Trên thiết bị hỗ trợ, mở bảng điều khiển nhạc ở màn hình khóa và bấm **Play** để Media Session gọi lại `playVideo()` và tiếp tục phát. Hành vi này vẫn phụ thuộc trình duyệt và hệ điều hành.
 
 ## Kiểm tra tự động
 

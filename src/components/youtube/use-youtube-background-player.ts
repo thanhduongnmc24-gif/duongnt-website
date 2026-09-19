@@ -72,6 +72,7 @@ function mediaPosition(player: YouTubePlayer | null) {
 }
 
 export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: Video) => void } = {}) {
+  const fullscreenRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const iframePlayerRef = useRef<YouTubePlayer | null>(null);
   const readyRef = useRef(false);
@@ -93,6 +94,7 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
   const [duration, setDuration] = useState(0);
   const [volume, updateVolume] = useState(1);
   const [repeat, updateRepeat] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => { onStartedRef.current = onStarted; }, [onStarted]);
 
@@ -107,7 +109,7 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
         height: 200,
         videoId: "",
         playerVars: {
-          autoplay: 0, controls: 0, disablekb: 1, fs: 0, iv_load_policy: 3,
+          autoplay: 0, controls: 1, disablekb: 0, fs: 1, iv_load_policy: 3,
           playsinline: 1, rel: 0, origin: window.location.origin,
         },
         events: {
@@ -193,9 +195,23 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
     if (prior) play(prior, undefined, true);
   }, [play, seek]);
   const retry = useCallback(() => { if (currentRef.current) play(currentRef.current, undefined, true); }, [play]);
+  const enterFullscreen = useCallback(async () => {
+    const element = fullscreenRef.current;
+    if (!element?.requestFullscreen) return false;
+    try {
+      await element.requestFullscreen({ navigationUI: "hide" });
+      return true;
+    } catch { return false; }
+  }, []);
+  const exitFullscreen = useCallback(async () => {
+    if (document.fullscreenElement === fullscreenRef.current) {
+      await document.exitFullscreen().catch(() => {});
+    }
+  }, []);
   const close = useCallback(() => {
     pendingRef.current = null; currentRef.current = null; startedRef.current = "";
     iframePlayerRef.current?.stopVideo();
+    if (document.fullscreenElement === fullscreenRef.current) void document.exitFullscreen().catch(() => {});
     setCurrent(null); setIsPlaying(false); setIsLoading(false); setPosition(0); setDuration(0); setError(null); mediaPlayback("none");
     if ("mediaSession" in navigator) navigator.mediaSession.metadata = null;
   }, []);
@@ -231,6 +247,12 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
   }, [current]);
 
   useEffect(() => {
+    const syncFullscreen = () => setIsFullscreen(document.fullscreenElement === fullscreenRef.current);
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, []);
+
+  useEffect(() => {
     if (!("mediaSession" in navigator)) return;
     const handlers: Partial<Record<MediaSessionAction, MediaSessionActionHandler>> = {
       play: resume, pause, stop: close, previoustrack: previous, nexttrack: next,
@@ -249,7 +271,8 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
   }, [close, next, pause, previous, resume, seek]);
 
   return {
-    hostRef, current, queue, isPlaying, isLoading, error, errorCode: null as string | null,
+    fullscreenRef, hostRef, isFullscreen, current, queue, isPlaying, isLoading, error, errorCode: null as string | null,
     position, duration, volume, repeat, play, toggle, next, previous, seek, setVolume, setRepeat, retry, close,
+    enterFullscreen, exitFullscreen,
   };
 }
