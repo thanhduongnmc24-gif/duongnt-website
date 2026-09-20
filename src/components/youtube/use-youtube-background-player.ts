@@ -16,7 +16,6 @@ type YouTubePlayer = {
   seekTo(seconds: number, allowSeekAhead: boolean): void;
   setVolume(volume: number): void;
   stopVideo(): void;
-  unMute(): void;
 };
 type YouTubeApi = {
   Player: new (element: HTMLElement, options: Record<string, unknown>) => YouTubePlayer;
@@ -116,7 +115,6 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
         events: {
           onReady: ({ target }: PlayerEvent) => {
             readyRef.current = true;
-            target.unMute();
             target.setVolume(Math.round(volumeRef.current * 100));
             if (pendingRef.current) {
               target.loadVideoById(pendingRef.current.id);
@@ -153,13 +151,7 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
   const resume = useCallback(() => {
     if (!currentRef.current) return;
     setError(null); setIsLoading(true);
-    const player = iframePlayerRef.current;
-    if (!player) return;
-    // A lock-screen Media Session action is a fresh user gesture. Restore the
-    // audible state in that same action before resuming the YouTube iframe.
-    player.unMute();
-    player.setVolume(Math.round(volumeRef.current * 100));
-    player.playVideo();
+    iframePlayerRef.current?.playVideo();
   }, []);
 
   const play = useCallback((video: Video, videos?: Video[], force = false) => {
@@ -178,8 +170,6 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
       navigator.mediaSession.metadata = new MediaMetadata({ title: video.title, artist: video.channel, album: "DuongTube", artwork: video.thumbnail ? [{ src: video.thumbnail }] : [] });
     }
     if (readyRef.current && iframePlayerRef.current) {
-      iframePlayerRef.current.unMute();
-      iframePlayerRef.current.setVolume(Math.round(volumeRef.current * 100));
       iframePlayerRef.current.loadVideoById(video.id);
       iframePlayerRef.current.playVideo();
     }
