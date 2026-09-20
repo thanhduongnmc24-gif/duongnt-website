@@ -1,18 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 
-export function useAudioPlayer(videoId: string) {
+interface MediaInfo {
+  title?: string;
+  artist?: string;
+  artwork?: string;
+}
+
+export function useAudioPlayer(videoId: string, mediaInfo?: MediaInfo) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // [Suy luận] Khởi tạo thẻ audio native trực tiếp trong JS sẽ giúp trình duyệt di động (iOS/Android) 
-    // nhận diện đây là luồng media tiêu chuẩn và cấp quyền chạy nền tốt hơn so với iframe.
     if (!audioRef.current) {
       const audio = new Audio();
       audio.preload = "metadata";
-      // Trỏ URL tới proxy API của dự án thay vì link YouTube gốc để lách luật CORS và chặn luồng
-      audio.src = `/api/youtube/audio?videoId=${videoId}`; 
+      audio.src = `/api/youtube/audio?videoId=${videoId}`;
       audioRef.current = audio;
     }
 
@@ -23,7 +26,6 @@ export function useAudioPlayer(videoId: string) {
     const handleCanPlay = () => setIsLoading(false);
     const handleWaiting = () => setIsLoading(true);
 
-    // Lắng nghe các sự kiện của thẻ audio native
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
     audio.addEventListener('canplay', handleCanPlay);
@@ -38,13 +40,35 @@ export function useAudioPlayer(videoId: string) {
     };
   }, [videoId]);
 
+  // Cấu hình Media Session API để hiển thị trình điều khiển ngoài màn hình khóa và giữ nền
+  useEffect(() => {
+    if ('mediaSession' in navigator && mediaInfo) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: mediaInfo.title || 'Đang phát',
+        artist: mediaInfo.artist || 'YouTube Background',
+        album: 'Dự án của anh hai',
+        artwork: mediaInfo.artwork ? [{ src: mediaInfo.artwork, sizes: '512x512', type: 'image/jpeg' }] : []
+      });
+
+      navigator.mediaSession.setActionHandler('play', () => {
+        audioRef.current?.play();
+      });
+
+      navigator.mediaSession.setActionHandler('pause', () => {
+        audioRef.current?.pause();
+      });
+
+      navigator.mediaSession.setActionHandler('stop', () => {
+        audioRef.current?.pause();
+      });
+    }
+  }, [mediaInfo]);
+
   const togglePlay = () => {
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        // [Suy luận] Cần gọi .play() trực tiếp từ một tương tác chạm/click của người dùng 
-        // thì hệ điều hành mới không block quyền phát âm thanh.
         audioRef.current.play().catch(e => console.error("Lỗi phát âm thanh:", e));
       }
     }
