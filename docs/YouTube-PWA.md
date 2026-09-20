@@ -22,11 +22,11 @@ Worker mới chờ đến khi ứng dụng cũ đóng. Có thể chủ động �
 ## Hai chế độ phát
 
 - Chạm vào ảnh hoặc tên video sẽ mở trình phát nhúng chính thức của YouTube với bộ điều khiển đầy đủ.
-- Nút tai nghe trên từng video và nút **Nghe trong nền** khởi tạo YouTube IFrame Player API rồi đưa chính iframe chính thức vào toàn màn hình trong thao tác bấm. Thanh phát của DuongTube vẫn điều khiển iframe khi ứng dụng đang mở.
+- Nút tai nghe trên từng video và nút **Nghe trong nền** khởi tạo YouTube IFrame Player API rồi yêu cầu toàn màn hình ngay trong thao tác bấm. Thanh phát của DuongTube điều khiển iframe qua các hàm `playVideo`, `pauseVideo`, `seekTo` và Media Session.
 - Khi đổi chế độ, ứng dụng dừng trình phát hiện tại trước khi khởi động trình phát còn lại để tránh hai nguồn phát cùng lúc.
 - Khi quay lại danh sách hoặc tìm kiếm, trình phát đang chạy thu nhỏ ở góc. Chế độ nghe giữ nguyên phiên IFrame hiện tại; trình phát video chính thức được mở lại trong khung thu nhỏ.
 
-Khi khóa màn hình, ứng dụng không chặn sự kiện Play/Pause của Media Session. Chrome xử lý trực tiếp phiên media của iframe YouTube đang toàn màn hình; cách này tránh tình trạng JavaScript gọi `playVideo()` làm bộ đếm tiếp tục nhưng đường tiếng vẫn bị trình duyệt treo. Nếu người dùng buộc đóng hẳn PWA, tiến trình web không còn tồn tại nên không thể tiếp tục phát.
+Khi khóa màn hình, YouTube hoặc trình duyệt có thể tạm ngắt âm thanh trong khi trạng thái iframe vẫn đang chạy. Ứng dụng không chủ động tạm dừng iframe khi PWA bị ẩn, nhờ đó phiên phát và bảng điều khiển nhạc vẫn được giữ lại. Trên thiết bị hỗ trợ, mở bảng điều khiển nhạc ở màn hình khóa và bấm **Play** để Media Session gọi lại `playVideo()`. Nếu người dùng buộc đóng hẳn PWA, tiến trình web không còn tồn tại nên không thể tiếp tục phát.
 
 ## Gợi ý nội dung
 

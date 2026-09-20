@@ -8,7 +8,6 @@ type YouTubePlayer = {
   destroy(): void;
   getCurrentTime(): number;
   getDuration(): number;
-  getIframe(): HTMLIFrameElement;
   getPlayerState(): number;
   getVolume(): number;
   loadVideoById(id: string): void;
@@ -96,7 +95,6 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
   const [volume, updateVolume] = useState(1);
   const [repeat, updateRepeat] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => { onStartedRef.current = onStarted; }, [onStarted]);
 
@@ -106,13 +104,7 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
     let disposed = false;
     void loadApi().then(api => {
       if (disposed) return;
-      const enableIframeFullscreen = (target: YouTubePlayer) => {
-        const iframe = target.getIframe();
-        iframe.setAttribute("allowfullscreen", "");
-        const permissions = iframe.getAttribute("allow") || "";
-        if (!permissions.includes("fullscreen")) iframe.setAttribute("allow", `${permissions}; fullscreen`);
-      };
-      const createdPlayer = new api.Player(host, {
+      iframePlayerRef.current = new api.Player(host, {
         width: 200,
         height: 200,
         videoId: "",
@@ -123,8 +115,6 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
         events: {
           onReady: ({ target }: PlayerEvent) => {
             readyRef.current = true;
-            setIsReady(true);
-            enableIframeFullscreen(target);
             target.setVolume(Math.round(volumeRef.current * 100));
             if (pendingRef.current) {
               target.loadVideoById(pendingRef.current.id);
@@ -147,8 +137,6 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
           },
         },
       });
-      iframePlayerRef.current = createdPlayer;
-      enableIframeFullscreen(createdPlayer);
     }).catch(() => {
       if (!disposed) setError("Không tải được YouTube IFrame Player API. Vui lòng thử lại.");
     });
@@ -208,9 +196,7 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
   }, [play, seek]);
   const retry = useCallback(() => { if (currentRef.current) play(currentRef.current, undefined, true); }, [play]);
   const enterFullscreen = useCallback(async () => {
-    // Fullscreen the official YouTube iframe itself. Chrome then keeps the
-    // iframe's native media session as the active lock-screen media source.
-    const element = iframePlayerRef.current?.getIframe();
+    const element = fullscreenRef.current;
     if (!element?.requestFullscreen) return false;
     try {
       await element.requestFullscreen({ navigationUI: "hide" });
@@ -218,16 +204,14 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
     } catch { return false; }
   }, []);
   const exitFullscreen = useCallback(async () => {
-    const iframe = iframePlayerRef.current?.getIframe();
-    if (document.fullscreenElement === fullscreenRef.current || document.fullscreenElement === iframe) {
+    if (document.fullscreenElement === fullscreenRef.current) {
       await document.exitFullscreen().catch(() => {});
     }
   }, []);
   const close = useCallback(() => {
     pendingRef.current = null; currentRef.current = null; startedRef.current = "";
     iframePlayerRef.current?.stopVideo();
-    const iframe = iframePlayerRef.current?.getIframe();
-    if (document.fullscreenElement === fullscreenRef.current || document.fullscreenElement === iframe) void document.exitFullscreen().catch(() => {});
+    if (document.fullscreenElement === fullscreenRef.current) void document.exitFullscreen().catch(() => {});
     setCurrent(null); setIsPlaying(false); setIsLoading(false); setPosition(0); setDuration(0); setError(null); mediaPlayback("none");
     if ("mediaSession" in navigator) navigator.mediaSession.metadata = null;
   }, []);
@@ -263,24 +247,15 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
   }, [current]);
 
   useEffect(() => {
-    const syncFullscreen = () => {
-      const iframe = iframePlayerRef.current?.getIframe();
-      setIsFullscreen(document.fullscreenElement === fullscreenRef.current || document.fullscreenElement === iframe);
-    };
+    const syncFullscreen = () => setIsFullscreen(document.fullscreenElement === fullscreenRef.current);
     document.addEventListener("fullscreenchange", syncFullscreen);
     return () => document.removeEventListener("fullscreenchange", syncFullscreen);
   }, []);
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
-    for (const action of ["play", "pause", "stop"] as const) {
-      try { navigator.mediaSession.setActionHandler(action, null); } catch { /* Let the browser use its native media action. */ }
-    }
     const handlers: Partial<Record<MediaSessionAction, MediaSessionActionHandler>> = {
-      // Leave play/pause to Chrome's native handling for the fullscreen
-      // YouTube iframe. Calling playVideo() from a hidden page can advance the
-      // timer while Chrome keeps the iframe audio pipeline suspended.
-      previoustrack: previous, nexttrack: next,
+      play: resume, pause, stop: close, previoustrack: previous, nexttrack: next,
       seekbackward: ({ seekOffset }) => seek((iframePlayerRef.current?.getCurrentTime() ?? 0) - (seekOffset ?? 10)),
       seekforward: ({ seekOffset }) => seek((iframePlayerRef.current?.getCurrentTime() ?? 0) + (seekOffset ?? 10)),
       seekto: ({ seekTime }) => { if (seekTime !== undefined) seek(seekTime); },
@@ -293,10 +268,10 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
         try { navigator.mediaSession.setActionHandler(action as MediaSessionAction, null); } catch { /* Unsupported action. */ }
       }
     };
-  }, [next, previous, seek]);
+  }, [close, next, pause, previous, resume, seek]);
 
   return {
-    fullscreenRef, hostRef, isFullscreen, isReady, current, queue, isPlaying, isLoading, error, errorCode: null as string | null,
+    fullscreenRef, hostRef, isFullscreen, current, queue, isPlaying, isLoading, error, errorCode: null as string | null,
     position, duration, volume, repeat, play, toggle, next, previous, seek, setVolume, setRepeat, retry, close,
     enterFullscreen, exitFullscreen,
   };
