@@ -4,6 +4,7 @@ export const metadata: Metadata = {
   title: { absolute: "DuongTube" },
   description: "Khám phá video, tạo hàng đợi và nghe nhạc cùng DuongTube.",
   manifest: "/youtube-manifest.webmanifest",
+  appleWebApp: { capable: true, title: "DuongTube", statusBarStyle: "black-translucent" },
   applicationName: "DuongTube",
   icons: {
     icon: [

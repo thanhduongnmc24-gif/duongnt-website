@@ -4,7 +4,7 @@
 
 ## Cài đặt và phạm vi
 
-Manifest tại `/youtube-manifest.webmanifest` trả về `start_url` và `scope` theo hostname. Chế độ hiển thị là `browser` để biểu tượng trên màn hình chính mở DuongTube trong Chrome/Safari, giữ PiP và bộ điều khiển âm thanh mà trình duyệt cung cấp:
+Manifest tại `/youtube-manifest.webmanifest` trả về `start_url` và `scope` theo hostname:
 
 | Địa chỉ | Phạm vi service worker | Trang mở khi cài đặt |
 | --- | --- | --- |
@@ -38,13 +38,12 @@ Chạy `node --test scripts/test-youtube-pwa.mjs` để kiểm tra manifest theo
 
 ## Kiểm tra trên thiết bị thật
 
-1. Nếu đã cài bản DuongTube cũ chạy toàn màn hình độc lập, gỡ biểu tượng đó trước.
-2. Mở địa chỉ HTTPS bằng Chrome Android hoặc Safari iPhone. Chọn **Thêm vào màn hình chính** (trên Safari: Chia sẻ → Thêm vào Màn hình chính).
-3. Mở lại từ biểu tượng mới và xác nhận trang chạy trong trình duyệt.
-4. Bắt đầu phát bằng thao tác chạm. Kiểm tra PiP, tạm dừng, tiếp tục, chuyển bài, tua và nút điều khiển trên màn hình khóa.
-5. Khóa màn hình ít nhất hai phút và nghe qua một lần chuyển bài. Lặp lại với tiết kiệm pin bật/tắt, chuyển Wi-Fi sang dữ liệu di động và cuộc gọi đến.
-6. Chạm nút micro, cho phép quyền truy cập và nói một từ khóa tiếng Việt; kiểm tra kết quả được tìm tự động.
-7. Tắt mạng rồi mở lại ứng dụng để kiểm tra màn hình ngoại tuyến. Bật mạng và chọn “Thử kết nối lại”.
-8. Khi có phiên bản mới, giữ ứng dụng cũ đang phát để kiểm tra không tự tải lại. Đóng/mở lại ứng dụng hoặc chủ động cập nhật để nhận bản mới.
+1. Mở địa chỉ HTTPS bằng Chrome Android hoặc Safari iPhone. Cài ứng dụng lên màn hình chính (trên Safari: Chia sẻ → Thêm vào Màn hình chính).
+2. Mở ứng dụng đã cài; kiểm tra giao diện độc lập, icon, thanh trạng thái tối và không có thanh điều hướng của website chính.
+3. Bắt đầu phát bằng thao tác chạm. Kiểm tra tạm dừng, tiếp tục, chuyển bài, tua và nút điều khiển trên màn hình khóa.
+4. Khóa màn hình ít nhất hai phút và nghe qua một lần chuyển bài. Lặp lại với tiết kiệm pin bật/tắt, chuyển Wi-Fi sang dữ liệu di động và cuộc gọi đến.
+5. Chạm nút micro, cho phép quyền truy cập và nói một từ khóa tiếng Việt; kiểm tra kết quả được tìm tự động.
+6. Tắt mạng rồi mở lại ứng dụng để kiểm tra màn hình ngoại tuyến. Bật mạng và chọn “Thử kết nối lại”.
+7. Khi có phiên bản mới, giữ ứng dụng cũ đang phát để kiểm tra không tự tải lại. Đóng/mở lại ứng dụng hoặc chủ động cập nhật để nhận bản mới.
 
 Khả năng duy trì phát khi khóa màn hình phụ thuộc nguồn âm thanh, trình duyệt và chính sách tiết kiệm pin của hệ điều hành. Cài đặt PWA và Media Session không tự biến trình phát nhúng YouTube thành trình phát nền. Chỉ xác nhận đạt yêu cầu khóa màn hình sau khi kiểm tra bằng nguồn phát thực tế trên thiết bị đích.
