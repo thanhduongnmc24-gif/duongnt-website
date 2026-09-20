@@ -26,7 +26,7 @@ Worker mới chờ đến khi ứng dụng cũ đóng. Có thể chủ động �
 - Khi đổi chế độ, ứng dụng dừng trình phát hiện tại trước khi khởi động trình phát còn lại để tránh hai nguồn phát cùng lúc.
 - Khi quay lại danh sách hoặc tìm kiếm, trình phát đang chạy thu nhỏ ở góc. Chế độ nghe giữ nguyên phiên IFrame hiện tại; trình phát video chính thức được mở lại trong khung thu nhỏ.
 
-Khi PWA bị ẩn hoặc màn hình bị khóa, ứng dụng chủ động tạm dừng iframe để trạng thái phát không chạy giả trong lúc trình duyệt đã tắt âm thanh. Trên thiết bị hỗ trợ, mở bảng điều khiển nhạc ở màn hình khóa và bấm **Play**; Media Session ép một lần chuyển từ tạm dừng sang phát tại đúng vị trí để khôi phục cả âm thanh. Nếu người dùng buộc đóng hẳn PWA, tiến trình web không còn tồn tại nên không thể tiếp tục phát.
+Khi khóa màn hình, YouTube hoặc trình duyệt có thể tạm ngắt âm thanh trong khi trạng thái iframe vẫn đang chạy. Ứng dụng không chủ động tạm dừng iframe khi PWA bị ẩn, nhờ đó phiên phát và bảng điều khiển nhạc vẫn được giữ lại. Trên thiết bị hỗ trợ, mở bảng điều khiển nhạc ở màn hình khóa và bấm **Play** để Media Session gọi lại `playVideo()`. Nếu người dùng buộc đóng hẳn PWA, tiến trình web không còn tồn tại nên không thể tiếp tục phát.
 
 ## Gợi ý nội dung
 
