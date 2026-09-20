@@ -163,9 +163,15 @@ export default function DuongTube() {
     });
   }
   const visible = view === "liked" ? liked : view === "history" ? history : items;
-  const busy = loading && view !== "liked" && view !== "history";
+  useEffect(() => {
+    if (visible[0]) player.prepare(visible[0]);
+  }, [player.prepare, visible]);
+  const loadingVideos = loading && view !== "liked" && view !== "history";
+  const preparingPlayer = visible.length > 0 && !player.isReady && !player.error;
+  const busy = loadingVideos || preparingPlayer;
   const error = view === "liked" || view === "history" ? "" : loadError;
   const activeVideo = player.current || selectedVideo;
+  const playerMode = activeVideo ? (expanded ? "yt-video-expanded" : "yt-video-mini") : player.isReady ? "yt-video-idle" : "yt-video-preparing";
   const currentLiked = !!activeVideo && liked.some(v => v.id === activeVideo.id);
   function watch(video: Video, videos: Video[] = visible) {
     flushSync(() => {
@@ -213,7 +219,7 @@ export default function DuongTube() {
         {offline && <div className="yt-notice" role="status"><WifiOff size={18} />Bạn đang ngoại tuyến. Kết nối mạng để tìm và phát nhạc.</div>}
         {voice.error && <div className="yt-notice" role="alert"><MicOff size={18} />{voice.error}<button onClick={voice.clearError}>Đóng</button></div>}
         {pwa.updateAvailable && <div className="yt-notice" role="status"><RefreshCw size={18} />Có phiên bản mới.<button onClick={() => { player.close(); pwa.update(); }}>Cập nhật ứng dụng</button></div>}
-        <section className={`yt-watch yt-video-session ${!activeVideo ? "yt-video-idle" : expanded ? "yt-video-expanded" : "yt-video-mini"}`} aria-label={activeVideo ? `Đang phát ${activeVideo.title}` : "Trình phát YouTube"} aria-hidden={!activeVideo}>
+        <section className={`yt-watch yt-video-session ${playerMode}`} aria-label={activeVideo ? `Đang phát ${activeVideo.title}` : "Trình phát YouTube"} aria-hidden={!activeVideo && player.isReady}>
           {activeVideo && expanded && <button className="yt-text-button" onClick={() => setExpanded(false)}><ChevronLeft size={18} /> Quay lại danh sách</button>}
           <div className="yt-watch-columns"><div>
             <div className="yt-stage">
