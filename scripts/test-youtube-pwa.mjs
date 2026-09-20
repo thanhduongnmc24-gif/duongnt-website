@@ -120,7 +120,7 @@ test("worker returns offline fallback without caching API or media and scopes pr
   assert.equal(await (await worker.fetchPage("/youtube")).text(), "offline screen");
   assert.equal(await worker.fetchPage("/"), undefined);
   assert.equal(await worker.fetchPage("/youtube-other"), undefined);
-  assert.equal(await worker.fetchPage("/api/youtube/stream?id=123"), undefined);
+  assert.equal(await worker.fetchPage("/api/youtube/search?q=music"), undefined);
   assert.equal(await worker.fetchPage("/youtube", { headers: new Headers({ range: "bytes=0-99" }) }), undefined);
   assert.equal(await worker.fetchPage("/youtube", { method: "POST" }), undefined);
   assert.equal(await worker.fetchPage("/youtube", { mode: "cors" }), undefined);

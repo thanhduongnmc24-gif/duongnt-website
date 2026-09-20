@@ -19,18 +19,21 @@ Worker chỉ lưu trang thông báo ngoại tuyến và các icon. Không lưu A
 
 Worker mới chờ đến khi ứng dụng cũ đóng. Có thể chủ động áp dụng worker đang chờ bằng `registration.waiting.postMessage({ type: "SKIP_WAITING" })`, sau khi người dùng chọn cập nhật. Không tự tải lại trang trong lúc đang phát nhạc.
 
-## Hai chế độ phát
+## Trình phát video
 
-- Chạm vào ảnh hoặc tên video sẽ mở trình phát nhúng chính thức của YouTube với bộ điều khiển đầy đủ.
-- Nút tai nghe trên từng video và nút **Nghe trong nền** khởi tạo YouTube IFrame Player API rồi yêu cầu toàn màn hình ngay trong thao tác bấm. Thanh phát của DuongTube điều khiển iframe qua các hàm `playVideo`, `pauseVideo`, `seekTo` và Media Session.
-- Khi đổi chế độ, ứng dụng dừng trình phát hiện tại trước khi khởi động trình phát còn lại để tránh hai nguồn phát cùng lúc.
-- Khi quay lại danh sách hoặc tìm kiếm, trình phát đang chạy thu nhỏ ở góc. Chế độ nghe giữ nguyên phiên IFrame hiện tại; trình phát video chính thức được mở lại trong khung thu nhỏ.
-
-Khi khóa màn hình, YouTube hoặc trình duyệt có thể tạm ngắt âm thanh trong khi trạng thái iframe vẫn đang chạy. Ứng dụng không chủ động tạm dừng iframe khi PWA bị ẩn, nhờ đó phiên phát và bảng điều khiển nhạc vẫn được giữ lại. Trên thiết bị hỗ trợ, mở bảng điều khiển nhạc ở màn hình khóa và bấm **Play** để Media Session gọi lại `playVideo()`. Nếu người dùng buộc đóng hẳn PWA, tiến trình web không còn tồn tại nên không thể tiếp tục phát.
+- Chạm vào ảnh hoặc tên video sẽ phát ngay bằng YouTube IFrame Player API với bộ điều khiển đầy đủ.
+- DuongTube chỉ tạo một iframe phát video cho toàn bộ phiên sử dụng. Khi quay lại danh sách, đổi mục hoặc tìm kiếm, chính iframe đó được thu nhỏ xuống góc nên video không tải lại và không quay về đầu.
+- Thanh điều khiển phía dưới gọi trực tiếp các hàm `playVideo`, `pauseVideo`, `seekTo`, chuyển video và điều chỉnh âm lượng trên cùng trình phát.
+- Chế độ nghe âm thanh trong nền và nút tai nghe riêng đã được loại bỏ.
 
 ## Gợi ý nội dung
 
-Lần mở đầu hiển thị video thịnh hành chung tại Việt Nam, không giới hạn trong danh mục âm nhạc. Sau khi người dùng tìm kiếm hoặc phát nội dung, ứng dụng lưu lịch sử trên thiết bị và trộn kết quả liên quan với danh sách thịnh hành. Đây là gợi ý cục bộ của DuongTube; ứng dụng không có quyền truy cập lịch sử hoặc hệ thống đề xuất riêng của tài khoản YouTube.
+Lần mở đầu hiển thị video thịnh hành chung tại Việt Nam, không giới hạn trong danh mục âm nhạc. Thứ tự gợi ý được trộn lại khi mở ứng dụng hoặc chọn lại một chủ đề, nên các hàng **Tất cả**, **Âm nhạc**, **Nhạc Việt** và các chủ đề khác không còn luôn lặp lại cùng một nhóm video mẫu. Sau khi người dùng tìm kiếm hoặc phát nội dung, ứng dụng lưu lịch sử trên thiết bị và trộn kết quả liên quan với danh sách thịnh hành. Đây là gợi ý cục bộ của DuongTube; ứng dụng không có quyền truy cập lịch sử hoặc hệ thống đề xuất riêng của tài khoản YouTube.
+
+## Tìm kiếm và bố cục
+
+- Nhận dạng giọng nói dùng một câu tiếng Việt mỗi lần. Ngay khi nhận được kết quả cuối, ứng dụng dừng phiên nhận dạng và nhả micro trước khi thực hiện tìm kiếm.
+- Trang khóa tràn ngang ở cấp ứng dụng, nội dung và lưới video. Thanh chủ đề vẫn có thể cuộn ngang bên trong chính thanh đó trên màn hình hẹp.
 
 ## Kiểm tra tự động
 
@@ -40,10 +43,8 @@ Chạy `node --test scripts/test-youtube-pwa.mjs` để kiểm tra manifest theo
 
 1. Mở địa chỉ HTTPS bằng Chrome Android hoặc Safari iPhone. Cài ứng dụng lên màn hình chính (trên Safari: Chia sẻ → Thêm vào Màn hình chính).
 2. Mở ứng dụng đã cài; kiểm tra giao diện độc lập, icon, thanh trạng thái tối và không có thanh điều hướng của website chính.
-3. Bắt đầu phát bằng thao tác chạm. Kiểm tra tạm dừng, tiếp tục, chuyển bài, tua và nút điều khiển trên màn hình khóa.
-4. Khóa màn hình ít nhất hai phút và nghe qua một lần chuyển bài. Lặp lại với tiết kiệm pin bật/tắt, chuyển Wi-Fi sang dữ liệu di động và cuộc gọi đến.
-5. Chạm nút micro, cho phép quyền truy cập và nói một từ khóa tiếng Việt; kiểm tra kết quả được tìm tự động.
+3. Chạm một video và xác nhận video tự phát ngay, sau đó kiểm tra tạm dừng, tiếp tục, chuyển video, tua và âm lượng.
+4. Trong lúc video đang phát, tìm kiếm từ khóa mới. Xác nhận video thu nhỏ xuống góc, thời gian tiếp tục chạy và khi mở rộng không quay lại từ đầu.
+5. Chạm nút micro, cho phép quyền truy cập và nói một từ khóa tiếng Việt; kiểm tra kết quả được tìm tự động, biểu tượng nghe biến mất và micro được nhả ngay.
 6. Tắt mạng rồi mở lại ứng dụng để kiểm tra màn hình ngoại tuyến. Bật mạng và chọn “Thử kết nối lại”.
 7. Khi có phiên bản mới, giữ ứng dụng cũ đang phát để kiểm tra không tự tải lại. Đóng/mở lại ứng dụng hoặc chủ động cập nhật để nhận bản mới.
-
-Khả năng duy trì phát khi khóa màn hình phụ thuộc nguồn âm thanh, trình duyệt và chính sách tiết kiệm pin của hệ điều hành. Cài đặt PWA và Media Session không tự biến trình phát nhúng YouTube thành trình phát nền. Chỉ xác nhận đạt yêu cầu khóa màn hình sau khi kiểm tra bằng nguồn phát thực tế trên thiết bị đích.

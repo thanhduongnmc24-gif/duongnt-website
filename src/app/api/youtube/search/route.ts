@@ -45,7 +45,7 @@ export async function GET(request: Request) {
   const isSearch = Boolean(q && !id);
   const query = new URLSearchParams({
     part: isSearch ? "snippet" : "snippet,contentDetails,statistics",
-    maxResults: "24",
+    maxResults: "50",
     key,
     ...(id ? { id } : isSearch ? {
       type: "video", q, safeSearch: "moderate", relevanceLanguage: "vi",

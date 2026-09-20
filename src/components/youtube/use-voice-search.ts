@@ -62,6 +62,10 @@ export function useVoiceSearch(onResult: (transcript: string) => void) {
     recognition.onerror = event => { setListening(false); setError(messageFor(event.error)); };
     recognition.onresult = event => {
       const transcript = event.results[0]?.[0]?.transcript?.trim() || "";
+      // Release the microphone immediately after the final phrase. Some
+      // WebKit builds do not dispatch `end` promptly after a result.
+      setListening(false);
+      recognition.abort();
       if (transcript) onResultRef.current(transcript);
       else setError("Chưa nghe rõ từ khóa. Hãy thử lại.");
     };
