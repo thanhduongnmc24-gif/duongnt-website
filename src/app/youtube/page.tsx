@@ -38,6 +38,7 @@ export default function DuongTube() {
   const [items, setItems] = useState<Video[]>([]);
   const [liked, setLiked] = useState<Video[]>([]);
   const [history, setHistory] = useState<Video[]>([]);
+  const [recommendationSeed, setRecommendationSeed] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [reload, setReload] = useState(0);
@@ -53,6 +54,7 @@ export default function DuongTube() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pwa = usePwa();
   const onStarted = useCallback((video: Video) => {
+    setRecommendationSeed(video.channel);
     setHistory(previous => {
       const next = [video, ...previous.filter(v => v.id !== video.id)].slice(0, 100);
       saveLibrary("duongtube-history", next);
@@ -62,8 +64,12 @@ export default function DuongTube() {
   const player = useYouTubeBackgroundPlayer({ onStarted });
 
   useEffect(() => {
+    const storedHistory = readLibrary("duongtube-history");
     setLiked(readLibrary("duongtube-liked"));
-    setHistory(readLibrary("duongtube-history"));
+    setHistory(storedHistory);
+    let searches: string[] = [];
+    try { searches = JSON.parse(localStorage.getItem("duongtube-searches") || "[]"); } catch { /* Ignore invalid local preferences. */ }
+    setRecommendationSeed(searches[0] || storedHistory[0]?.channel || "");
     const q = new URL(window.location.href).searchParams.get("q") || "";
     setEmbedOrigin(window.location.origin);
     setQuery(q); setSubmitted(q);
@@ -79,16 +85,35 @@ export default function DuongTube() {
     const controller = new AbortController();
     const term = submitted || (category !== "Tất cả" ? category : "");
     setLoading(true); setLoadError("");
-    fetch(`/api/youtube/search${term ? `?q=${encodeURIComponent(term)}` : ""}`, { signal: controller.signal })
-      .then(async response => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.loi || "Không thể tải video lúc này.");
-        setItems(data.items || []);
+    const urls = [`/api/youtube/search${term ? `?q=${encodeURIComponent(term)}` : ""}`];
+    if (!term && recommendationSeed) urls.push(`/api/youtube/search?q=${encodeURIComponent(recommendationSeed)}`);
+    Promise.all(urls.map(async url => {
+      const response = await fetch(url, { signal: controller.signal });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.loi || "Không thể tải video lúc này.");
+      return (data.items || []) as Video[];
+    }))
+      .then(groups => {
+        const mixed: Video[] = [];
+        const seen = new Set<string>();
+        const channelCounts = new Map<string, number>();
+        const longest = Math.max(...groups.map(group => group.length));
+        for (let index = 0; index < longest; index++) for (const group of groups) {
+          const video = group[index];
+          if (!video || seen.has(video.id)) continue;
+          const channelKey = video.channel.trim().toLocaleLowerCase("vi");
+          const channelCount = channelCounts.get(channelKey) || 0;
+          if (channelCount >= 2) continue;
+          seen.add(video.id);
+          channelCounts.set(channelKey, channelCount + 1);
+          mixed.push(video);
+        }
+        setItems(mixed.slice(0, 36));
       })
       .catch(error => { if (!controller.signal.aborted) { setItems([]); setLoadError(error instanceof Error ? error.message : "Không thể kết nối. Vui lòng thử lại."); } })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [submitted, category, view, reload]);
+  }, [submitted, category, view, reload, recommendationSeed]);
 
   useEffect(() => {
     if (help) dialogRef.current?.showModal();
@@ -96,13 +121,21 @@ export default function DuongTube() {
   }, [help]);
 
   function navigate(next: View) {
-    setView(next); setSidebar(false); setExpanded(false); setVideoMode(false);
+    setView(next); setSidebar(false); setExpanded(false);
     setSubmitted(""); setQuery(""); setCategory(next === "music" ? "Âm nhạc" : "Tất cả");
     const url = new URL(window.location.href); url.searchParams.delete("q"); window.history.replaceState(null, "", url);
   }
   function search(event: FormEvent) {
     event.preventDefault();
-    setSubmitted(query.trim()); setView("home"); setCategory("Tất cả"); setExpanded(false); setVideoMode(false);
+    const nextQuery = query.trim();
+    setSubmitted(nextQuery); setView("home"); setCategory("Tất cả"); setExpanded(false);
+    if (nextQuery) {
+      let searches: string[] = [];
+      try { searches = JSON.parse(localStorage.getItem("duongtube-searches") || "[]"); } catch { /* Ignore invalid local preferences. */ }
+      const nextSearches = [nextQuery, ...searches.filter(value => value !== nextQuery)].slice(0, 12);
+      localStorage.setItem("duongtube-searches", JSON.stringify(nextSearches));
+      setRecommendationSeed(nextQuery);
+    }
     const url = new URL(window.location.href);
     if (query.trim()) url.searchParams.set("q", query.trim()); else url.searchParams.delete("q");
     window.history.replaceState(null, "", url);
@@ -141,14 +174,21 @@ export default function DuongTube() {
   }
   function useOfficialPlayer() { if (player.current) watch(player.current); }
   const heading = view === "liked" ? "Video bạn yêu thích" : view === "history" ? "Nhạc đã nghe" : submitted ? `Kết quả cho “${submitted}”` : "Dành cho bạn";
+  const listeningMini = !expanded && !videoMode && !!player.current && !player.isFullscreen;
+  const videoMini = !expanded && videoMode && !!selectedVideo;
 
   return (
     <div className={`yt-app ${sidebar ? "yt-sidebar-open" : ""} ${player.current ? "yt-has-player" : ""}`}>
       <a className="yt-skip" href="#youtube-content">Đi đến nội dung</a>
-      <div ref={player.fullscreenRef} className="yt-hidden-iframe-player" aria-hidden={!player.isFullscreen}>
+      <div ref={player.fullscreenRef} className={`yt-hidden-iframe-player ${listeningMini ? "yt-listen-pip" : ""}`} aria-hidden={!player.isFullscreen && !listeningMini}>
         <div ref={player.hostRef} />
         {player.isFullscreen && <><div className="yt-fullscreen-guide"><Headphones size={18} /><span>Khóa màn hình, mở bảng phát nhạc rồi bấm <b>Play</b> để nghe tiếp.</span></div><button className="yt-exit-fullscreen" onClick={player.exitFullscreen}><X size={18} />Thu nhỏ</button></>}
+        {listeningMini && <div className="yt-pip-actions"><button onClick={() => setExpanded(true)} aria-label="Mở rộng trình phát"><MonitorPlay size={17} /></button><button onClick={() => { player.close(); setShowQueue(false); }} aria-label="Đóng trình phát"><X size={17} /></button></div>}
       </div>
+      {videoMini && selectedVideo && <aside className="yt-video-pip" aria-label="Video đang phát thu nhỏ">
+        <iframe title={selectedVideo.title} src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&playsinline=1&controls=1&enablejsapi=1&rel=0${embedOrigin ? `&origin=${encodeURIComponent(embedOrigin)}` : ""}`} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
+        <div className="yt-pip-actions"><button onClick={() => setExpanded(true)} aria-label="Mở rộng video"><MonitorPlay size={17} /></button><button onClick={() => { setSelectedVideo(null); setVideoMode(false); }} aria-label="Đóng video"><X size={17} /></button></div>
+      </aside>}
       <header className="yt-header">
         <div className="yt-brand-group">
           <button className="yt-icon-button yt-menu" aria-label="Mở menu" aria-expanded={sidebar} onClick={() => setSidebar(!sidebar)}><Menu /></button>
@@ -177,9 +217,9 @@ export default function DuongTube() {
       <main className="yt-content" id="youtube-content">
         {offline && <div className="yt-notice" role="status"><WifiOff size={18} />Bạn đang ngoại tuyến. Kết nối mạng để tìm và phát nhạc.</div>}
         {pwa.updateAvailable && <div className="yt-notice" role="status"><RefreshCw size={18} />Có phiên bản mới.<button onClick={() => { player.close(); pwa.update(); }}>Cập nhật ứng dụng</button></div>}
-        {(view === "home" || view === "music") && <div className="yt-categories" aria-label="Chủ đề">{categories.map(label => <button key={label} className={category === label && !submitted ? "active" : ""} onClick={() => { setCategory(label); setSubmitted(""); setQuery(""); setExpanded(false); setVideoMode(false); const url = new URL(window.location.href); url.searchParams.delete("q"); window.history.replaceState(null, "", url); }}>{label}</button>)}</div>}
+        {(view === "home" || view === "music") && <div className="yt-categories" aria-label="Chủ đề">{categories.map(label => <button key={label} className={category === label && !submitted ? "active" : ""} onClick={() => { setCategory(label); setSubmitted(""); setQuery(""); setExpanded(false); const url = new URL(window.location.href); url.searchParams.delete("q"); window.history.replaceState(null, "", url); }}>{label}</button>)}</div>}
         {expanded && activeVideo && <section className="yt-watch" aria-label="Đang phát">
-          <button className="yt-text-button" onClick={() => { setExpanded(false); setVideoMode(false); }}><ChevronLeft size={18} /> Quay lại danh sách</button>
+          <button className="yt-text-button" onClick={() => setExpanded(false)}><ChevronLeft size={18} /> Quay lại danh sách</button>
           <div className="yt-watch-columns"><div>
             <div className="yt-stage">
               {videoMode ? <iframe title={activeVideo.title} src={`https://www.youtube.com/embed/${activeVideo.id}?autoplay=1&playsinline=1&controls=1&enablejsapi=1&rel=0${embedOrigin ? `&origin=${encodeURIComponent(embedOrigin)}` : ""}`} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" /> : <><img className="yt-stage-backdrop" src={activeVideo.thumbnail} alt="" /><div className="yt-stage-art"><img src={activeVideo.thumbnail} alt="" /><button className="yt-stage-play" onClick={togglePlayback} aria-label={player.isPlaying ? "Tạm dừng" : "Phát nhạc"}>{player.isLoading ? <LoaderCircle className="yt-spin" /> : player.isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</button></div><span className="yt-stage-label"><Headphones size={16} />YouTube IFrame chạy ẩn</span></>}

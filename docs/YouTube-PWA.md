@@ -24,8 +24,13 @@ Worker mới chờ đến khi ứng dụng cũ đóng. Có thể chủ động �
 - Chạm vào ảnh hoặc tên video sẽ mở trình phát nhúng chính thức của YouTube với bộ điều khiển đầy đủ.
 - Nút tai nghe trên từng video và nút **Nghe trong nền** khởi tạo YouTube IFrame Player API rồi yêu cầu toàn màn hình ngay trong thao tác bấm. Thanh phát của DuongTube điều khiển iframe qua các hàm `playVideo`, `pauseVideo`, `seekTo` và Media Session.
 - Khi đổi chế độ, ứng dụng dừng trình phát hiện tại trước khi khởi động trình phát còn lại để tránh hai nguồn phát cùng lúc.
+- Khi quay lại danh sách hoặc tìm kiếm, trình phát đang chạy thu nhỏ ở góc. Chế độ nghe giữ nguyên phiên IFrame hiện tại; trình phát video chính thức được mở lại trong khung thu nhỏ.
 
-Khi khóa màn hình, âm thanh có thể tạm dừng. Trên thiết bị hỗ trợ, mở bảng điều khiển nhạc ở màn hình khóa và bấm **Play** để Media Session gọi lại `playVideo()` và tiếp tục phát. Hành vi này vẫn phụ thuộc trình duyệt và hệ điều hành.
+Khi PWA bị ẩn hoặc màn hình bị khóa, ứng dụng chủ động tạm dừng iframe để trạng thái phát không chạy giả trong lúc trình duyệt đã tắt âm thanh. Trên thiết bị hỗ trợ, mở bảng điều khiển nhạc ở màn hình khóa và bấm **Play**; Media Session ép một lần chuyển từ tạm dừng sang phát tại đúng vị trí để khôi phục cả âm thanh. Nếu người dùng buộc đóng hẳn PWA, tiến trình web không còn tồn tại nên không thể tiếp tục phát.
+
+## Gợi ý nội dung
+
+Lần mở đầu hiển thị video thịnh hành chung tại Việt Nam, không giới hạn trong danh mục âm nhạc. Sau khi người dùng tìm kiếm hoặc phát nội dung, ứng dụng lưu lịch sử trên thiết bị và trộn kết quả liên quan với danh sách thịnh hành. Đây là gợi ý cục bộ của DuongTube; ứng dụng không có quyền truy cập lịch sử hoặc hệ thống đề xuất riêng của tài khoản YouTube.
 
 ## Kiểm tra tự động
 

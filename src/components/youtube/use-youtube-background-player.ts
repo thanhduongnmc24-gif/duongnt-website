@@ -154,6 +154,21 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
     iframePlayerRef.current?.playVideo();
   }, []);
 
+  const resumeFromMediaSession = useCallback(() => {
+    const player = iframePlayerRef.current;
+    if (!player || !currentRef.current) return;
+    setError(null); setIsLoading(true);
+    // Some mobile browsers leave the iframe in state 1 while suppressing its
+    // audio in the background. Force a real paused -> playing transition so a
+    // lock-screen Play action restores the audio track as well as the timer.
+    if (player.getPlayerState() === 1) {
+      const currentTime = player.getCurrentTime();
+      player.pauseVideo();
+      player.seekTo(currentTime, true);
+    }
+    player.playVideo();
+  }, []);
+
   const play = useCallback((video: Video, videos?: Video[], force = false) => {
     if (videos) {
       const seen = new Set<string>();
@@ -253,9 +268,28 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
   }, []);
 
   useEffect(() => {
+    const pauseWhenBackgrounded = () => {
+      if (!document.hidden) return;
+      const player = iframePlayerRef.current;
+      if (!player || player.getPlayerState() !== 1) return;
+      player.pauseVideo();
+      setIsPlaying(false);
+      setIsLoading(false);
+      mediaPlayback("paused");
+      mediaPosition(player);
+    };
+    document.addEventListener("visibilitychange", pauseWhenBackgrounded);
+    window.addEventListener("pagehide", pauseWhenBackgrounded);
+    return () => {
+      document.removeEventListener("visibilitychange", pauseWhenBackgrounded);
+      window.removeEventListener("pagehide", pauseWhenBackgrounded);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!("mediaSession" in navigator)) return;
     const handlers: Partial<Record<MediaSessionAction, MediaSessionActionHandler>> = {
-      play: resume, pause, stop: close, previoustrack: previous, nexttrack: next,
+      play: resumeFromMediaSession, pause, stop: close, previoustrack: previous, nexttrack: next,
       seekbackward: ({ seekOffset }) => seek((iframePlayerRef.current?.getCurrentTime() ?? 0) - (seekOffset ?? 10)),
       seekforward: ({ seekOffset }) => seek((iframePlayerRef.current?.getCurrentTime() ?? 0) + (seekOffset ?? 10)),
       seekto: ({ seekTime }) => { if (seekTime !== undefined) seek(seekTime); },
@@ -268,7 +302,7 @@ export function useYouTubeBackgroundPlayer({ onStarted }: { onStarted?: (video: 
         try { navigator.mediaSession.setActionHandler(action as MediaSessionAction, null); } catch { /* Unsupported action. */ }
       }
     };
-  }, [close, next, pause, previous, resume, seek]);
+  }, [close, next, pause, previous, resumeFromMediaSession, seek]);
 
   return {
     fullscreenRef, hostRef, isFullscreen, current, queue, isPlaying, isLoading, error, errorCode: null as string | null,

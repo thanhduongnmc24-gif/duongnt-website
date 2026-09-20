@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     key,
     ...(id ? { id } : isSearch ? {
       type: "video", q, safeSearch: "moderate", relevanceLanguage: "vi",
-    } : { chart: "mostPopular", regionCode: "VN", videoCategoryId: "10" }),
+    } : { chart: "mostPopular", regionCode: "VN" }),
     ...(page && !id ? { pageToken: page } : {}),
   });
 
