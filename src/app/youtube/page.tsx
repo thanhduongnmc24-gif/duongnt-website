@@ -2,10 +2,11 @@
 
 /* eslint-disable @next/next/no-img-element -- Thumbnails are external media artwork. */
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { ArrowDownToLine, Check, ChevronLeft, CircleHelp, Clock3, ExternalLink, Headphones, Heart, History, House, ListMusic, LoaderCircle, Menu, MonitorPlay, Music2, Pause, Play, Radio, RefreshCw, Repeat2, Search, SkipBack, SkipForward, Volume2, VolumeX, WifiOff, X } from "lucide-react";
+import { ArrowDownToLine, Check, ChevronLeft, CircleHelp, Clock3, ExternalLink, Headphones, Heart, History, House, ListMusic, LoaderCircle, Menu, Mic, MicOff, MonitorPlay, Music2, Pause, Play, Radio, RefreshCw, Repeat2, Search, SkipBack, SkipForward, Volume2, VolumeX, WifiOff, X } from "lucide-react";
 import { useYouTubeBackgroundPlayer } from "@/components/youtube/use-youtube-background-player";
 import type { Video } from "@/components/youtube/types";
 import { usePwa } from "@/components/youtube/use-pwa";
+import { useVoiceSearch } from "@/components/youtube/use-voice-search";
 import "./youtube.css";
 
 type View = "home" | "music" | "liked" | "history";
@@ -53,6 +54,25 @@ export default function DuongTube() {
   const searchRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pwa = usePwa();
+  const submitSearch = useCallback((rawQuery: string) => {
+    const nextQuery = rawQuery.trim();
+    setQuery(nextQuery);
+    setSubmitted(nextQuery); setView("home"); setCategory("Tất cả"); setExpanded(false);
+    if (nextQuery) {
+      let searches: string[] = [];
+      try {
+        searches = JSON.parse(localStorage.getItem("duongtube-searches") || "[]");
+        const nextSearches = [nextQuery, ...searches.filter(value => value !== nextQuery)].slice(0, 12);
+        localStorage.setItem("duongtube-searches", JSON.stringify(nextSearches));
+      } catch { /* Storage may be unavailable in private mode. */ }
+      setRecommendationSeed(nextQuery);
+    }
+    const url = new URL(window.location.href);
+    if (nextQuery) url.searchParams.set("q", nextQuery); else url.searchParams.delete("q");
+    window.history.replaceState(null, "", url);
+    searchRef.current?.blur();
+  }, []);
+  const voice = useVoiceSearch(submitSearch);
   const onStarted = useCallback((video: Video) => {
     setRecommendationSeed(video.channel);
     setHistory(previous => {
@@ -127,19 +147,7 @@ export default function DuongTube() {
   }
   function search(event: FormEvent) {
     event.preventDefault();
-    const nextQuery = query.trim();
-    setSubmitted(nextQuery); setView("home"); setCategory("Tất cả"); setExpanded(false);
-    if (nextQuery) {
-      let searches: string[] = [];
-      try { searches = JSON.parse(localStorage.getItem("duongtube-searches") || "[]"); } catch { /* Ignore invalid local preferences. */ }
-      const nextSearches = [nextQuery, ...searches.filter(value => value !== nextQuery)].slice(0, 12);
-      localStorage.setItem("duongtube-searches", JSON.stringify(nextSearches));
-      setRecommendationSeed(nextQuery);
-    }
-    const url = new URL(window.location.href);
-    if (query.trim()) url.searchParams.set("q", query.trim()); else url.searchParams.delete("q");
-    window.history.replaceState(null, "", url);
-    searchRef.current?.blur();
+    submitSearch(query);
   }
   function toggleLike(video: Video) {
     setLiked(previous => {
@@ -194,13 +202,14 @@ export default function DuongTube() {
           <button className="yt-icon-button yt-menu" aria-label="Mở menu" aria-expanded={sidebar} onClick={() => setSidebar(!sidebar)}><Menu /></button>
           <button className="yt-brand" onClick={() => navigate("home")} aria-label="DuongTube — Trang chủ"><span className="yt-logo"><Play size={20} fill="currentColor" strokeWidth={0} /></span><span>DuongTube</span><sup>VN</sup></button>
         </div>
-        <form className="yt-search" onSubmit={search} role="search">
+        <form className={`yt-search ${voice.supported ? "yt-has-voice" : ""}`} onSubmit={search} role="search">
           <input ref={searchRef} aria-label="Tìm kiếm YouTube" placeholder="Tìm kiếm hoặc dán liên kết YouTube" value={query} onChange={e => setQuery(e.target.value)} maxLength={500} />
           {query && <button type="button" className="yt-clear-search" aria-label="Xóa tìm kiếm" onClick={() => { setQuery(""); searchRef.current?.focus(); }}><X size={19} /></button>}
+          {voice.supported && <button type="button" className={`yt-voice-search ${voice.listening ? "listening" : ""}`} aria-label={voice.listening ? "Dừng nghe" : "Tìm kiếm bằng giọng nói"} aria-pressed={voice.listening} title={voice.listening ? "Dừng nghe" : "Tìm kiếm bằng giọng nói"} onClick={voice.toggle}>{voice.listening ? <MicOff size={21} /> : <Mic size={21} />}</button>}
           <button type="submit" aria-label="Tìm kiếm"><Search size={23} /></button>
         </form>
         <div className="yt-header-actions">
-          <button className="yt-install" onClick={() => pwa.canInstall ? pwa.install() : setHelp(true)}><ArrowDownToLine size={18} /><span>{pwa.installed ? "Đã cài đặt" : "Cài ứng dụng"}</span></button>
+          <button className="yt-install" onClick={() => pwa.canInstall ? pwa.install() : setHelp(true)}><ArrowDownToLine size={18} /><span>{pwa.standalone ? "Cần cài lại" : pwa.installed ? "Đã thêm" : "Thêm vào màn hình chính"}</span></button>
           <button className="yt-avatar" aria-label="Mở thư viện của bạn" onClick={() => navigate("liked")}>D</button>
         </div>
       </header>
@@ -212,10 +221,12 @@ export default function DuongTube() {
           <div className="yt-nav-divider"><button className="yt-nav-item" onClick={() => setHelp(true)}><CircleHelp size={22} /><span>Hướng dẫn sử dụng</span></button></div>
         </nav>
         <div className="yt-sidebar-note"><Headphones size={26} /><strong>Âm nhạc theo bạn</strong><p>Nghe những điều bạn thích.<br />Tiếp tục trên thiết bị hỗ trợ.</p><button onClick={() => setHelp(true)}>Tìm hiểu nghe nền</button></div>
-        <footer className="yt-sidebar-footer">DuongTube · Cá nhân hóa âm nhạc<p>Ứng dụng độc lập, sử dụng nội dung từ YouTube.</p></footer>
+        <footer className="yt-sidebar-footer">DuongTube · Cá nhân hóa âm nhạc<p>Ứng dụng web sử dụng nội dung từ YouTube.</p></footer>
       </aside>
       <main className="yt-content" id="youtube-content">
         {offline && <div className="yt-notice" role="status"><WifiOff size={18} />Bạn đang ngoại tuyến. Kết nối mạng để tìm và phát nhạc.</div>}
+        {pwa.standalone && <div className="yt-notice yt-standalone-warning" role="status"><MonitorPlay size={18} />Bản cài độc lập cũ hạn chế PiP và phát khi khóa màn hình.<button onClick={() => setHelp(true)}>Cách cài lại</button></div>}
+        {voice.error && <div className="yt-notice" role="alert"><MicOff size={18} />{voice.error}<button onClick={voice.clearError}>Đóng</button></div>}
         {pwa.updateAvailable && <div className="yt-notice" role="status"><RefreshCw size={18} />Có phiên bản mới.<button onClick={() => { player.close(); pwa.update(); }}>Cập nhật ứng dụng</button></div>}
         {(view === "home" || view === "music") && <div className="yt-categories" aria-label="Chủ đề">{categories.map(label => <button key={label} className={category === label && !submitted ? "active" : ""} onClick={() => { setCategory(label); setSubmitted(""); setQuery(""); setExpanded(false); const url = new URL(window.location.href); url.searchParams.delete("q"); window.history.replaceState(null, "", url); }}>{label}</button>)}</div>}
         {expanded && activeVideo && <section className="yt-watch" aria-label="Đang phát">
@@ -246,7 +257,7 @@ export default function DuongTube() {
       </section>}
       {showQueue && player.current && <aside className="yt-queue-panel" aria-label="Danh sách phát"><header><h2>Danh sách phát <small>{player.queue.length} video</small></h2><button className="yt-icon-button" aria-label="Đóng danh sách phát" onClick={() => setShowQueue(false)}><X /></button></header><div>{player.queue.map((v, i) => <button key={v.id} className={`yt-queue-item ${v.id === player.current?.id ? "active" : ""}`} onClick={() => { setVideoMode(false); player.play(v, player.queue); }}><small>{i + 1}</small><img src={v.thumbnail} alt="" /><span><strong>{v.title}</strong><small>{v.channel}</small></span></button>)}</div></aside>}
       <nav className="yt-mobile-nav" aria-label="Điều hướng di động">{navItems.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => navigate(id)} aria-current={view === id ? "page" : undefined}><Icon size={22} /><span>{label}</span></button>)}</nav>
-      <dialog ref={dialogRef} className="yt-help" onClose={() => setHelp(false)} onClick={event => { if (event.target === dialogRef.current) setHelp(false); }}><div className="yt-help-heading"><span className="yt-logo"><Play fill="currentColor" size={20} /></span><h2>DuongTube, luôn bên bạn</h2><button className="yt-icon-button" aria-label="Đóng hướng dẫn" onClick={() => setHelp(false)}><X /></button></div><div className="yt-help-body"><h3><ArrowDownToLine size={21} />Cài đặt ứng dụng</h3><p>Android / máy tính: chọn <b>Cài ứng dụng</b> hoặc mục cài đặt trong menu trình duyệt.</p><p>iPhone / iPad: mở bằng Safari, chọn <b>Chia sẻ → Thêm vào Màn hình chính → Thêm</b>.</p><h3><MonitorPlay size={21} />Xem video</h3><p>Chạm vào ảnh hoặc tên video để phát bằng trình phát nhúng chính thức của YouTube.</p><h3><Headphones size={21} />Nghe khi khóa màn hình</h3><p>Chọn nút tai nghe cạnh video hoặc nút <b>Nghe trong nền</b>. Video sẽ bắt đầu ở chế độ toàn màn hình.</p><p>Khóa màn hình, kéo bảng điều khiển nhạc xuống rồi bấm <b>Play</b> để âm thanh tiếp tục. DuongTube kết nối nút này với YouTube IFrame Player qua Media Session.</p><h3><Heart size={21} />Thư viện của riêng bạn</h3><p>Yêu thích và lịch sử được lưu trên thiết bị này. Bạn không cần đăng nhập.</p>{pwa.error && <p role="status">{pwa.error}</p>}{pwa.canInstall && <button className="yt-primary" onClick={pwa.install}><ArrowDownToLine size={18} />Cài DuongTube</button>}</div></dialog>
+      <dialog ref={dialogRef} className="yt-help" onClose={() => setHelp(false)} onClick={event => { if (event.target === dialogRef.current) setHelp(false); }}><div className="yt-help-heading"><span className="yt-logo"><Play fill="currentColor" size={20} /></span><h2>DuongTube, luôn bên bạn</h2><button className="yt-icon-button" aria-label="Đóng hướng dẫn" onClick={() => setHelp(false)}><X /></button></div><div className="yt-help-body"><h3><ArrowDownToLine size={21} />Thêm vào màn hình chính</h3><p>Nếu đã cài DuongTube trước đây, hãy gỡ biểu tượng cũ trước. Bản cũ chạy ở cửa sổ độc lập nên Android có thể chặn PiP và âm thanh khi khóa màn hình.</p><p>Android / máy tính: mở DuongTube bằng Chrome, chọn menu trình duyệt rồi chọn <b>Thêm vào màn hình chính</b>. Biểu tượng mới sẽ mở trong Chrome để giữ khả năng phát của trình duyệt.</p><p>iPhone / iPad: mở bằng Safari, chọn <b>Chia sẻ → Thêm vào Màn hình chính → Thêm</b>. Nếu biểu tượng cũ vẫn mở toàn màn hình, hãy xóa rồi thêm lại.</p><h3><Mic size={21} />Tìm kiếm bằng giọng nói</h3><p>Chạm nút micro trong ô tìm kiếm, cho phép sử dụng micro rồi nói tên bài hát hoặc video. DuongTube sẽ tìm ngay sau khi nhận dạng xong.</p><h3><MonitorPlay size={21} />Xem video</h3><p>Chạm vào ảnh hoặc tên video để phát bằng trình phát nhúng chính thức của YouTube.</p><h3><Headphones size={21} />Nghe khi khóa màn hình</h3><p>Chọn nút tai nghe cạnh video hoặc nút <b>Nghe trong nền</b>. Video sẽ bắt đầu ở chế độ toàn màn hình.</p><p>Khóa màn hình, kéo bảng điều khiển nhạc xuống rồi bấm <b>Play</b> để âm thanh tiếp tục. Chế độ mở trong trình duyệt giữ lại PiP và bộ điều khiển phát mà thiết bị của bạn đã hỗ trợ.</p><h3><Heart size={21} />Thư viện của riêng bạn</h3><p>Yêu thích và lịch sử được lưu trên thiết bị này. Bạn không cần đăng nhập.</p>{pwa.error && <p role="status">{pwa.error}</p>}{pwa.canInstall && <button className="yt-primary" onClick={pwa.install}><ArrowDownToLine size={18} />Thêm DuongTube</button>}</div></dialog>
     </div>
   );
 }

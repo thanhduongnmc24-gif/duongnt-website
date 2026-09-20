@@ -13,7 +13,9 @@ export function GET(request: Request) {
     lang: "vi-VN",
     start_url: `${appPath}?source=pwa`,
     scope: appPath,
-    display: "standalone",
+    // Keep playback in the browser context. Chromium/WebView standalone mode
+    // suspends the embedded YouTube player when the app is backgrounded.
+    display: "browser",
     background_color: "#0f0f0f",
     theme_color: "#0f0f0f",
     categories: ["music", "entertainment"],

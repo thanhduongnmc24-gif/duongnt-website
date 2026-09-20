@@ -26,7 +26,7 @@ function request(host, path = "/") {
   return new Request(`https://${host}${path}`, { headers: { host } });
 }
 
-test("manifest installs the subdomain at root and keeps preview inside /youtube", async () => {
+test("manifest opens home-screen shortcuts in the browser with the correct scope", async () => {
   for (const [host, scope] of [["youtube.duongnt.io.vn", "/"], ["youtube.localhost", "/"], ["localhost:3000", "/youtube"], ["duongnt.io.vn", "/youtube"]]) {
     const response = manifestRoute.GET(request(host));
     const manifest = await response.json();
@@ -34,7 +34,7 @@ test("manifest installs the subdomain at root and keeps preview inside /youtube"
     assert.equal(manifest.scope, scope);
     assert.equal(manifest.id, scope);
     assert.equal(manifest.start_url, `${scope}?source=pwa`);
-    assert.equal(manifest.display, "standalone");
+    assert.equal(manifest.display, "browser");
     assert.ok(manifest.icons.some((icon) => icon.sizes === "192x192" && icon.purpose === "any"));
     assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
   }
