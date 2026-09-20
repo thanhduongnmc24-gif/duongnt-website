@@ -42,7 +42,9 @@ function messageFor(error?: string) {
 
 export function useVoiceSearch(onResult: (transcript: string) => void) {
   const onResultRef = useRef(onResult);
+  const constructorRef = useRef<SpeechRecognitionConstructor | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const resultTimerRef = useRef<number | null>(null);
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState("");
@@ -51,48 +53,109 @@ export function useVoiceSearch(onResult: (transcript: string) => void) {
 
   useEffect(() => {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    constructorRef.current = Recognition || null;
+    setSupported(Boolean(Recognition));
+
+    return () => {
+      if (resultTimerRef.current !== null) {
+        window.clearTimeout(resultTimerRef.current);
+        resultTimerRef.current = null;
+      }
+
+      const recognition = recognitionRef.current;
+      recognitionRef.current = null;
+      constructorRef.current = null;
+      if (!recognition) return;
+
+      recognition.onstart = null;
+      recognition.onend = null;
+      recognition.onresult = null;
+      recognition.onerror = null;
+      try {
+        recognition.abort();
+      } catch {
+        // The browser may already have closed the input device.
+      }
+    };
+  }, []);
+
+  const release = useCallback((recognition: SpeechRecognitionLike, abort = true) => {
+    if (recognitionRef.current !== recognition) return;
+
+    recognitionRef.current = null;
+    recognition.onstart = null;
+    recognition.onend = null;
+    recognition.onresult = null;
+    recognition.onerror = null;
+
+    if (abort) {
+      try {
+        recognition.abort();
+      } catch {
+        // The browser may already have closed the input device.
+      }
+    }
+
+    setListening(false);
+  }, []);
+
+  const toggle = useCallback(() => {
+    const activeRecognition = recognitionRef.current;
+    if (activeRecognition) {
+      release(activeRecognition);
+      return;
+    }
+
+    const Recognition = constructorRef.current;
     if (!Recognition) return;
+
+    if (resultTimerRef.current !== null) {
+      window.clearTimeout(resultTimerRef.current);
+      resultTimerRef.current = null;
+    }
+    setError("");
+
     const recognition = new Recognition();
     recognition.lang = "vi-VN";
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-    recognition.onstart = () => { setListening(true); setError(""); };
-    recognition.onend = () => setListening(false);
-    recognition.onerror = event => { setListening(false); setError(messageFor(event.error)); };
+    recognition.onstart = () => {
+      if (recognitionRef.current !== recognition) return;
+      setListening(true);
+      setError("");
+    };
+    recognition.onend = () => release(recognition, false);
+    recognition.onerror = event => {
+      const message = messageFor(event.error);
+      release(recognition);
+      if (message) setError(message);
+    };
     recognition.onresult = event => {
       const transcript = event.results[0]?.[0]?.transcript?.trim() || "";
-      // Release the microphone immediately after the final phrase. Some
-      // WebKit builds do not dispatch `end` promptly after a result.
-      setListening(false);
-      recognition.abort();
-      if (transcript) onResultRef.current(transcript);
-      else setError("Chưa nghe rõ từ khóa. Hãy thử lại.");
-    };
-    recognitionRef.current = recognition;
-    setSupported(true);
-    return () => {
-      recognition.onstart = null;
-      recognition.onend = null;
-      recognition.onresult = null;
-      recognition.onerror = null;
-      recognition.abort();
-      recognitionRef.current = null;
-    };
-  }, []);
+      release(recognition);
 
-  const toggle = useCallback(() => {
-    const recognition = recognitionRef.current;
-    if (!recognition) return;
-    setError("");
+      if (!transcript) {
+        setError("Chưa nghe rõ từ khóa. Hãy thử lại.");
+        return;
+      }
+
+      // WebKit restores the media output session asynchronously after the
+      // microphone is closed. Let it finish before search updates the player.
+      resultTimerRef.current = window.setTimeout(() => {
+        resultTimerRef.current = null;
+        onResultRef.current(transcript);
+      }, 200);
+    };
+
+    recognitionRef.current = recognition;
     try {
-      if (listening) recognition.stop();
-      else recognition.start();
+      recognition.start();
     } catch {
-      setListening(false);
+      release(recognition);
       setError("Micro đang bận. Hãy đợi một chút rồi thử lại.");
     }
-  }, [listening]);
+  }, [release]);
 
   return { supported, listening, error, toggle, clearError: () => setError("") };
 }
