@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- Thumbnails are external media artwork. */
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDownToLine, Check, ChevronLeft, CircleHelp, Clock3, ExternalLink, Headphones, Heart, History, House, ListMusic, LoaderCircle, Menu, MonitorPlay, Music2, Pause, Play, Radio, RefreshCw, Repeat2, Search, SkipBack, SkipForward, Volume2, VolumeX, WifiOff, X } from "lucide-react";
-import { useYouTubeBackgroundPlayer } from "@/components/youtube/use-youtube-background-player";
+import { useAudioPlayer } from "@/components/youtube/use-audio-player";
 import type { Video } from "@/components/youtube/types";
 import { usePwa } from "@/components/youtube/use-pwa";
 import "./youtube.css";
@@ -11,6 +11,7 @@ import "./youtube.css";
 type View = "home" | "music" | "liked" | "history";
 const categories = ["Tất cả", "Âm nhạc", "Nhạc Việt", "Lofi", "Acoustic", "Nhạc không lời", "K-pop", "Nhạc quốc tế", "Podcast", "Trực tiếp"];
 const navItems = [{ id: "home", label: "Trang chủ", icon: House }, { id: "music", label: "Âm nhạc", icon: Music2 }, { id: "history", label: "Đã nghe", icon: History }, { id: "liked", label: "Yêu thích", icon: Heart }] as const;
+const helperInstallCommand = "curl -fsSL https://youtube.duongnt.io.vn/youtube-helper/install-termux.sh | bash";
 
 function readLibrary(key: string): Video[] {
   try {
@@ -48,6 +49,7 @@ export default function DuongTube() {
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [showQueue, setShowQueue] = useState(false);
   const [help, setHelp] = useState(false);
+  const [helperCopied, setHelperCopied] = useState(false);
   const [offline, setOffline] = useState(false);
   const [embedOrigin, setEmbedOrigin] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -61,7 +63,7 @@ export default function DuongTube() {
       return next;
     });
   }, []);
-  const player = useYouTubeBackgroundPlayer({ onStarted });
+  const player = useAudioPlayer({ onStarted });
 
   useEffect(() => {
     const storedHistory = readLibrary("duongtube-history");
@@ -165,7 +167,6 @@ export default function DuongTube() {
     setVideoMode(false);
     setExpanded(true);
     player.play(video, videos);
-    void player.enterFullscreen();
   }
   function togglePlayback() { setVideoMode(false); player.toggle(); }
   function enableVideo() {
@@ -174,17 +175,18 @@ export default function DuongTube() {
   }
   function useOfficialPlayer() { if (player.current) watch(player.current); }
   const heading = view === "liked" ? "Video bạn yêu thích" : view === "history" ? "Nhạc đã nghe" : submitted ? `Kết quả cho “${submitted}”` : "Dành cho bạn";
-  const listeningMini = !expanded && !videoMode && !!player.current && !player.isFullscreen;
+  const listeningMini = !expanded && !videoMode && !!player.current;
   const videoMini = !expanded && videoMode && !!selectedVideo;
 
   return (
     <div className={`yt-app ${sidebar ? "yt-sidebar-open" : ""} ${player.current ? "yt-has-player" : ""}`}>
       <a className="yt-skip" href="#youtube-content">Đi đến nội dung</a>
-      <div ref={player.fullscreenRef} className={`yt-hidden-iframe-player ${listeningMini ? "yt-listen-pip" : ""}`} aria-hidden={!player.isFullscreen && !listeningMini}>
-        <div ref={player.hostRef} />
-        {player.isFullscreen && <><div className="yt-fullscreen-guide"><Headphones size={18} /><span>Khóa màn hình, mở bảng phát nhạc rồi bấm <b>Play</b> để nghe tiếp.</span></div><button className="yt-exit-fullscreen" onClick={player.exitFullscreen}><X size={18} />Thu nhỏ</button></>}
-        {listeningMini && <div className="yt-pip-actions"><button onClick={() => setExpanded(true)} aria-label="Mở rộng trình phát"><MonitorPlay size={17} /></button><button onClick={() => { player.close(); setShowQueue(false); }} aria-label="Đóng trình phát"><X size={17} /></button></div>}
-      </div>
+      <audio ref={player.audioRef} {...player.audioProps} />
+      {listeningMini && player.current && <aside className="yt-audio-pip" aria-label="Nhạc đang phát thu nhỏ">
+        <img src={player.current.thumbnail} alt="" />
+        <span><Headphones size={17} />{player.isPlaying ? "Đang nghe nền" : "Đã tạm dừng"}</span>
+        <div className="yt-pip-actions"><button onClick={() => setExpanded(true)} aria-label="Mở rộng trình phát"><MonitorPlay size={17} /></button><button onClick={() => { player.close(); setShowQueue(false); }} aria-label="Đóng trình phát"><X size={17} /></button></div>
+      </aside>}
       {videoMini && selectedVideo && <aside className="yt-video-pip" aria-label="Video đang phát thu nhỏ">
         <iframe title={selectedVideo.title} src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&playsinline=1&controls=1&enablejsapi=1&rel=0${embedOrigin ? `&origin=${encodeURIComponent(embedOrigin)}` : ""}`} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
         <div className="yt-pip-actions"><button onClick={() => setExpanded(true)} aria-label="Mở rộng video"><MonitorPlay size={17} /></button><button onClick={() => { setSelectedVideo(null); setVideoMode(false); }} aria-label="Đóng video"><X size={17} /></button></div>
@@ -222,10 +224,10 @@ export default function DuongTube() {
           <button className="yt-text-button" onClick={() => setExpanded(false)}><ChevronLeft size={18} /> Quay lại danh sách</button>
           <div className="yt-watch-columns"><div>
             <div className="yt-stage">
-              {videoMode ? <iframe title={activeVideo.title} src={`https://www.youtube.com/embed/${activeVideo.id}?autoplay=1&playsinline=1&controls=1&enablejsapi=1&rel=0${embedOrigin ? `&origin=${encodeURIComponent(embedOrigin)}` : ""}`} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" /> : <><img className="yt-stage-backdrop" src={activeVideo.thumbnail} alt="" /><div className="yt-stage-art"><img src={activeVideo.thumbnail} alt="" /><button className="yt-stage-play" onClick={togglePlayback} aria-label={player.isPlaying ? "Tạm dừng" : "Phát nhạc"}>{player.isLoading ? <LoaderCircle className="yt-spin" /> : player.isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</button></div><span className="yt-stage-label"><Headphones size={16} />YouTube IFrame chạy ẩn</span></>}
+              {videoMode ? <iframe title={activeVideo.title} src={`https://www.youtube.com/embed/${activeVideo.id}?autoplay=1&playsinline=1&controls=1&enablejsapi=1&rel=0${embedOrigin ? `&origin=${encodeURIComponent(embedOrigin)}` : ""}`} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" /> : <><img className="yt-stage-backdrop" src={activeVideo.thumbnail} alt="" /><div className="yt-stage-art"><img src={activeVideo.thumbnail} alt="" /><button className="yt-stage-play" onClick={togglePlayback} aria-label={player.isPlaying ? "Tạm dừng" : "Phát nhạc"}>{player.isLoading ? <LoaderCircle className="yt-spin" /> : player.isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</button></div><span className="yt-stage-label"><Headphones size={16} />Âm thanh từ helper trên thiết bị</span></>}
             </div>
             <h1>{activeVideo.title}</h1><div className="yt-watch-meta"><div className="yt-channel"><span className="yt-channel-avatar">{activeVideo.channel[0] || "♪"}</span><strong>{activeVideo.channel}</strong></div><div className="yt-watch-actions"><button className={currentLiked ? "selected" : ""} aria-pressed={currentLiked} onClick={() => toggleLike(activeVideo)}><Heart size={18} fill={currentLiked ? "currentColor" : "none"} />{currentLiked ? "Đã thích" : "Yêu thích"}</button><button className={videoMode ? "yt-background-action" : ""} onClick={() => videoMode ? listen(activeVideo) : enableVideo()}>{videoMode ? <Headphones size={18} /> : <MonitorPlay size={18} />}{videoMode ? "Nghe trong nền" : "Xem bằng YouTube"}</button></div></div>
-            <p className="yt-watch-note">{videoMode ? "Video đang phát bằng trình phát nhúng chính thức của YouTube. Chọn Nghe trong nền để phát IFrame ở chế độ toàn màn hình." : "Sau khi khóa màn hình, âm thanh có thể tạm dừng. Hãy mở bảng điều khiển nhạc trên màn hình khóa và bấm Play để tiếp tục."}</p>
+            <p className="yt-watch-note">{videoMode ? "Video đang phát bằng trình phát nhúng chính thức của YouTube. Chọn Nghe trong nền để chuyển sang helper trên thiết bị." : "Đây là luồng âm thanh thật từ helper trên thiết bị, nên trình duyệt có thể tiếp tục phát và hiển thị điều khiển trên màn hình khóa."}</p>
           </div><div className="yt-watch-queue"><h2><ListMusic size={20} />Tiếp theo</h2>{(videoMode ? visible : player.queue).filter(v => v.id !== activeVideo.id).slice(0, 8).map(v => <button key={v.id} className="yt-queue-item" onClick={() => videoMode ? watch(v) : listen(v, player.queue)}><img src={v.thumbnail} alt="" /><span><strong>{v.title}</strong><small>{v.channel}</small></span></button>)}</div></div>
         </section>}
         {!expanded && <><div className="yt-section-heading"><div><h1>{heading}</h1>{view === "liked" || view === "history" ? <p>{visible.length} video · Lưu trên thiết bị này</p> : <p>{submitted ? "Khám phá video và nghe theo cách của bạn" : "Khám phá giai điệu cho ngày của bạn"}</p>}</div>{!submitted && view === "home" && <span className="yt-listening-label"><span />Sẵn sàng để nghe</span>}</div>
@@ -236,7 +238,7 @@ export default function DuongTube() {
         </>}
       </main>
       {player.current && <section className="yt-player" aria-label="Trình phát nhạc">
-        {player.error && <div className="yt-player-error" role="alert"><span>{player.error}</span><button onClick={() => { setVideoMode(false); player.retry(); }}>Thử lại</button>{player.errorCode === "YOUTUBE_VERIFICATION" && <button onClick={useOfficialPlayer}>Phát bằng YouTube</button>}<a href={`https://www.youtube.com/watch?v=${player.current.id}`} target="_blank" rel="noopener noreferrer">Mở YouTube <ExternalLink size={13} /></a></div>}
+        {player.error && <div className="yt-player-error" role="alert"><span>{player.error}</span><button onClick={() => { setVideoMode(false); player.retry(); }}>Thử lại</button>{player.errorCode === "HELPER_UNAVAILABLE" && <button onClick={() => setHelp(true)}>Cài helper</button>}<button onClick={useOfficialPlayer}>Phát bằng YouTube</button><a href={`https://www.youtube.com/watch?v=${player.current.id}`} target="_blank" rel="noopener noreferrer">Mở YouTube <ExternalLink size={13} /></a></div>}
         {videoMode && <div className="yt-player-error"><span>Đang xem video · Chuyển sang âm thanh để nghe nền</span><button onClick={() => { setVideoMode(false); player.toggle(); }}>Nghe nhạc</button></div>}
         <input className="yt-progress" type="range" min={0} max={player.duration || 1} step={0.1} value={Math.min(player.position, player.duration || 1)} disabled={!player.duration || videoMode} onChange={e => player.seek(Number(e.target.value))} aria-label="Tua nhạc" style={{ "--progress": `${player.duration ? player.position / player.duration * 100 : 0}%` } as React.CSSProperties} />
         <div className="yt-player-body"><button className="yt-track" onClick={() => { if (expanded) setVideoMode(false); setExpanded(!expanded); }} aria-label="Mở bài đang phát"><img src={player.current.thumbnail} alt="" /><span><strong>{player.current.title}</strong><small>{player.current.channel}</small></span></button>
@@ -246,7 +248,7 @@ export default function DuongTube() {
       </section>}
       {showQueue && player.current && <aside className="yt-queue-panel" aria-label="Danh sách phát"><header><h2>Danh sách phát <small>{player.queue.length} video</small></h2><button className="yt-icon-button" aria-label="Đóng danh sách phát" onClick={() => setShowQueue(false)}><X /></button></header><div>{player.queue.map((v, i) => <button key={v.id} className={`yt-queue-item ${v.id === player.current?.id ? "active" : ""}`} onClick={() => { setVideoMode(false); player.play(v, player.queue); }}><small>{i + 1}</small><img src={v.thumbnail} alt="" /><span><strong>{v.title}</strong><small>{v.channel}</small></span></button>)}</div></aside>}
       <nav className="yt-mobile-nav" aria-label="Điều hướng di động">{navItems.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => navigate(id)} aria-current={view === id ? "page" : undefined}><Icon size={22} /><span>{label}</span></button>)}</nav>
-      <dialog ref={dialogRef} className="yt-help" onClose={() => setHelp(false)} onClick={event => { if (event.target === dialogRef.current) setHelp(false); }}><div className="yt-help-heading"><span className="yt-logo"><Play fill="currentColor" size={20} /></span><h2>DuongTube, luôn bên bạn</h2><button className="yt-icon-button" aria-label="Đóng hướng dẫn" onClick={() => setHelp(false)}><X /></button></div><div className="yt-help-body"><h3><ArrowDownToLine size={21} />Cài đặt ứng dụng</h3><p>Android / máy tính: chọn <b>Cài ứng dụng</b> hoặc mục cài đặt trong menu trình duyệt.</p><p>iPhone / iPad: mở bằng Safari, chọn <b>Chia sẻ → Thêm vào Màn hình chính → Thêm</b>.</p><h3><MonitorPlay size={21} />Xem video</h3><p>Chạm vào ảnh hoặc tên video để phát bằng trình phát nhúng chính thức của YouTube.</p><h3><Headphones size={21} />Nghe khi khóa màn hình</h3><p>Chọn nút tai nghe cạnh video hoặc nút <b>Nghe trong nền</b>. Video sẽ bắt đầu ở chế độ toàn màn hình.</p><p>Khóa màn hình, kéo bảng điều khiển nhạc xuống rồi bấm <b>Play</b> để âm thanh tiếp tục. DuongTube kết nối nút này với YouTube IFrame Player qua Media Session.</p><h3><Heart size={21} />Thư viện của riêng bạn</h3><p>Yêu thích và lịch sử được lưu trên thiết bị này. Bạn không cần đăng nhập.</p>{pwa.error && <p role="status">{pwa.error}</p>}{pwa.canInstall && <button className="yt-primary" onClick={pwa.install}><ArrowDownToLine size={18} />Cài DuongTube</button>}</div></dialog>
+      <dialog ref={dialogRef} className="yt-help" onClose={() => setHelp(false)} onClick={event => { if (event.target === dialogRef.current) setHelp(false); }}><div className="yt-help-heading"><span className="yt-logo"><Play fill="currentColor" size={20} /></span><h2>DuongTube, luôn bên bạn</h2><button className="yt-icon-button" aria-label="Đóng hướng dẫn" onClick={() => setHelp(false)}><X /></button></div><div className="yt-help-body"><h3><ArrowDownToLine size={21} />Cài đặt ứng dụng</h3><p>Android / máy tính: chọn <b>Cài ứng dụng</b> hoặc mục cài đặt trong menu trình duyệt.</p><p>iPhone / iPad: mở bằng Safari, chọn <b>Chia sẻ → Thêm vào Màn hình chính → Thêm</b>.</p><h3><MonitorPlay size={21} />Xem video</h3><p>Chạm vào ảnh hoặc tên video để phát bằng trình phát nhúng chính thức của YouTube.</p><h3><Headphones size={21} />Nghe khi khóa màn hình</h3><p>Chế độ nghe cần helper chạy trên chính thiết bị để lấy âm thanh bằng IP của bạn. Trên Android, cài Termux, dán lệnh dưới đây rồi nhấn Enter.</p><code className="yt-helper-command">{helperInstallCommand}</code><button className="yt-primary yt-helper-download" onClick={async () => { await navigator.clipboard.writeText(helperInstallCommand); setHelperCopied(true); }}>{helperCopied ? <Check size={18} /> : <ArrowDownToLine size={18} />}{helperCopied ? "Đã sao chép" : "Sao chép lệnh cài"}</button><p>Sau khi helper báo <b>DuongTube helper đang chạy</b>, quay lại PWA và bấm nút tai nghe. Chrome có thể hỏi quyền truy cập thiết bị trong mạng cục bộ; hãy chọn <b>Cho phép</b>.</p><h3><Heart size={21} />Thư viện của riêng bạn</h3><p>Yêu thích và lịch sử được lưu trên thiết bị này. Bạn không cần đăng nhập.</p>{pwa.error && <p role="status">{pwa.error}</p>}{pwa.canInstall && <button className="yt-primary" onClick={pwa.install}><ArrowDownToLine size={18} />Cài DuongTube</button>}</div></dialog>
     </div>
   );
 }

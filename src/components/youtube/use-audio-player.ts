@@ -12,6 +12,7 @@ const MEDIA_ACTIONS: MediaSessionAction[] = [
   "play", "pause", "stop", "previoustrack", "nexttrack",
   "seekbackward", "seekforward", "seekto",
 ];
+const LOCAL_HELPER = "http://127.0.0.1:43110";
 
 function updateMediaPosition(audio: HTMLAudioElement) {
   if (!("mediaSession" in navigator) || !navigator.mediaSession.setPositionState) return;
@@ -85,13 +86,12 @@ export function useAudioPlayer({ onStarted }: AudioPlayerOptions = {}) {
   const reportMediaError = useCallback((audio: HTMLAudioElement) => {
     if (!matchesSource(audio)) return;
     const selection = selectionRef.current;
-    const fallback = audio.error?.code === 2
-      ? "Kết nối âm thanh bị gián đoạn. Kiểm tra mạng rồi nhấn Thử lại."
-      : "Không thể phát âm thanh của video này. Nhấn Thử lại hoặc chọn video khác.";
+    const fallback = "Không kết nối được DuongTube helper trên thiết bị. Hãy mở helper rồi nhấn Thử lại.";
 
     intendedPlayingRef.current = false;
     errorRef.current = fallback;
     setError(fallback);
+    setErrorCode("HELPER_UNAVAILABLE");
     setIsLoading(false);
     setIsPlaying(false);
     updateMediaPlayback("paused");
@@ -127,7 +127,7 @@ export function useAudioPlayer({ onStarted }: AudioPlayerOptions = {}) {
         await response.body?.cancel();
       }
     }).catch(() => {
-      // The original playback error remains useful when the server cannot be reached.
+      if (selection === selectionRef.current) setErrorCode("HELPER_UNAVAILABLE");
     }).finally(() => {
       window.clearTimeout(timeout);
       if (diagnosisRef.current === controller) diagnosisRef.current = null;
@@ -197,7 +197,7 @@ export function useAudioPlayer({ onStarted }: AudioPlayerOptions = {}) {
     setIsLoading(true);
     clearError();
     audio.pause();
-    sourceRef.current = new URL(`/api/youtube/audio?id=${encodeURIComponent(video.id)}`, window.location.origin).href;
+    sourceRef.current = `${LOCAL_HELPER}/audio?id=${encodeURIComponent(video.id)}`;
     audio.src = sourceRef.current;
     audio.loop = repeatRef.current;
     audio.load();
