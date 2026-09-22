@@ -59,6 +59,7 @@ export default function DuongTube() {
   const [help, setHelp] = useState(false);
   const [offline, setOffline] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const videoStageRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const resumeAfterVoiceRef = useRef(false);
   const pwa = usePwa();
@@ -187,6 +188,11 @@ export default function DuongTube() {
   const playerMode = activeVideo ? (expanded ? "yt-video-expanded" : "yt-video-mini") : player.isReady ? "yt-video-idle" : "yt-video-preparing";
   const currentLiked = !!activeVideo && liked.some(v => v.id === activeVideo.id);
   const relatedVideos = activeVideo ? player.queue.filter(video => video.id !== activeVideo.id).slice(0, 18) : [];
+  function revealVideo() {
+    // Flush the expanded layout before scrolling; the mini player is fixed.
+    flushSync(() => setExpanded(true));
+    videoStageRef.current?.scrollIntoView({ behavior: "instant", block: "start", inline: "nearest" });
+  }
   function watch(video: Video, videos: Video[] = visible) {
     flushSync(() => {
       setSelectedVideo(video);
@@ -194,6 +200,7 @@ export default function DuongTube() {
       setExpanded(true);
     });
     player.play(video, videos);
+    videoStageRef.current?.scrollIntoView({ behavior: "instant", block: "start", inline: "nearest" });
   }
   function closePlayer() {
     player.close(); setSelectedVideo(null); setExpanded(false); setShowQueue(false);
@@ -236,9 +243,9 @@ export default function DuongTube() {
         <section className={`yt-watch yt-video-session ${playerMode}`} aria-label={activeVideo ? `Đang phát ${activeVideo.title}` : "Trình phát YouTube"} aria-hidden={!activeVideo && player.isReady}>
           {activeVideo && expanded && <button className="yt-text-button" onClick={() => setExpanded(false)}><ChevronLeft size={18} /> Quay lại danh sách</button>}
           <div className="yt-watch-columns"><div>
-            <div className="yt-stage">
+            <div className="yt-stage" ref={videoStageRef}>
               <div className="yt-player-host"><div ref={player.hostRef} /></div>
-              {activeVideo && !expanded && <div className="yt-pip-actions"><button onClick={() => setExpanded(true)} aria-label="Mở rộng video"><MonitorPlay size={17} /></button><button onClick={closePlayer} aria-label="Đóng video"><X size={17} /></button></div>}
+              {activeVideo && !expanded && <div className="yt-pip-actions"><button onClick={revealVideo} aria-label="Mở rộng video"><MonitorPlay size={17} /></button><button onClick={closePlayer} aria-label="Đóng video"><X size={17} /></button></div>}
             </div>
             {activeVideo && expanded && <><h1>{activeVideo.title}</h1><div className="yt-watch-meta"><div className="yt-channel"><span className="yt-channel-avatar">{activeVideo.channel[0] || "♪"}</span><strong>{activeVideo.channel}</strong></div><div className="yt-watch-actions"><button className={currentLiked ? "selected" : ""} aria-pressed={currentLiked} onClick={() => toggleLike(activeVideo)}><Heart size={18} fill={currentLiked ? "currentColor" : "none"} />{currentLiked ? "Đã thích" : "Yêu thích"}</button></div></div><p className="yt-watch-note">Video đang phát bằng trình phát nhúng chính thức của YouTube. Khi bạn quay lại danh sách hoặc tìm kiếm, video sẽ thu nhỏ và tiếp tục từ đúng vị trí hiện tại.</p></>}
           </div>{activeVideo && expanded && <div className="yt-watch-queue"><h2><ListMusic size={20} />Tiếp theo</h2>{player.queue.filter(v => v.id !== activeVideo.id).slice(0, 8).map(v => <button key={v.id} className="yt-queue-item" onClick={() => watch(v, player.queue)}><img src={v.thumbnail} alt="" /><span><strong>{v.title}</strong><small>{v.channel}</small></span></button>)}</div>}</div>
@@ -261,7 +268,7 @@ export default function DuongTube() {
       {player.current && <section className="yt-player" aria-label="Trình phát video">
         {player.error && <div className="yt-player-error" role="alert"><span>{player.error}</span><button onClick={player.retry}>Thử lại</button><a href={`https://www.youtube.com/watch?v=${player.current.id}`} target="_blank" rel="noopener noreferrer">Mở YouTube <ExternalLink size={13} /></a></div>}
         <input className="yt-progress" type="range" min={0} max={player.duration || 1} step={0.1} value={Math.min(player.position, player.duration || 1)} disabled={!player.duration} onChange={e => player.seek(Number(e.target.value))} aria-label="Tua video" style={{ "--progress": `${player.duration ? player.position / player.duration * 100 : 0}%` } as React.CSSProperties} />
-        <div className="yt-player-body"><button className="yt-track" onClick={() => setExpanded(!expanded)} aria-label="Mở video đang phát"><img src={player.current.thumbnail} alt="" /><span><strong>{player.current.title}</strong><small>{player.current.channel}</small></span></button>
+        <div className="yt-player-body"><button className="yt-track" onClick={() => expanded ? setExpanded(false) : revealVideo()} aria-label="Mở video đang phát"><img src={player.current.thumbnail} alt="" /><span><strong>{player.current.title}</strong><small>{player.current.channel}</small></span></button>
           <div className="yt-player-controls"><button className="yt-icon-button yt-previous" onClick={player.previous} aria-label="Video trước"><SkipBack fill="currentColor" size={21} /></button><button className="yt-main-play" onClick={player.toggle} aria-label={player.isPlaying ? "Tạm dừng" : "Phát video"}>{player.isLoading ? <LoaderCircle className="yt-spin" /> : player.isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</button><button className="yt-icon-button" onClick={player.next} disabled={player.queue.length < 2} aria-label="Video tiếp theo"><SkipForward fill="currentColor" size={21} /></button><span className="yt-time">{time(player.position)} <span>/ {time(player.duration)}</span></span></div>
           <div className="yt-player-tools"><button className={`yt-icon-button ${currentLiked ? "selected" : ""}`} onClick={() => player.current && toggleLike(player.current)} aria-label={currentLiked ? "Bỏ thích video đang phát" : "Thích video đang phát"}><Heart size={20} fill={currentLiked ? "currentColor" : "none"} /></button><button className={`yt-icon-button ${player.repeat ? "selected" : ""}`} aria-label="Lặp lại video" aria-pressed={player.repeat} onClick={() => player.setRepeat(!player.repeat)}><Repeat2 size={20} /></button><div className="yt-volume"><button className="yt-icon-button" aria-label={player.volume ? "Tắt âm" : "Bật âm"} onClick={() => player.setVolume(player.volume ? 0 : 1)}>{player.volume ? <Volume2 size={21} /> : <VolumeX size={21} />}</button><input type="range" min={0} max={1} step={0.05} value={player.volume} onChange={e => player.setVolume(Number(e.target.value))} aria-label="Âm lượng" /></div><button className={`yt-icon-button ${showQueue ? "selected" : ""}`} aria-label="Danh sách phát" aria-expanded={showQueue} onClick={() => setShowQueue(!showQueue)}><ListMusic size={22} /></button><button className="yt-icon-button yt-close-player" aria-label="Đóng trình phát" onClick={closePlayer}><X size={20} /></button></div>
         </div>

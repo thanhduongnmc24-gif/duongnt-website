@@ -20,3 +20,4 @@ html:has(.yt-app),body:has(.yt-app){width:100%;max-width:100%;overflow-x:hidden;
 @media(max-width:600px){.yt-content{width:100%;max-width:100vw}}
 @media(prefers-reduced-motion:reduce){.yt-app *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(max-width:600px){.yt-section-heading h2{font-size:21px}}
+.yt-video-expanded .yt-stage{scroll-margin-top:76px}@media(max-width:600px){.yt-video-expanded .yt-stage{scroll-margin-top:124px}}
