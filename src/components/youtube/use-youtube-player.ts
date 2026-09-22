@@ -35,6 +35,17 @@ function canControlPlayer(value: unknown): value is YouTubePlayer {
   return typeof player.playVideo === "function" && typeof player.loadVideoById === "function";
 }
 
+function restorePlaybackAudioRoute() {
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (!session) return;
+  try {
+    session.type = "playback";
+    session.type = "auto";
+  } catch {
+    // The Audio Session API is only available in newer WebKit versions.
+  }
+}
+
 declare global {
   interface Window {
     YT?: YouTubeApi;
@@ -136,6 +147,7 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
   const positionRef = useRef(0);
   const durationRef = useRef(0);
   const startedRef = useRef("");
+  const voiceRestoreTimerRef = useRef<number | null>(null);
   const onStartedRef = useRef(onStarted);
   const endedRef = useRef<() => void>(() => {});
 
@@ -268,6 +280,10 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
     });
     return () => {
       disposed = true;
+      if (voiceRestoreTimerRef.current !== null) {
+        window.clearTimeout(voiceRestoreTimerRef.current);
+        voiceRestoreTimerRef.current = null;
+      }
       apiRef.current = null;
       readyRef.current = false;
       createdRef.current = false;
@@ -367,6 +383,8 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
     const player = iframePlayerRef.current;
     if (!readyRef.current || !isYouTubePlayer(player)) return;
 
+    if (voiceRestoreTimerRef.current !== null) window.clearTimeout(voiceRestoreTimerRef.current);
+    restorePlaybackAudioRoute();
     player.unMute();
     player.setVolume(Math.round(volumeRef.current * 100));
     if (resumePlayback && currentRef.current) {
@@ -377,6 +395,18 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
       player.playVideo();
       persistSession(true);
     }
+
+    // iOS may update its route a little after SpeechRecognition ends. Apply
+    // the playback route and player volume once more after that transition.
+    voiceRestoreTimerRef.current = window.setTimeout(() => {
+      voiceRestoreTimerRef.current = null;
+      restorePlaybackAudioRoute();
+      const activePlayer = iframePlayerRef.current;
+      if (!readyRef.current || !isYouTubePlayer(activePlayer)) return;
+      activePlayer.unMute();
+      activePlayer.setVolume(Math.round(volumeRef.current * 100));
+      if (resumePlayback && currentRef.current) activePlayer.playVideo();
+    }, 350);
   }, [persistSession]);
   const setRepeat = useCallback((value: boolean) => { repeatRef.current = value; updateRepeat(value); }, []);
 

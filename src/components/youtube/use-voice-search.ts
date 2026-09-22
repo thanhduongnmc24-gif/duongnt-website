@@ -23,6 +23,10 @@ type SpeechRecognitionLike = {
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
+type AudioSessionLike = {
+  type: "auto" | "playback" | "transient-solo" | "transient" | "ambient" | "play-and-record";
+};
+
 type VoiceSearchOptions = {
   onCaptureStart?: () => void;
   onCaptureEnd?: () => void;
@@ -35,6 +39,25 @@ declare global {
   interface Window {
     SpeechRecognition?: SpeechRecognitionConstructor;
     webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }
+
+  interface Navigator {
+    audioSession?: AudioSessionLike;
+  }
+}
+
+function restorePlaybackAudioSession() {
+  const session = navigator.audioSession;
+  if (!session) return;
+
+  try {
+    // WebKit can leave iOS in its quieter play-and-record route after the
+    // microphone closes. Switching through playback and back to auto forces
+    // it to choose the normal media playback route again.
+    session.type = "playback";
+    session.type = "auto";
+  } catch {
+    // Older Safari versions do not expose a writable Audio Session API.
   }
 }
 
@@ -58,7 +81,6 @@ export function useVoiceSearch(
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const releaseTimerRef = useRef<number | null>(null);
   const watchdogTimerRef = useRef<number | null>(null);
-  const permissionRequestRef = useRef(false);
   const permissionStoredRef = useRef(false);
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
@@ -108,7 +130,6 @@ export function useVoiceSearch(
       const recognition = recognitionRef.current;
       recognitionRef.current = null;
       constructorRef.current = null;
-      permissionRequestRef.current = false;
       if (!recognition) return;
 
       recognition.onstart = null;
@@ -120,6 +141,7 @@ export function useVoiceSearch(
       } catch {
         // The browser may already have closed the input device.
       }
+      restorePlaybackAudioSession();
     };
   }, []);
 
@@ -158,31 +180,14 @@ export function useVoiceSearch(
     if (releaseTimerRef.current !== null) window.clearTimeout(releaseTimerRef.current);
     releaseTimerRef.current = window.setTimeout(() => {
       releaseTimerRef.current = null;
+      restorePlaybackAudioSession();
       try {
         afterRelease?.();
       } finally {
         onCaptureEndRef.current?.();
       }
-    }, 450);
+    }, 650);
   }, [release]);
-
-  const requestRememberedPermission = useCallback(async () => {
-    if (!navigator.mediaDevices?.getUserMedia) return true;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
-      try { localStorage.setItem(MICROPHONE_PERMISSION_KEY, "1"); } catch { /* Storage may be unavailable. */ }
-      permissionStoredRef.current = true;
-      setPermission("granted");
-      return true;
-    } catch {
-      permissionStoredRef.current = false;
-      try { localStorage.removeItem(MICROPHONE_PERMISSION_KEY); } catch { /* Storage may be unavailable. */ }
-      setPermission("denied");
-      setError("iOS chưa cho phép dùng micro. Hãy đặt Micro thành Cho phép trong cài đặt của DuongTube rồi thử lại.");
-      return false;
-    }
-  }, []);
 
   const toggle = useCallback(() => {
     const activeRecognition = recognitionRef.current;
@@ -192,76 +197,60 @@ export function useVoiceSearch(
     }
 
     const Recognition = constructorRef.current;
-    if (!Recognition || releaseTimerRef.current !== null || permissionRequestRef.current) return;
+    if (!Recognition || releaseTimerRef.current !== null) return;
     setError("");
-
-    permissionRequestRef.current = true;
     setListening(true);
     onCaptureStartRef.current?.();
-    void (async () => {
-      const remembered = permission === "granted" || permission === "remembered";
-      const allowed = remembered || await requestRememberedPermission();
-      permissionRequestRef.current = false;
-      if (!allowed) {
-        setListening(false);
-        releaseTimerRef.current = window.setTimeout(() => {
-          releaseTimerRef.current = null;
-          onCaptureEndRef.current?.();
-        }, 450);
+
+    const recognition = new Recognition();
+    recognition.lang = "vi-VN";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onstart = () => {
+      if (recognitionRef.current !== recognition) return;
+      try { localStorage.setItem(MICROPHONE_PERMISSION_KEY, "1"); } catch { /* Storage may be unavailable. */ }
+      permissionStoredRef.current = true;
+      setPermission("granted");
+      setListening(true);
+      setError("");
+    };
+    recognition.onend = () => finish(recognition, undefined, false);
+    recognition.onerror = event => {
+      const message = messageFor(event.error);
+      if (event.error === "not-allowed") {
+        permissionStoredRef.current = false;
+        try { localStorage.removeItem(MICROPHONE_PERMISSION_KEY); } catch { /* Storage may be unavailable. */ }
+        setPermission("denied");
+      }
+      finish(recognition);
+      if (message) setError(message);
+    };
+    recognition.onresult = event => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim() || "";
+
+      if (!transcript) {
+        finish(recognition);
+        setError("Chưa nghe rõ từ khóa. Hãy thử lại.");
         return;
       }
-      if (constructorRef.current !== Recognition) return;
 
-      const recognition = new Recognition();
-      recognition.lang = "vi-VN";
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-      recognition.onstart = () => {
+      finish(recognition, () => onResultRef.current(transcript));
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      watchdogTimerRef.current = window.setTimeout(() => {
         if (recognitionRef.current !== recognition) return;
-        try { localStorage.setItem(MICROPHONE_PERMISSION_KEY, "1"); } catch { /* Storage may be unavailable. */ }
-        permissionStoredRef.current = true;
-        setPermission("granted");
-        setListening(true);
-        setError("");
-      };
-      recognition.onend = () => finish(recognition, undefined, false);
-      recognition.onerror = event => {
-        const message = messageFor(event.error);
-        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-          permissionStoredRef.current = false;
-          try { localStorage.removeItem(MICROPHONE_PERMISSION_KEY); } catch { /* Storage may be unavailable. */ }
-          setPermission("denied");
-        }
+        setError("Micro không tự dừng. DuongTube đã đóng micro, hãy thử lại.");
         finish(recognition);
-        if (message) setError(message);
-      };
-      recognition.onresult = event => {
-        const transcript = event.results[0]?.[0]?.transcript?.trim() || "";
-
-        if (!transcript) {
-          finish(recognition);
-          setError("Chưa nghe rõ từ khóa. Hãy thử lại.");
-          return;
-        }
-
-        finish(recognition, () => onResultRef.current(transcript));
-      };
-
-      recognitionRef.current = recognition;
-      try {
-        recognition.start();
-        watchdogTimerRef.current = window.setTimeout(() => {
-          if (recognitionRef.current !== recognition) return;
-          setError("Micro không tự dừng. DuongTube đã đóng micro, hãy thử lại.");
-          finish(recognition);
-        }, 12_000);
-      } catch {
-        finish(recognition);
-        setError("Micro đang bận. Hãy đợi một chút rồi thử lại.");
-      }
-    })();
-  }, [finish, permission, requestRememberedPermission]);
+      }, 12_000);
+    } catch {
+      finish(recognition);
+      setError("Micro đang bận. Hãy đợi một chút rồi thử lại.");
+    }
+  }, [finish]);
 
   return { supported, listening, permission, error, toggle, clearError: () => setError("") };
 }

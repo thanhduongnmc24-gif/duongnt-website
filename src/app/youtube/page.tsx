@@ -101,6 +101,7 @@ export default function DuongTube() {
     onCaptureStart: pauseForVoiceSearch,
     onCaptureEnd: restoreAfterVoiceSearch,
   });
+  const microphoneSaved = voice.permission === "granted" || voice.permission === "remembered";
 
   useEffect(() => {
     const storedHistory = readLibrary("duongtube-history");
@@ -210,7 +211,7 @@ export default function DuongTube() {
         <form className={`yt-search ${voice.supported ? "yt-has-voice" : ""}`} onSubmit={search} role="search">
           <input ref={searchRef} aria-label="Tìm kiếm YouTube" placeholder="Tìm kiếm hoặc dán liên kết YouTube" value={query} onChange={e => setQuery(e.target.value)} maxLength={500} />
           {query && <button type="button" className="yt-clear-search" aria-label="Xóa tìm kiếm" onClick={() => { setQuery(""); searchRef.current?.focus(); }}><X size={19} /></button>}
-          {voice.supported && <button type="button" className={`yt-voice-search ${voice.listening ? "listening" : ""}`} aria-label={voice.listening ? "Dừng nghe" : "Tìm kiếm bằng giọng nói"} aria-pressed={voice.listening} title={voice.listening ? "Dừng nghe" : "Tìm kiếm bằng giọng nói"} onClick={voice.toggle}>{voice.listening ? <MicOff size={21} /> : <Mic size={21} />}</button>}
+          {voice.supported && <button type="button" className={`yt-voice-search ${voice.listening ? "listening" : ""} ${microphoneSaved ? "permission-saved" : ""}`} aria-label={voice.listening ? "Dừng nghe" : microphoneSaved ? "Tìm kiếm bằng giọng nói, quyền micro đã lưu" : "Tìm kiếm bằng giọng nói"} aria-pressed={voice.listening} title={voice.listening ? "Dừng nghe" : microphoneSaved ? "Tìm kiếm bằng giọng nói · quyền micro đã lưu" : "Tìm kiếm bằng giọng nói"} onClick={voice.toggle}>{voice.listening ? <MicOff size={21} /> : <Mic size={21} />}</button>}
           <button type="submit" aria-label="Tìm kiếm"><Search size={23} /></button>
         </form>
         <div className="yt-header-actions">
