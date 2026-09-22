@@ -43,6 +43,54 @@ declare global {
 }
 
 let apiPromise: Promise<YouTubeApi> | null = null;
+const PLAYER_SESSION_KEY = "duongtube-player-session-v1";
+const PLAYER_SESSION_MAX_AGE = 24 * 60 * 60 * 1_000;
+
+type PlayerSession = {
+  video: Video;
+  queue: Video[];
+  position: number;
+  duration: number;
+  wasPlaying: boolean;
+  savedAt: number;
+};
+
+function isVideo(value: unknown): value is Video {
+  if (!value || typeof value !== "object") return false;
+  const video = value as Partial<Video>;
+  return typeof video.id === "string" && /^[\w-]{11}$/.test(video.id)
+    && typeof video.title === "string"
+    && typeof video.channel === "string"
+    && typeof video.thumbnail === "string";
+}
+
+function readPlayerSession(): PlayerSession | null {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(PLAYER_SESSION_KEY) || "null");
+    if (!value || typeof value !== "object") return null;
+    const session = value as Partial<PlayerSession>;
+    if (!isVideo(session.video) || !Array.isArray(session.queue) || !session.queue.every(isVideo)) return null;
+    if (typeof session.savedAt !== "number" || Date.now() - session.savedAt > PLAYER_SESSION_MAX_AGE) return null;
+    return {
+      video: session.video,
+      queue: session.queue.length ? session.queue.slice(0, 50) : [session.video],
+      position: typeof session.position === "number" && Number.isFinite(session.position) ? Math.max(0, session.position) : 0,
+      duration: typeof session.duration === "number" && Number.isFinite(session.duration) ? Math.max(0, session.duration) : 0,
+      wasPlaying: session.wasPlaying === true,
+      savedAt: session.savedAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePlayerSession(session: PlayerSession) {
+  try { localStorage.setItem(PLAYER_SESSION_KEY, JSON.stringify(session)); } catch { /* Storage may be unavailable. */ }
+}
+
+function clearPlayerSession() {
+  try { localStorage.removeItem(PLAYER_SESSION_KEY); } catch { /* Storage may be unavailable. */ }
+}
 
 function loadApi() {
   if (window.YT?.Player) return Promise.resolve(window.YT);
@@ -82,6 +130,11 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
   const repeatRef = useRef(false);
   const volumeRef = useRef(1);
   const pendingRef = useRef<Video | null>(null);
+  const pendingPositionRef = useRef(0);
+  const pendingShouldPlayRef = useRef(true);
+  const playIntentRef = useRef(false);
+  const positionRef = useRef(0);
+  const durationRef = useRef(0);
   const startedRef = useRef("");
   const onStartedRef = useRef(onStarted);
   const endedRef = useRef<() => void>(() => {});
@@ -99,16 +152,57 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
 
   useEffect(() => { onStartedRef.current = onStarted; }, [onStarted]);
 
+  useEffect(() => {
+    const session = readPlayerSession();
+    if (!session) return;
+
+    currentRef.current = session.video;
+    queueRef.current = session.queue;
+    pendingRef.current = session.video;
+    pendingPositionRef.current = session.position;
+    pendingShouldPlayRef.current = session.wasPlaying;
+    playIntentRef.current = session.wasPlaying;
+    positionRef.current = session.position;
+    durationRef.current = session.duration || session.video.duration || 0;
+    setCurrent(session.video);
+    setQueue(session.queue);
+    setPosition(session.position);
+    setDuration(durationRef.current);
+    setIsLoading(session.wasPlaying);
+  }, []);
+
+  const persistSession = useCallback((wasPlaying = playIntentRef.current) => {
+    const video = currentRef.current;
+    if (!video) return;
+    const player = iframePlayerRef.current;
+    if (readyRef.current && isYouTubePlayer(player)) {
+      const nextPosition = player.getCurrentTime();
+      const nextDuration = player.getDuration();
+      if (Number.isFinite(nextPosition)) positionRef.current = Math.max(0, nextPosition);
+      if (Number.isFinite(nextDuration) && nextDuration > 0) durationRef.current = nextDuration;
+    }
+    writePlayerSession({
+      video,
+      queue: queueRef.current.length ? queueRef.current : [video],
+      position: positionRef.current,
+      duration: durationRef.current,
+      wasPlaying,
+      savedAt: Date.now(),
+    });
+  }, []);
+
   const createPlayer = useCallback((api: YouTubeApi, firstVideoId: string, warmingUp: boolean) => {
     const host = hostRef.current;
     if (!host || createdRef.current) return;
     createdRef.current = true;
+    const restoredPosition = !warmingUp && pendingRef.current?.id === firstVideoId ? pendingPositionRef.current : 0;
     const created = new api.Player(host, {
       width: 200,
       height: 200,
       videoId: firstVideoId,
       playerVars: {
-        autoplay: warmingUp ? 0 : 1, mute: warmingUp ? 1 : 0, controls: 1, disablekb: 0, fs: 1, iv_load_policy: 3,
+        autoplay: !warmingUp && pendingShouldPlayRef.current ? 1 : 0, mute: warmingUp ? 1 : 0, controls: 1, disablekb: 0, fs: 1, iv_load_policy: 3,
+        ...(restoredPosition > 0 ? { start: Math.floor(restoredPosition) } : {}),
         playsinline: 1, rel: 0, origin: window.location.origin,
       },
       events: {
@@ -127,19 +221,31 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
           }
           target.unMute();
           if (pending.id !== firstVideoId) target.loadVideoById(pending.id);
+          else if (pendingPositionRef.current > 0) target.seekTo(pendingPositionRef.current, true);
           setIsReady(true);
-          target.playVideo();
+          if (pendingShouldPlayRef.current) target.playVideo();
+          else { target.pauseVideo(); setIsLoading(false); }
+          pendingPositionRef.current = 0;
         },
         onStateChange: ({ data }: PlayerEvent) => {
           if (data === 1) {
             if (!currentRef.current) return;
+            playIntentRef.current = true;
             setIsPlaying(true); setIsLoading(false); setError(null);
+            persistSession(true);
             const video = currentRef.current;
             if (video && startedRef.current !== video.id) { startedRef.current = video.id; onStartedRef.current?.(video); }
           } else if (data === 2 || data === 5) {
+            if (!document.hidden) playIntentRef.current = false;
             setIsPlaying(false); setIsLoading(false);
+            persistSession(playIntentRef.current);
           } else if (data === 3) setIsLoading(true);
           else if (data === 0) endedRef.current();
+        },
+        onAutoplayBlocked: () => {
+          playIntentRef.current = false;
+          setIsPlaying(false); setIsLoading(false);
+          persistSession(false);
         },
         onError: () => {
           setError("YouTube không thể phát video này. Hãy thử video khác hoặc mở trên YouTube.");
@@ -148,7 +254,7 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
       },
     });
     iframePlayerRef.current = created;
-  }, []);
+  }, [persistSession]);
 
   useEffect(() => {
     let disposed = false;
@@ -178,10 +284,13 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
 
   const resume = useCallback(() => {
     if (!currentRef.current) return;
+    playIntentRef.current = true;
+    pendingShouldPlayRef.current = true;
     setError(null); setIsLoading(true);
     const player = iframePlayerRef.current;
     if (canControlPlayer(player)) player.playVideo();
-  }, []);
+    persistSession(true);
+  }, [persistSession]);
 
   const play = useCallback((video: Video, videos?: Video[], force = false) => {
     if (videos) {
@@ -194,7 +303,10 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
     }
     if (!force && currentRef.current?.id === video.id) { resume(); return; }
     currentRef.current = video; pendingRef.current = video; startedRef.current = "";
+    pendingPositionRef.current = 0; pendingShouldPlayRef.current = true; playIntentRef.current = true;
+    positionRef.current = 0; durationRef.current = video.duration ?? 0;
     setCurrent(video); setPosition(0); setDuration(video.duration ?? 0); setError(null); setIsLoading(true); setIsPlaying(false);
+    writePlayerSession({ video, queue: queueRef.current, position: 0, duration: durationRef.current, wasPlaying: true, savedAt: Date.now() });
     const player = iframePlayerRef.current;
     if (canControlPlayer(player)) {
       if (typeof player.unMute === "function") player.unMute();
@@ -206,17 +318,22 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
   }, [createPlayer, resume]);
 
   const pause = useCallback(() => {
+    playIntentRef.current = false;
+    pendingShouldPlayRef.current = false;
     const player = iframePlayerRef.current;
     if (canControlPlayer(player)) player.pauseVideo();
     setIsLoading(false);
-  }, []);
+    persistSession(false);
+  }, [persistSession]);
   const toggle = useCallback(() => { if (isPlaying) pause(); else resume(); }, [isPlaying, pause, resume]);
   const seek = useCallback((seconds: number) => {
     if (!Number.isFinite(seconds)) return;
     const player = iframePlayerRef.current;
     if (readyRef.current && isYouTubePlayer(player)) player.seekTo(Math.max(0, seconds), true);
-    setPosition(Math.max(0, seconds));
-  }, []);
+    positionRef.current = Math.max(0, seconds);
+    setPosition(positionRef.current);
+    persistSession();
+  }, [persistSession]);
   const next = useCallback(() => {
     const index = queueRef.current.findIndex(item => item.id === currentRef.current?.id);
     const following = queueRef.current[(index + 1) % queueRef.current.length];
@@ -232,8 +349,11 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
   const retry = useCallback(() => { if (currentRef.current) play(currentRef.current, undefined, true); }, [play]);
   const close = useCallback(() => {
     pendingRef.current = null; currentRef.current = null; startedRef.current = "";
+    pendingPositionRef.current = 0; pendingShouldPlayRef.current = false; playIntentRef.current = false;
+    positionRef.current = 0; durationRef.current = 0;
     const player = iframePlayerRef.current;
     if (isYouTubePlayer(player)) player.stopVideo();
+    clearPlayerSession();
     setCurrent(null); setIsPlaying(false); setIsLoading(false); setPosition(0); setDuration(0); setError(null);
   }, []);
   const setVolume = useCallback((value: number) => {
@@ -250,11 +370,14 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
     player.unMute();
     player.setVolume(Math.round(volumeRef.current * 100));
     if (resumePlayback && currentRef.current) {
+      playIntentRef.current = true;
+      pendingShouldPlayRef.current = true;
       setError(null);
       setIsLoading(true);
       player.playVideo();
+      persistSession(true);
     }
-  }, []);
+  }, [persistSession]);
   const setRepeat = useCallback((value: boolean) => { repeatRef.current = value; updateRepeat(value); }, []);
 
   endedRef.current = () => {
@@ -263,7 +386,11 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
       const index = queueRef.current.findIndex(item => item.id === currentRef.current?.id);
       const following = queueRef.current[index + 1];
       if (following) play(following, undefined, true);
-      else setIsPlaying(false);
+      else {
+        playIntentRef.current = false;
+        setIsPlaying(false);
+        persistSession(false);
+      }
     }
   };
 
@@ -274,11 +401,12 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
       if (!readyRef.current || !isYouTubePlayer(player)) return;
       const nextPosition = player.getCurrentTime();
       const nextDuration = player.getDuration();
-      if (Number.isFinite(nextPosition)) setPosition(nextPosition);
-      if (Number.isFinite(nextDuration) && nextDuration > 0) setDuration(nextDuration);
+      if (Number.isFinite(nextPosition)) { positionRef.current = nextPosition; setPosition(nextPosition); }
+      if (Number.isFinite(nextDuration) && nextDuration > 0) { durationRef.current = nextDuration; setDuration(nextDuration); }
+      persistSession();
     }, 1_000);
     return () => window.clearInterval(timer);
-  }, [current]);
+  }, [current, persistSession]);
 
   return {
     hostRef, current, queue, isPlaying, isLoading, isReady, error, position, duration, volume, repeat,

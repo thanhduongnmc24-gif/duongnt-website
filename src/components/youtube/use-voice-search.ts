@@ -28,6 +28,9 @@ type VoiceSearchOptions = {
   onCaptureEnd?: () => void;
 };
 
+type MicrophonePermissionState = "unknown" | "prompt" | "granted" | "denied" | "remembered";
+const MICROPHONE_PERMISSION_KEY = "duongtube-microphone-enabled";
+
 declare global {
   interface Window {
     SpeechRecognition?: SpeechRecognitionConstructor;
@@ -55,9 +58,12 @@ export function useVoiceSearch(
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const releaseTimerRef = useRef<number | null>(null);
   const watchdogTimerRef = useRef<number | null>(null);
+  const permissionRequestRef = useRef(false);
+  const permissionStoredRef = useRef(false);
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState("");
+  const [permission, setPermission] = useState<MicrophonePermissionState>("unknown");
 
   useEffect(() => {
     onResultRef.current = onResult;
@@ -70,7 +76,26 @@ export function useVoiceSearch(
     constructorRef.current = Recognition || null;
     setSupported(Boolean(Recognition));
 
+    let disposed = false;
+    let permissionStatus: PermissionStatus | null = null;
+    let syncPermission: (() => void) | null = null;
+    try {
+      permissionStoredRef.current = localStorage.getItem(MICROPHONE_PERMISSION_KEY) === "1";
+      if (permissionStoredRef.current) setPermission("remembered");
+    } catch { /* Storage may be unavailable. */ }
+    if (navigator.permissions?.query) {
+      void navigator.permissions.query({ name: "microphone" as PermissionName }).then(status => {
+        if (disposed) return;
+        permissionStatus = status;
+        syncPermission = () => setPermission(status.state === "prompt" && permissionStoredRef.current ? "remembered" : status.state);
+        syncPermission();
+        status.addEventListener("change", syncPermission);
+      }).catch(() => { /* Safari may not expose microphone through Permissions API. */ });
+    }
+
     return () => {
+      disposed = true;
+      if (permissionStatus && syncPermission) permissionStatus.removeEventListener("change", syncPermission);
       if (releaseTimerRef.current !== null) {
         window.clearTimeout(releaseTimerRef.current);
         releaseTimerRef.current = null;
@@ -83,6 +108,7 @@ export function useVoiceSearch(
       const recognition = recognitionRef.current;
       recognitionRef.current = null;
       constructorRef.current = null;
+      permissionRequestRef.current = false;
       if (!recognition) return;
 
       recognition.onstart = null;
@@ -140,6 +166,24 @@ export function useVoiceSearch(
     }, 450);
   }, [release]);
 
+  const requestRememberedPermission = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) return true;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop());
+      try { localStorage.setItem(MICROPHONE_PERMISSION_KEY, "1"); } catch { /* Storage may be unavailable. */ }
+      permissionStoredRef.current = true;
+      setPermission("granted");
+      return true;
+    } catch {
+      permissionStoredRef.current = false;
+      try { localStorage.removeItem(MICROPHONE_PERMISSION_KEY); } catch { /* Storage may be unavailable. */ }
+      setPermission("denied");
+      setError("iOS chưa cho phép dùng micro. Hãy đặt Micro thành Cho phép trong cài đặt của DuongTube rồi thử lại.");
+      return false;
+    }
+  }, []);
+
   const toggle = useCallback(() => {
     const activeRecognition = recognitionRef.current;
     if (activeRecognition) {
@@ -148,52 +192,76 @@ export function useVoiceSearch(
     }
 
     const Recognition = constructorRef.current;
-    if (!Recognition || releaseTimerRef.current !== null) return;
+    if (!Recognition || releaseTimerRef.current !== null || permissionRequestRef.current) return;
     setError("");
 
-    const recognition = new Recognition();
-    recognition.lang = "vi-VN";
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognition.onstart = () => {
-      if (recognitionRef.current !== recognition) return;
-      setListening(true);
-      setError("");
-    };
-    recognition.onend = () => finish(recognition, undefined, false);
-    recognition.onerror = event => {
-      const message = messageFor(event.error);
-      finish(recognition);
-      if (message) setError(message);
-    };
-    recognition.onresult = event => {
-      const transcript = event.results[0]?.[0]?.transcript?.trim() || "";
-
-      if (!transcript) {
-        finish(recognition);
-        setError("Chưa nghe rõ từ khóa. Hãy thử lại.");
+    permissionRequestRef.current = true;
+    setListening(true);
+    onCaptureStartRef.current?.();
+    void (async () => {
+      const remembered = permission === "granted" || permission === "remembered";
+      const allowed = remembered || await requestRememberedPermission();
+      permissionRequestRef.current = false;
+      if (!allowed) {
+        setListening(false);
+        releaseTimerRef.current = window.setTimeout(() => {
+          releaseTimerRef.current = null;
+          onCaptureEndRef.current?.();
+        }, 450);
         return;
       }
+      if (constructorRef.current !== Recognition) return;
 
-      finish(recognition, () => onResultRef.current(transcript));
-    };
-
-    recognitionRef.current = recognition;
-    try {
-      setListening(true);
-      onCaptureStartRef.current?.();
-      recognition.start();
-      watchdogTimerRef.current = window.setTimeout(() => {
+      const recognition = new Recognition();
+      recognition.lang = "vi-VN";
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      recognition.onstart = () => {
         if (recognitionRef.current !== recognition) return;
-        setError("Micro không tự dừng. DuongTube đã đóng micro, hãy thử lại.");
+        try { localStorage.setItem(MICROPHONE_PERMISSION_KEY, "1"); } catch { /* Storage may be unavailable. */ }
+        permissionStoredRef.current = true;
+        setPermission("granted");
+        setListening(true);
+        setError("");
+      };
+      recognition.onend = () => finish(recognition, undefined, false);
+      recognition.onerror = event => {
+        const message = messageFor(event.error);
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          permissionStoredRef.current = false;
+          try { localStorage.removeItem(MICROPHONE_PERMISSION_KEY); } catch { /* Storage may be unavailable. */ }
+          setPermission("denied");
+        }
         finish(recognition);
-      }, 12_000);
-    } catch {
-      finish(recognition);
-      setError("Micro đang bận. Hãy đợi một chút rồi thử lại.");
-    }
-  }, [finish]);
+        if (message) setError(message);
+      };
+      recognition.onresult = event => {
+        const transcript = event.results[0]?.[0]?.transcript?.trim() || "";
 
-  return { supported, listening, error, toggle, clearError: () => setError("") };
+        if (!transcript) {
+          finish(recognition);
+          setError("Chưa nghe rõ từ khóa. Hãy thử lại.");
+          return;
+        }
+
+        finish(recognition, () => onResultRef.current(transcript));
+      };
+
+      recognitionRef.current = recognition;
+      try {
+        recognition.start();
+        watchdogTimerRef.current = window.setTimeout(() => {
+          if (recognitionRef.current !== recognition) return;
+          setError("Micro không tự dừng. DuongTube đã đóng micro, hãy thử lại.");
+          finish(recognition);
+        }, 12_000);
+      } catch {
+        finish(recognition);
+        setError("Micro đang bận. Hãy đợi một chút rồi thử lại.");
+      }
+    })();
+  }, [finish, permission, requestRememberedPermission]);
+
+  return { supported, listening, permission, error, toggle, clearError: () => setError("") };
 }
