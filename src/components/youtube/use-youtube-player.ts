@@ -243,6 +243,18 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
     if (readyRef.current && isYouTubePlayer(player)) player.setVolume(Math.round(nextVolume * 100));
     updateVolume(nextVolume);
   }, []);
+  const restoreAfterVoiceSearch = useCallback((resumePlayback: boolean) => {
+    const player = iframePlayerRef.current;
+    if (!readyRef.current || !isYouTubePlayer(player)) return;
+
+    player.unMute();
+    player.setVolume(Math.round(volumeRef.current * 100));
+    if (resumePlayback && currentRef.current) {
+      setError(null);
+      setIsLoading(true);
+      player.playVideo();
+    }
+  }, []);
   const setRepeat = useCallback((value: boolean) => { repeatRef.current = value; updateRepeat(value); }, []);
 
   endedRef.current = () => {
@@ -270,6 +282,6 @@ export function useYouTubePlayer({ onStarted }: { onStarted?: (video: Video) => 
 
   return {
     hostRef, current, queue, isPlaying, isLoading, isReady, error, position, duration, volume, repeat,
-    prepare, play, toggle, next, previous, seek, setVolume, setRepeat, retry, close,
+    prepare, play, pause, toggle, next, previous, seek, setVolume, restoreAfterVoiceSearch, setRepeat, retry, close,
   };
 }

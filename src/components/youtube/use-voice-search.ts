@@ -18,11 +18,15 @@ type SpeechRecognitionLike = {
   onresult: ((event: SpeechResultEvent) => void) | null;
   onerror: ((event: SpeechErrorEvent) => void) | null;
   start(): void;
-  stop(): void;
   abort(): void;
 };
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+type VoiceSearchOptions = {
+  onCaptureStart?: () => void;
+  onCaptureEnd?: () => void;
+};
 
 declare global {
   interface Window {
@@ -40,16 +44,26 @@ function messageFor(error?: string) {
   return "Chưa thể nhận dạng giọng nói. Hãy thử lại.";
 }
 
-export function useVoiceSearch(onResult: (transcript: string) => void) {
+export function useVoiceSearch(
+  onResult: (transcript: string) => void,
+  { onCaptureStart, onCaptureEnd }: VoiceSearchOptions = {},
+) {
   const onResultRef = useRef(onResult);
+  const onCaptureStartRef = useRef(onCaptureStart);
+  const onCaptureEndRef = useRef(onCaptureEnd);
   const constructorRef = useRef<SpeechRecognitionConstructor | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const resultTimerRef = useRef<number | null>(null);
+  const releaseTimerRef = useRef<number | null>(null);
+  const watchdogTimerRef = useRef<number | null>(null);
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => { onResultRef.current = onResult; }, [onResult]);
+  useEffect(() => {
+    onResultRef.current = onResult;
+    onCaptureStartRef.current = onCaptureStart;
+    onCaptureEndRef.current = onCaptureEnd;
+  }, [onCaptureEnd, onCaptureStart, onResult]);
 
   useEffect(() => {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -57,9 +71,13 @@ export function useVoiceSearch(onResult: (transcript: string) => void) {
     setSupported(Boolean(Recognition));
 
     return () => {
-      if (resultTimerRef.current !== null) {
-        window.clearTimeout(resultTimerRef.current);
-        resultTimerRef.current = null;
+      if (releaseTimerRef.current !== null) {
+        window.clearTimeout(releaseTimerRef.current);
+        releaseTimerRef.current = null;
+      }
+      if (watchdogTimerRef.current !== null) {
+        window.clearTimeout(watchdogTimerRef.current);
+        watchdogTimerRef.current = null;
       }
 
       const recognition = recognitionRef.current;
@@ -82,6 +100,10 @@ export function useVoiceSearch(onResult: (transcript: string) => void) {
   const release = useCallback((recognition: SpeechRecognitionLike, abort = true) => {
     if (recognitionRef.current !== recognition) return;
 
+    if (watchdogTimerRef.current !== null) {
+      window.clearTimeout(watchdogTimerRef.current);
+      watchdogTimerRef.current = null;
+    }
     recognitionRef.current = null;
     recognition.onstart = null;
     recognition.onend = null;
@@ -99,20 +121,34 @@ export function useVoiceSearch(onResult: (transcript: string) => void) {
     setListening(false);
   }, []);
 
+  const finish = useCallback((
+    recognition: SpeechRecognitionLike,
+    afterRelease?: () => void,
+    abort = true,
+  ) => {
+    if (recognitionRef.current !== recognition) return;
+    release(recognition, abort);
+
+    if (releaseTimerRef.current !== null) window.clearTimeout(releaseTimerRef.current);
+    releaseTimerRef.current = window.setTimeout(() => {
+      releaseTimerRef.current = null;
+      try {
+        afterRelease?.();
+      } finally {
+        onCaptureEndRef.current?.();
+      }
+    }, 450);
+  }, [release]);
+
   const toggle = useCallback(() => {
     const activeRecognition = recognitionRef.current;
     if (activeRecognition) {
-      release(activeRecognition);
+      finish(activeRecognition);
       return;
     }
 
     const Recognition = constructorRef.current;
-    if (!Recognition) return;
-
-    if (resultTimerRef.current !== null) {
-      window.clearTimeout(resultTimerRef.current);
-      resultTimerRef.current = null;
-    }
+    if (!Recognition || releaseTimerRef.current !== null) return;
     setError("");
 
     const recognition = new Recognition();
@@ -125,37 +161,39 @@ export function useVoiceSearch(onResult: (transcript: string) => void) {
       setListening(true);
       setError("");
     };
-    recognition.onend = () => release(recognition, false);
+    recognition.onend = () => finish(recognition, undefined, false);
     recognition.onerror = event => {
       const message = messageFor(event.error);
-      release(recognition);
+      finish(recognition);
       if (message) setError(message);
     };
     recognition.onresult = event => {
       const transcript = event.results[0]?.[0]?.transcript?.trim() || "";
-      release(recognition);
 
       if (!transcript) {
+        finish(recognition);
         setError("Chưa nghe rõ từ khóa. Hãy thử lại.");
         return;
       }
 
-      // WebKit restores the media output session asynchronously after the
-      // microphone is closed. Let it finish before search updates the player.
-      resultTimerRef.current = window.setTimeout(() => {
-        resultTimerRef.current = null;
-        onResultRef.current(transcript);
-      }, 200);
+      finish(recognition, () => onResultRef.current(transcript));
     };
 
     recognitionRef.current = recognition;
     try {
+      setListening(true);
+      onCaptureStartRef.current?.();
       recognition.start();
+      watchdogTimerRef.current = window.setTimeout(() => {
+        if (recognitionRef.current !== recognition) return;
+        setError("Micro không tự dừng. DuongTube đã đóng micro, hãy thử lại.");
+        finish(recognition);
+      }, 12_000);
     } catch {
-      release(recognition);
+      finish(recognition);
       setError("Micro đang bận. Hãy đợi một chút rồi thử lại.");
     }
-  }, [release]);
+  }, [finish]);
 
   return { supported, listening, error, toggle, clearError: () => setError("") };
 }

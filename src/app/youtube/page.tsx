@@ -60,6 +60,7 @@ export default function DuongTube() {
   const [offline, setOffline] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const resumeAfterVoiceRef = useRef(false);
   const pwa = usePwa();
   const submitSearch = useCallback((rawQuery: string) => {
     const nextQuery = rawQuery.trim();
@@ -79,7 +80,6 @@ export default function DuongTube() {
     window.history.replaceState(null, "", url);
     searchRef.current?.blur();
   }, []);
-  const voice = useVoiceSearch(submitSearch);
   const onStarted = useCallback((video: Video) => {
     setRecommendationSeed(video.channel);
     setHistory(previous => {
@@ -89,6 +89,18 @@ export default function DuongTube() {
     });
   }, []);
   const player = useYouTubePlayer({ onStarted });
+  const pauseForVoiceSearch = useCallback(() => {
+    resumeAfterVoiceRef.current = player.isPlaying;
+    if (player.isPlaying) player.pause();
+  }, [player.isPlaying, player.pause]);
+  const restoreAfterVoiceSearch = useCallback(() => {
+    player.restoreAfterVoiceSearch(resumeAfterVoiceRef.current);
+    resumeAfterVoiceRef.current = false;
+  }, [player.restoreAfterVoiceSearch]);
+  const voice = useVoiceSearch(submitSearch, {
+    onCaptureStart: pauseForVoiceSearch,
+    onCaptureEnd: restoreAfterVoiceSearch,
+  });
 
   useEffect(() => {
     const storedHistory = readLibrary("duongtube-history");
@@ -247,7 +259,7 @@ export default function DuongTube() {
       </section>}
       {showQueue && player.current && <aside className="yt-queue-panel" aria-label="Danh sách phát"><header><h2>Danh sách phát <small>{player.queue.length} video</small></h2><button className="yt-icon-button" aria-label="Đóng danh sách phát" onClick={() => setShowQueue(false)}><X /></button></header><div>{player.queue.map((v, i) => <button key={v.id} className={`yt-queue-item ${v.id === player.current?.id ? "active" : ""}`} onClick={() => watch(v, player.queue)}><small>{i + 1}</small><img src={v.thumbnail} alt="" /><span><strong>{v.title}</strong><small>{v.channel}</small></span></button>)}</div></aside>}
       <nav className="yt-mobile-nav" aria-label="Điều hướng di động">{navItems.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => navigate(id)} aria-current={view === id ? "page" : undefined}><Icon size={22} /><span>{label}</span></button>)}</nav>
-      <dialog ref={dialogRef} className="yt-help" onClose={() => setHelp(false)} onClick={event => { if (event.target === dialogRef.current) setHelp(false); }}><div className="yt-help-heading"><span className="yt-logo"><Play fill="currentColor" size={20} /></span><h2>DuongTube, luôn bên bạn</h2><button className="yt-icon-button" aria-label="Đóng hướng dẫn" onClick={() => setHelp(false)}><X /></button></div><div className="yt-help-body"><h3><ArrowDownToLine size={21} />Cài đặt ứng dụng</h3><p>Android / máy tính: chọn <b>Cài ứng dụng</b> hoặc mục cài đặt trong menu trình duyệt.</p><p>iPhone / iPad: mở bằng Safari, chọn <b>Chia sẻ → Thêm vào Màn hình chính → Thêm</b>.</p><h3><Mic size={21} />Tìm kiếm bằng giọng nói</h3><p>Chạm nút micro trong ô tìm kiếm, cho phép sử dụng micro rồi nói tên bài hát hoặc video. DuongTube sẽ tìm ngay sau khi nhận dạng xong.</p><h3><MonitorPlay size={21} />Trình phát video</h3><p>Chạm vào ảnh hoặc tên video để phát ngay bằng trình phát nhúng chính thức của YouTube.</p><p>Khi quay lại danh sách hoặc tìm kiếm video khác, trình phát hiện tại thu nhỏ ở góc và tiếp tục từ đúng vị trí. Chạm nút mở rộng trên video để quay lại màn hình xem.</p><h3><Heart size={21} />Thư viện của riêng bạn</h3><p>Yêu thích và lịch sử được lưu trên thiết bị này. Bạn không cần đăng nhập.</p>{pwa.error && <p role="status">{pwa.error}</p>}{pwa.canInstall && <button className="yt-primary" onClick={pwa.install}><ArrowDownToLine size={18} />Cài DuongTube</button>}</div></dialog>
+      <dialog ref={dialogRef} className="yt-help" onClose={() => setHelp(false)} onClick={event => { if (event.target === dialogRef.current) setHelp(false); }}><div className="yt-help-heading"><span className="yt-logo"><Play fill="currentColor" size={20} /></span><h2>DuongTube, luôn bên bạn</h2><button className="yt-icon-button" aria-label="Đóng hướng dẫn" onClick={() => setHelp(false)}><X /></button></div><div className="yt-help-body"><h3><ArrowDownToLine size={21} />Cài đặt ứng dụng</h3><p>Android / máy tính: chọn <b>Cài ứng dụng</b> hoặc mục cài đặt trong menu trình duyệt.</p><p>iPhone / iPad: mở bằng Safari, chọn <b>Chia sẻ → Thêm vào Màn hình chính → Thêm</b>.</p><h3><Mic size={21} />Tìm kiếm bằng giọng nói</h3><p>Chạm nút micro rồi nói tên bài hát hoặc video. Nếu đang phát video, DuongTube sẽ tạm dừng trong lúc nghe và tự phát tiếp ở đúng vị trí sau khi micro đóng.</p><h3><MonitorPlay size={21} />Trình phát video</h3><p>Chạm vào ảnh hoặc tên video để phát ngay bằng trình phát nhúng chính thức của YouTube.</p><p>Khi quay lại danh sách hoặc tìm kiếm video khác, trình phát hiện tại thu nhỏ ở góc và tiếp tục từ đúng vị trí. Chạm nút mở rộng trên video để quay lại màn hình xem.</p><h3><Heart size={21} />Thư viện của riêng bạn</h3><p>Yêu thích và lịch sử được lưu trên thiết bị này. Bạn không cần đăng nhập.</p>{pwa.error && <p role="status">{pwa.error}</p>}{pwa.canInstall && <button className="yt-primary" onClick={pwa.install}><ArrowDownToLine size={18} />Cài DuongTube</button>}</div></dialog>
     </div>
   );
 }
