@@ -30,19 +30,21 @@ export default async function RootLayout({
 }>) {
   const headerStore = await headers();
   const laDuongTube = headerStore.get("x-duongtube-app") === "1";
-  const theme = laDuongTube ? null : await layThemeWebsite();
+  const laCongDoan = headerStore.get("x-congdoan-app") === "1";
+  const laUngDung = laDuongTube || laCongDoan;
+  const theme = laUngDung ? null : await layThemeWebsite();
 
   return (
-    <html lang="vi" data-theme={laDuongTube ? "duongtube" : theme?.ma}>
+    <html lang="vi" data-theme={laDuongTube ? "duongtube" : laCongDoan ? "congdoan" : theme?.ma}>
       <body
-        className={`${inter.className} min-h-screen ${laDuongTube ? "bg-[#0f0f0f] text-[#f1f1f1]" : "bg-slate-100 text-slate-900"}`}
-        style={laDuongTube ? { backgroundColor: "#0f0f0f", color: "#f1f1f1", colorScheme: "dark" } : undefined}
+        className={`${inter.className} min-h-screen ${laDuongTube ? "bg-[#0f0f0f] text-[#f1f1f1]" : laCongDoan ? "bg-[#f5f7fb] text-[#172033]" : "bg-slate-100 text-slate-900"}`}
+        style={laDuongTube ? { backgroundColor: "#0f0f0f", color: "#f1f1f1", colorScheme: "dark" } : laCongDoan ? { backgroundColor: "#f5f7fb", color: "#172033", colorScheme: "light" } : undefined}
       >
-        {!laDuongTube ? <ThemeCss /> : null}
-        {!laDuongTube ? <ThanhDieuHuong /> : null}
+        {!laUngDung ? <ThemeCss /> : null}
+        {!laUngDung ? <ThanhDieuHuong /> : null}
         {children}
-        {!laDuongTube ? <ChanTrang /> : null}
-        {!laDuongTube ? <NutLenDau /> : null}
+        {!laUngDung ? <ChanTrang /> : null}
+        {!laUngDung ? <NutLenDau /> : null}
       </body>
     </html>
   );

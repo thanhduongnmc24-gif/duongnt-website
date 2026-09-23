@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Công đoạn">
+  <defs>
+    <linearGradient id="nen" x1="72" y1="42" x2="440" y2="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#44b2ff"/>
+      <stop offset="1" stop-color="#0875df"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#nen)"/>
+  <rect x="100" y="106" width="312" height="300" rx="54" fill="#fff"/>
+  <rect x="100" y="106" width="312" height="86" rx="54" fill="#dff2ff"/>
+  <path d="M100 164h312" stroke="#dff2ff" stroke-width="56"/>
+  <rect x="156" y="75" width="30" height="80" rx="15" fill="#fff"/>
+  <rect x="326" y="75" width="30" height="80" rx="15" fill="#fff"/>
+  <rect x="154" y="298" width="42" height="62" rx="12" fill="#76c7ff"/>
+  <rect x="235" y="248" width="42" height="112" rx="12" fill="#31a4f5"/>
+  <rect x="316" y="218" width="42" height="142" rx="12" fill="#0875df"/>
+</svg>
