@@ -35,7 +35,7 @@ type DuLieuNgay = {
   tong_ket_qua: number;
   phan_tram: number;
 };
-type HoSo = { ten_hien_thi: string; email: string | null };
+type HoSo = { ten_hien_thi: string; email: string | null; phut_chuan_mac_dinh: number; gio_vao_mac_dinh: string; gio_ve_mac_dinh: string };
 
 const THU = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 const dinhDangThang = new Intl.DateTimeFormat("vi-VN", { month: "long", year: "numeric" });
@@ -113,6 +113,12 @@ export default function CongDoanPage() {
   const [stages, setStages] = useState<CongDoan[]>([congDoanRong(), congDoanRong()]);
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [monthDetailsOpen, setMonthDetailsOpen] = useState(false);
+  const [defaultStandardMinutes, setDefaultStandardMinutes] = useState("510");
+  const [defaultStartTime, setDefaultStartTime] = useState("07:30");
+  const [defaultEndTime, setDefaultEndTime] = useState("16:30");
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -132,8 +138,17 @@ export default function CongDoanPage() {
   useEffect(() => {
     if (!user) { setHoSo(null); return; }
     let active = true;
-    void supabase.from("cong_doan_ho_so").select("ten_hien_thi,email").eq("nguoi_dung_id", user.id).maybeSingle()
-      .then(({ data }) => { if (active) setHoSo(data as HoSo | null); });
+    void supabase.from("cong_doan_ho_so").select("ten_hien_thi,email,phut_chuan_mac_dinh,gio_vao_mac_dinh,gio_ve_mac_dinh").eq("nguoi_dung_id", user.id).maybeSingle()
+      .then(({ data }) => {
+        if (!active) return;
+        const profile = data as HoSo | null;
+        setHoSo(profile);
+        if (profile) {
+          setDefaultStandardMinutes(String(profile.phut_chuan_mac_dinh || 510));
+          setDefaultStartTime(String(profile.gio_vao_mac_dinh || "07:30").slice(0, 5));
+          setDefaultEndTime(String(profile.gio_ve_mac_dinh || "16:30").slice(0, 5));
+        }
+      });
     return () => { active = false; };
   }, [supabase, user]);
 
@@ -195,13 +210,34 @@ export default function CongDoanPage() {
     setMonthDate(current => new Date(current.getFullYear(), current.getMonth() + offset, 1));
   }
 
+  async function saveSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user) return;
+    const minutes = Math.max(1, Math.min(1440, Math.round(so(defaultStandardMinutes) || 510)));
+    setSavingSettings(true);
+    setSettingsMessage("");
+    const { data, error } = await supabase.from("cong_doan_ho_so").update({
+      phut_chuan_mac_dinh: minutes,
+      gio_vao_mac_dinh: defaultStartTime,
+      gio_ve_mac_dinh: defaultEndTime,
+    }).eq("nguoi_dung_id", user.id).select("ten_hien_thi,email,phut_chuan_mac_dinh,gio_vao_mac_dinh,gio_ve_mac_dinh").single();
+    setSavingSettings(false);
+    if (error) {
+      setSettingsMessage(thongBaoDangNhap(error.message));
+      return;
+    }
+    setHoSo(data as HoSo);
+    setDefaultStandardMinutes(String(minutes));
+    setSettingsMessage("Đã lưu cài đặt riêng của bạn.");
+  }
+
   function openDay(key: string) {
     const entry = entries[key];
     setSelectedDate(key);
-    setStartTime(entry?.gio_vao || "07:30");
-    setEndTime(entry?.gio_ve || "16:30");
+    setStartTime(entry?.gio_vao || defaultStartTime);
+    setEndTime(entry?.gio_ve || defaultEndTime);
     setOffWork(entry?.nghi_lam || false);
-    setStandardMinutes(String(entry?.phut_chuan || 510));
+    setStandardMinutes(String(entry?.phut_chuan || defaultStandardMinutes));
     setStages(entry?.cong_doan?.length
       ? entry.cong_doan.map(item => ({ id: taoId(), so_to: String(item.so_to), he_so: String(item.he_so) }))
       : [congDoanRong(), congDoanRong()]);
@@ -312,8 +348,8 @@ export default function CongDoanPage() {
     </section>
 
     <section className="cd-summary">
-      <div className="cd-section-heading"><div><span>Thống kê tháng</span><h2>{dinhDangThang.format(monthDate)}</h2></div><BarChart3 /></div>
-      <div className="cd-summary-grid"><article><span>Ngày đã nhập</span><strong>{monthEntries.length}</strong></article><article><span>Ngày làm việc</span><strong>{workDays}</strong></article><article><span>Tổng kết quả</span><strong>{monthTotal.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}</strong></article><article><span>Trung bình</span><strong>{averagePercent.toFixed(2)}%</strong></article></div>
+      <div className="cd-section-heading"><div><span>Thống kê tháng</span></div><BarChart3 /></div>
+      <div className="cd-summary-grid"><article><span>Ngày đã nhập</span><strong>{monthEntries.length}</strong></article><button type="button" className="cd-summary-card" onClick={() => setMonthDetailsOpen(true)}><span>Ngày làm việc</span><strong>{workDays}</strong><small>Xem chi tiết cả tháng</small></button><article><span>Tổng kết quả</span><strong>{monthTotal.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}</strong></article><article><span>Trung bình</span><strong>{averagePercent.toFixed(2)}%</strong></article></div>
     </section>
 
     <button className="cd-fab" onClick={() => openDay(todayKey)}><Plus /><span>Nhập hôm nay</span></button>
@@ -339,6 +375,8 @@ export default function CongDoanPage() {
       </section>
     </div>}
 
-    {settingsOpen && <div className="cd-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="cd-settings" role="dialog" aria-modal="true"><header><div><span><UserRound /></span><div><strong>{hoSo?.ten_hien_thi || "Tài khoản"}</strong><small>{user.email}</small></div></div><button onClick={() => setSettingsOpen(false)}><X /></button></header><div className="cd-settings-body"><button onClick={() => pwa.canInstall ? void pwa.install() : undefined} disabled={!pwa.canInstall || pwa.installed}><Download />{pwa.installed ? "Ứng dụng đã được cài" : pwa.canInstall ? "Cài ứng dụng vào thiết bị" : "Cài từ menu trình duyệt"}</button><button className="danger" onClick={() => void supabase.auth.signOut()}><LogOut />Đăng xuất</button></div></section></div>}
+    {monthDetailsOpen && <div className="cd-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setMonthDetailsOpen(false); }}><section className="cd-month-details" role="dialog" aria-modal="true" aria-label="Chi tiết thời gian làm việc trong tháng"><header><div><strong>Chi tiết tháng</strong><small>{dinhDangThang.format(monthDate)}</small></div><button onClick={() => setMonthDetailsOpen(false)}><X /></button></header><div className="cd-month-list">{Array.from({ length: daysInMonth }, (_, index) => { const day = index + 1; const key = khoaNgay(year, month, day); const date = docNgay(key); const entry = entries[key]; const start = entry?.gio_vao || defaultStartTime; const end = entry?.gio_ve || defaultEndTime; const workedMinutes = entry && !entry.nghi_lam ? Math.max(0, Math.round((new Date(key + "T" + end + ":00").getTime() - new Date(key + "T" + start + ":00").getTime()) / 60000)) : 0; const standard = entry?.phut_chuan || Number(defaultStandardMinutes) || 510; const isRest = !entry || entry.nghi_lam; return <button type="button" key={key} className={"cd-month-day " + (isRest ? "is-rest" : "is-work")} onClick={() => { setMonthDetailsOpen(false); openDay(key); }}><span className="cd-month-date"><strong>{haiChuSo(day)}/{haiChuSo(month + 1)}</strong><small>{THU[date.getDay()]}</small></span><span className="cd-month-time">{isRest ? <strong>Nghỉ</strong> : <><strong>{start} - {end}</strong><small>{workedMinutes} phút</small></>}</span><span className="cd-month-status">{isRest ? "Không có dữ liệu làm việc" : workedMinutes >= standard ? "Đủ chuẩn (+" + (workedMinutes - standard) + " phút)" : "Thiếu " + (standard - workedMinutes) + " phút"}</span></button>; })}</div></section></div>}
+
+    {settingsOpen && <div className="cd-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="cd-settings" role="dialog" aria-modal="true"><header><div><span><UserRound /></span><div><strong>{hoSo?.ten_hien_thi || "Tài khoản"}</strong><small>{user.email}</small></div></div><button onClick={() => setSettingsOpen(false)}><X /></button></header><form className="cd-settings-form" onSubmit={saveSettings}><label><span>Phút chuẩn mặc định</span><input type="number" min="1" max="1440" required value={defaultStandardMinutes} onChange={event => setDefaultStandardMinutes(event.target.value)} /></label><div className="cd-settings-times"><label><span>Giờ vào mặc định</span><input type="time" required value={defaultStartTime} onChange={event => setDefaultStartTime(event.target.value)} /></label><label><span>Giờ về mặc định</span><input type="time" required value={defaultEndTime} onChange={event => setDefaultEndTime(event.target.value)} /></label></div>{settingsMessage && <p className="cd-settings-message">{settingsMessage}</p>}<button className="cd-save-settings" type="submit" disabled={savingSettings}>{savingSettings ? <LoaderCircle className="spin" /> : <Check />} Lưu cài đặt</button></form><div className="cd-settings-body"><button onClick={() => pwa.canInstall ? void pwa.install() : undefined} disabled={!pwa.canInstall || pwa.installed}><Download />{pwa.installed ? "Ứng dụng đã được cài" : pwa.canInstall ? "Cài ứng dụng vào thiết bị" : "Cài từ menu trình duyệt"}</button><button className="danger" onClick={() => void supabase.auth.signOut()}><LogOut />Đăng xuất</button></div></section></div>}
   </main>;
 }
