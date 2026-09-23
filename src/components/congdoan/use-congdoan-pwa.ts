@@ -33,9 +33,8 @@ export function useCongDoanPwa() {
     window.addEventListener("appinstalled", onInstalled);
 
     if ("serviceWorker" in navigator && window.isSecureContext) {
-      const atRoot = window.location.hostname === "congdoan.duongnt.io.vn" || window.location.hostname === "congdoan.localhost" || window.location.hostname.startsWith("congdoan.localhost.");
       void navigator.serviceWorker.register("/congdoan-sw.js", {
-        scope: atRoot ? "/" : "/congdoan",
+        scope: "/congdoan",
         updateViaCache: "none",
       }).then(registration => {
         if (disposed) return;

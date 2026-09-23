@@ -281,7 +281,7 @@ export default function CongDoanPage() {
         {authMessage && <p className="cd-auth-message" role="status">{authMessage}</p>}
         <button className="cd-primary" disabled={authBusy}>{authBusy ? <LoaderCircle className="cd-spin" /> : authMode === "login" ? <UserRound /> : <Check />}{authMode === "login" ? "Đăng nhập" : "Tạo tài khoản"}</button>
       </form>
-      <small className="cd-auth-foot">congdoan.duongnt.io.vn · PWA riêng tư</small>
+      <small className="cd-auth-foot">duongnt.io.vn/congdoan · PWA riêng tư</small>
     </section>
   </main>;
 

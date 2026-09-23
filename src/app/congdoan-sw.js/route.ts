@@ -1,18 +1,6 @@
-function chayTaiGoc(request: Request) {
-  const host = (request.headers.get("host") || new URL(request.url).host).split(":")[0].toLowerCase();
-  return (
-    host === "congdoan.duongnt.io.vn" ||
-    host === "congdoan.localhost" ||
-    host.startsWith("congdoan.localhost.") ||
-    request.headers.get("x-congdoan-proxy") === "1"
-  );
-}
-
-export function GET(request: Request) {
-  const atRoot = chayTaiGoc(request);
+export function GET() {
   const code = `
-const APP_AT_ROOT = ${JSON.stringify(atRoot)};
-const CACHE_PREFIX = "congdoan-pwa-" + (APP_AT_ROOT ? "root" : "preview") + "-";
+const CACHE_PREFIX = "congdoan-pwa-path-";
 const CACHE_NAME = CACHE_PREFIX + "v1";
 const OFFLINE_URL = "/congdoan-assets/offline.html";
 const ASSETS = [OFFLINE_URL, "/congdoan-assets/icon.svg", "/congdoan-assets/icon-192.png", "/congdoan-assets/icon-512.png", "/congdoan-assets/icon-maskable-512.png", "/congdoan-assets/apple-touch-icon.png"];
@@ -43,7 +31,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const isAppPage = APP_AT_ROOT || url.pathname === "/congdoan" || url.pathname.startsWith("/congdoan/");
+  const isAppPage = url.pathname === "/congdoan" || url.pathname.startsWith("/congdoan/");
   if (request.mode !== "navigate" || !isAppPage) return;
   event.respondWith(fetch(request).catch(async () => {
     const cache = await caches.open(CACHE_NAME);
@@ -59,8 +47,7 @@ self.addEventListener("fetch", (event) => {
     headers: {
       "Content-Type": "application/javascript; charset=utf-8",
       "Cache-Control": "no-store, no-cache, must-revalidate",
-      "Service-Worker-Allowed": atRoot ? "/" : "/congdoan",
-      Vary: "Host, X-Congdoan-Proxy",
+      "Service-Worker-Allowed": "/congdoan",
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'self'; script-src 'self'; connect-src 'self'",
     },

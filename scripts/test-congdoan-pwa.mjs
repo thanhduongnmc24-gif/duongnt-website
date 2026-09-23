@@ -26,20 +26,13 @@ function request(host, path = "/", extraHeaders = {}) {
   return new Request(`https://${host}${path}`, { headers: { host, ...extraHeaders } });
 }
 
-test("manifest dùng gốc subdomain và giữ bản xem trước trong /congdoan", async () => {
-  const cases = [
-    ["congdoan.duongnt.io.vn", {}, "/"],
-    ["congdoan.localhost", {}, "/"],
-    ["duongnt-website.onrender.com", { "x-congdoan-proxy": "1" }, "/"],
-    ["localhost:3000", {}, "/congdoan"],
-    ["duongnt.io.vn", {}, "/congdoan"],
-  ];
-  for (const [host, headers, scope] of cases) {
-    const response = manifestRoute.GET(request(host, "/", headers));
+test("manifest luôn cài ứng dụng tại /congdoan", async () => {
+  for (const host of ["localhost:3000", "duongnt.io.vn", "duongnt-website.onrender.com"]) {
+    const response = manifestRoute.GET(request(host));
     const manifest = await response.json();
-    assert.equal(manifest.scope, scope);
-    assert.equal(manifest.id, scope);
-    assert.equal(manifest.start_url, `${scope}?source=pwa`);
+    assert.equal(manifest.scope, "/congdoan");
+    assert.equal(manifest.id, "/congdoan");
+    assert.equal(manifest.start_url, "/congdoan?source=pwa");
     assert.equal(manifest.display, "standalone");
     assert.ok(manifest.icons.some(icon => icon.sizes === "512x512" && icon.purpose === "maskable"));
   }
@@ -54,7 +47,7 @@ test("các biểu tượng PNG có đúng kích thước đã khai báo", async 
   }
 });
 
-test("proxy định tuyến subdomain và xóa ngữ cảnh giả mạo ở trang chính", () => {
+test("proxy nhận diện đường dẫn công đoạn và xóa ngữ cảnh giả mạo ở nơi khác", () => {
   const main = proxyRoute.proxy(new NextRequest("https://duongnt.io.vn/bai-viet", {
     headers: { host: "duongnt.io.vn", "x-congdoan-app": "1" },
   }));
@@ -64,23 +57,11 @@ test("proxy định tuyến subdomain và xóa ngữ cảnh giả mạo ở tran
   assert.equal(preview.headers.get("x-middleware-request-x-congdoan-app"), "1");
   assert.equal(preview.headers.get("x-middleware-rewrite"), null);
 
-  const subdomain = proxyRoute.proxy(new NextRequest("https://congdoan.duongnt.io.vn/?source=pwa", {
-    headers: { host: "congdoan.duongnt.io.vn" },
-  }));
-  assert.equal(new URL(subdomain.headers.get("x-middleware-rewrite")).pathname, "/congdoan");
-  assert.equal(new URL(subdomain.headers.get("x-middleware-rewrite")).search, "?source=pwa");
-
-  const cloudflare = proxyRoute.proxy(new NextRequest("https://duongnt-website.onrender.com/", {
+  const ignoredProxyHeader = proxyRoute.proxy(new NextRequest("https://duongnt-website.onrender.com/", {
     headers: { host: "duongnt-website.onrender.com", "x-congdoan-proxy": "1" },
   }));
-  assert.equal(new URL(cloudflare.headers.get("x-middleware-rewrite")).pathname, "/congdoan");
-
-  for (const path of ["/_next/static/app.js", "/congdoan-assets/icon-192.png", "/congdoan-manifest.webmanifest", "/congdoan-sw.js"]) {
-    const response = proxyRoute.proxy(new NextRequest(`https://congdoan.duongnt.io.vn${path}`, {
-      headers: { host: "congdoan.duongnt.io.vn" },
-    }));
-    assert.equal(response.headers.get("x-middleware-rewrite"), null, path);
-  }
+  assert.equal(ignoredProxyHeader.headers.get("x-middleware-rewrite"), null);
+  assert.equal(ignoredProxyHeader.headers.get("x-middleware-request-x-congdoan-app"), null);
 });
 
 async function createWorker(host, headers = {}) {
@@ -132,24 +113,20 @@ async function createWorker(host, headers = {}) {
   return { response, cacheData, addedAssets, dispatch, fetchPage, counts: () => ({ claimed, skipped }) };
 }
 
-test("service worker dùng trang ngoại tuyến và không chặn API", async () => {
-  const preview = await createWorker("localhost:3000");
-  assert.equal(preview.response.headers.get("service-worker-allowed"), "/congdoan");
-  await preview.dispatch("install");
-  assert.ok(preview.addedAssets.every(path => path.startsWith("/congdoan-assets/")));
-  assert.equal(await (await preview.fetchPage("/congdoan")).text(), "offline");
-  assert.equal(await preview.fetchPage("/"), undefined);
-  assert.equal(await preview.fetchPage("/api/data"), undefined);
-  assert.equal(await preview.fetchPage("/congdoan", { method: "POST" }), undefined);
+test("service worker dùng trang ngoại tuyến trong /congdoan và không chặn API", async () => {
+  const worker = await createWorker("localhost:3000");
+  assert.equal(worker.response.headers.get("service-worker-allowed"), "/congdoan");
+  await worker.dispatch("install");
+  assert.ok(worker.addedAssets.every(path => path.startsWith("/congdoan-assets/")));
+  assert.equal(await (await worker.fetchPage("/congdoan")).text(), "offline");
+  assert.equal(await worker.fetchPage("/"), undefined);
+  assert.equal(await worker.fetchPage("/api/data"), undefined);
+  assert.equal(await worker.fetchPage("/congdoan", { method: "POST" }), undefined);
 
-  const root = await createWorker("duongnt-website.onrender.com", { "x-congdoan-proxy": "1" });
-  assert.equal(root.response.headers.get("service-worker-allowed"), "/");
-  await root.dispatch("install");
-  assert.equal(await (await root.fetchPage("/")).text(), "offline");
-  root.cacheData.set("congdoan-pwa-root-old", new Map());
-  root.cacheData.set("duongtube-pwa-root-v3", new Map());
-  await root.dispatch("activate");
-  assert.equal(root.cacheData.has("congdoan-pwa-root-old"), false);
-  assert.equal(root.cacheData.has("duongtube-pwa-root-v3"), true);
-  assert.equal(root.counts().claimed, 1);
+  worker.cacheData.set("congdoan-pwa-path-old", new Map());
+  worker.cacheData.set("duongtube-pwa-root-v3", new Map());
+  await worker.dispatch("activate");
+  assert.equal(worker.cacheData.has("congdoan-pwa-path-old"), false);
+  assert.equal(worker.cacheData.has("duongtube-pwa-root-v3"), true);
+  assert.equal(worker.counts().claimed, 1);
 });

@@ -1,17 +1,7 @@
 import type { MetadataRoute } from "next";
 
-function chayTaiGoc(request: Request) {
-  const host = (request.headers.get("host") || new URL(request.url).host).split(":")[0].toLowerCase();
-  return (
-    host === "congdoan.duongnt.io.vn" ||
-    host === "congdoan.localhost" ||
-    host.startsWith("congdoan.localhost.") ||
-    request.headers.get("x-congdoan-proxy") === "1"
-  );
-}
-
-export function GET(request: Request) {
-  const appPath = chayTaiGoc(request) ? "/" : "/congdoan";
+export function GET() {
+  const appPath = "/congdoan";
   const manifest: MetadataRoute.Manifest = {
     id: appPath,
     name: "Công đoạn & sản lượng",
@@ -37,7 +27,6 @@ export function GET(request: Request) {
     headers: {
       "Content-Type": "application/manifest+json; charset=utf-8",
       "Cache-Control": "no-cache",
-      Vary: "Host, X-Congdoan-Proxy",
       "X-Content-Type-Options": "nosniff",
     },
   });
