@@ -36,6 +36,13 @@ type DuLieuNgay = {
   phan_tram: number;
 };
 type HoSo = { ten_hien_thi: string; email: string | null; phut_chuan_mac_dinh: number; gio_vao_mac_dinh: string; gio_ve_mac_dinh: string };
+type ChiTietNgayTrongThang = {
+  key: string;
+  date: Date;
+  entry?: DuLieuNgay;
+  trangThai: "lam-viec" | "nghi" | "chua-nhap";
+  phutLamViec: number;
+};
 
 const THU = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 const dinhDangThang = new Intl.DateTimeFormat("vi-VN", { month: "long", year: "numeric" });
@@ -76,6 +83,17 @@ function ngayAm(date: Date) {
 function so(value: string | number | null | undefined) {
   const result = Number(value);
   return Number.isFinite(result) ? result : 0;
+}
+
+function doiGioThanhPhut(value: string) {
+  const [hour, minute] = value.split(":").map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return 0;
+  return hour * 60 + minute;
+}
+
+function tinhPhutLamViec(start: string, end: string) {
+  const difference = doiGioThanhPhut(end) - doiGioThanhPhut(start);
+  return difference >= 0 ? difference : difference + 24 * 60;
 }
 
 function congDoanRong(): CongDoan {
@@ -210,10 +228,22 @@ export default function CongDoanPage() {
     setMonthDate(current => new Date(current.getFullYear(), current.getMonth() + offset, 1));
   }
 
+  function openSettings() {
+    setDefaultStandardMinutes(String(hoSo?.phut_chuan_mac_dinh || 510));
+    setDefaultStartTime(String(hoSo?.gio_vao_mac_dinh || "07:30").slice(0, 5));
+    setDefaultEndTime(String(hoSo?.gio_ve_mac_dinh || "16:30").slice(0, 5));
+    setSettingsMessage("");
+    setSettingsOpen(true);
+  }
+
   async function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!user) return;
     const minutes = Math.max(1, Math.min(1440, Math.round(so(defaultStandardMinutes) || 510)));
+    if (defaultStartTime === defaultEndTime) {
+      setSettingsMessage("Giờ vào và giờ về cần khác nhau.");
+      return;
+    }
     setSavingSettings(true);
     setSettingsMessage("");
     const { data, error } = await supabase.from("cong_doan_ho_so").update({
@@ -226,8 +256,11 @@ export default function CongDoanPage() {
       setSettingsMessage(thongBaoDangNhap(error.message));
       return;
     }
-    setHoSo(data as HoSo);
-    setDefaultStandardMinutes(String(minutes));
+    const profile = data as HoSo;
+    setHoSo(profile);
+    setDefaultStandardMinutes(String(profile.phut_chuan_mac_dinh));
+    setDefaultStartTime(String(profile.gio_vao_mac_dinh).slice(0, 5));
+    setDefaultEndTime(String(profile.gio_ve_mac_dinh).slice(0, 5));
     setSettingsMessage("Đã lưu cài đặt riêng của bạn.");
   }
 
@@ -302,6 +335,23 @@ export default function CongDoanPage() {
   const monthTotal = monthEntries.reduce((total, entry) => total + entry.tong_ket_qua, 0);
   const workDays = monthEntries.filter(entry => !entry.nghi_lam).length;
   const averagePercent = workDays ? monthEntries.reduce((total, entry) => total + entry.phan_tram, 0) / workDays : 0;
+  const monthDetails = useMemo<ChiTietNgayTrongThang[]>(() => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const days = new Date(year, month + 1, 0).getDate();
+    return Array.from({ length: days }, (_, index) => {
+      const key = khoaNgay(year, month, index + 1);
+      const entry = entries[key];
+      const trangThai = !entry ? "chua-nhap" : entry.nghi_lam ? "nghi" : "lam-viec";
+      return {
+        key,
+        date: docNgay(key),
+        entry,
+        trangThai,
+        phutLamViec: trangThai === "lam-viec" ? tinhPhutLamViec(entry.gio_vao, entry.gio_ve) : 0,
+      };
+    });
+  }, [entries, monthDate]);
 
   if (loadingSession) return <main className="cd-loading"><LoaderCircle /><span>Đang mở sổ công đoạn…</span></main>;
 
@@ -324,7 +374,7 @@ export default function CongDoanPage() {
   return <main className="cd-app">
     <header className="cd-header">
       <div className="cd-header-title"><span className="cd-app-icon"><BarChart3 /></span><div><h1>Tính công & sản lượng</h1><p>{hoSo?.ten_hien_thi || user.email}</p></div></div>
-      <button className="cd-icon-button" aria-label="Mở cài đặt" onClick={() => setSettingsOpen(true)}><Settings2 /></button>
+      <button className="cd-icon-button" aria-label="Mở cài đặt" onClick={openSettings}><Settings2 /></button>
     </header>
 
     {pwa.updateAvailable && <div className="cd-update">Có phiên bản mới.<button onClick={pwa.update}>Cập nhật</button></div>}
@@ -375,8 +425,19 @@ export default function CongDoanPage() {
       </section>
     </div>}
 
-    {monthDetailsOpen && <div className="cd-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setMonthDetailsOpen(false); }}><section className="cd-month-details" role="dialog" aria-modal="true" aria-label="Chi tiết thời gian làm việc trong tháng"><header><div><strong>Chi tiết tháng</strong><small>{dinhDangThang.format(monthDate)}</small></div><button onClick={() => setMonthDetailsOpen(false)}><X /></button></header><div className="cd-month-list">{Array.from({ length: daysInMonth }, (_, index) => { const day = index + 1; const key = khoaNgay(year, month, day); const date = docNgay(key); const entry = entries[key]; const start = entry?.gio_vao || defaultStartTime; const end = entry?.gio_ve || defaultEndTime; const workedMinutes = entry && !entry.nghi_lam ? Math.max(0, Math.round((new Date(key + "T" + end + ":00").getTime() - new Date(key + "T" + start + ":00").getTime()) / 60000)) : 0; const standard = entry?.phut_chuan || Number(defaultStandardMinutes) || 510; const isRest = !entry || entry.nghi_lam; return <button type="button" key={key} className={"cd-month-day " + (isRest ? "is-rest" : "is-work")} onClick={() => { setMonthDetailsOpen(false); openDay(key); }}><span className="cd-month-date"><strong>{haiChuSo(day)}/{haiChuSo(month + 1)}</strong><small>{THU[date.getDay()]}</small></span><span className="cd-month-time">{isRest ? <strong>Nghỉ</strong> : <><strong>{start} - {end}</strong><small>{workedMinutes} phút</small></>}</span><span className="cd-month-status">{isRest ? "Không có dữ liệu làm việc" : workedMinutes >= standard ? "Đủ chuẩn (+" + (workedMinutes - standard) + " phút)" : "Thiếu " + (standard - workedMinutes) + " phút"}</span></button>; })}</div></section></div>}
+    {monthDetailsOpen && <div className="cd-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setMonthDetailsOpen(false); }}>
+      <section className="cd-month-details" role="dialog" aria-modal="true" aria-label="Chi tiết thời gian làm việc trong tháng">
+        <header><div><strong>Thời gian làm việc</strong><small>{dinhDangThang.format(monthDate)} · {workDays} ngày làm việc</small></div><button aria-label="Đóng chi tiết tháng" onClick={() => setMonthDetailsOpen(false)}><X /></button></header>
+        <div className="cd-month-list">
+          {monthDetails.map(({ key, date, entry, trangThai, phutLamViec }) => <button type="button" key={key} className={`cd-month-day is-${trangThai}`} onClick={() => { setMonthDetailsOpen(false); openDay(key); }}>
+            <span className="cd-month-date"><strong>{haiChuSo(date.getDate())}/{haiChuSo(date.getMonth() + 1)}</strong><small>{THU[date.getDay()]}</small></span>
+            <span className="cd-month-time">{trangThai === "lam-viec" ? <><strong>{entry!.gio_vao} - {entry!.gio_ve}</strong><small>{phutLamViec} phút</small></> : trangThai === "nghi" ? <strong>Nghỉ làm</strong> : <strong>Chưa nhập</strong>}</span>
+            <span className="cd-month-status">{trangThai === "lam-viec" ? `Phút chuẩn ${entry!.phut_chuan} · ${entry!.phan_tram.toFixed(2)}%` : trangThai === "nghi" ? "Đã đánh dấu ngày nghỉ" : "Bấm để nhập dữ liệu ngày này"}</span>
+          </button>)}
+        </div>
+      </section>
+    </div>}
 
-    {settingsOpen && <div className="cd-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="cd-settings" role="dialog" aria-modal="true"><header><div><span><UserRound /></span><div><strong>{hoSo?.ten_hien_thi || "Tài khoản"}</strong><small>{user.email}</small></div></div><button onClick={() => setSettingsOpen(false)}><X /></button></header><form className="cd-settings-form" onSubmit={saveSettings}><label><span>Phút chuẩn mặc định</span><input type="number" min="1" max="1440" required value={defaultStandardMinutes} onChange={event => setDefaultStandardMinutes(event.target.value)} /></label><div className="cd-settings-times"><label><span>Giờ vào mặc định</span><input type="time" required value={defaultStartTime} onChange={event => setDefaultStartTime(event.target.value)} /></label><label><span>Giờ về mặc định</span><input type="time" required value={defaultEndTime} onChange={event => setDefaultEndTime(event.target.value)} /></label></div>{settingsMessage && <p className="cd-settings-message">{settingsMessage}</p>}<button className="cd-save-settings" type="submit" disabled={savingSettings}>{savingSettings ? <LoaderCircle className="spin" /> : <Check />} Lưu cài đặt</button></form><div className="cd-settings-body"><button onClick={() => pwa.canInstall ? void pwa.install() : undefined} disabled={!pwa.canInstall || pwa.installed}><Download />{pwa.installed ? "Ứng dụng đã được cài" : pwa.canInstall ? "Cài ứng dụng vào thiết bị" : "Cài từ menu trình duyệt"}</button><button className="danger" onClick={() => void supabase.auth.signOut()}><LogOut />Đăng xuất</button></div></section></div>}
+    {settingsOpen && <div className="cd-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="cd-settings" role="dialog" aria-modal="true" aria-label="Cài đặt cá nhân"><header><div><span><UserRound /></span><div><strong>{hoSo?.ten_hien_thi || "Tài khoản"}</strong><small>{user.email}</small></div></div><button aria-label="Đóng cài đặt" onClick={() => setSettingsOpen(false)}><X /></button></header><form className="cd-settings-form" onSubmit={saveSettings}><label><span>Phút chuẩn mặc định</span><input type="number" min="1" max="1440" inputMode="numeric" required value={defaultStandardMinutes} onChange={event => setDefaultStandardMinutes(event.target.value)} /></label><div className="cd-settings-times"><label><span>Giờ vào mặc định</span><input type="time" required value={defaultStartTime} onChange={event => setDefaultStartTime(event.target.value)} /></label><label><span>Giờ về mặc định</span><input type="time" required value={defaultEndTime} onChange={event => setDefaultEndTime(event.target.value)} /></label></div>{settingsMessage && <p className="cd-settings-message" role="status">{settingsMessage}</p>}<button className="cd-save-settings" type="submit" disabled={savingSettings}>{savingSettings ? <LoaderCircle className="cd-spin" /> : <Check />} Lưu cài đặt</button></form><div className="cd-settings-body"><button type="button" onClick={() => pwa.canInstall ? void pwa.install() : undefined} disabled={!pwa.canInstall || pwa.installed}><Download />{pwa.installed ? "Ứng dụng đã được cài" : pwa.canInstall ? "Cài ứng dụng vào thiết bị" : "Cài từ menu trình duyệt"}</button><button type="button" className="danger" onClick={() => void supabase.auth.signOut()}><LogOut />Đăng xuất</button></div></section></div>}
   </main>;
 }

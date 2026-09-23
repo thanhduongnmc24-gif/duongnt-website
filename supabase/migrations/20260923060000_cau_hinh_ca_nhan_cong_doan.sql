@@ -13,6 +13,13 @@ begin
       add constraint cong_doan_ho_so_phut_chuan_mac_dinh_hop_le
       check (phut_chuan_mac_dinh between 1 and 1440);
   end if;
+  if not exists (
+    select 1 from pg_constraint where conname = 'cong_doan_ho_so_gio_mac_dinh_hop_le'
+  ) then
+    alter table public.cong_doan_ho_so
+      add constraint cong_doan_ho_so_gio_mac_dinh_hop_le
+      check (gio_vao_mac_dinh <> gio_ve_mac_dinh);
+  end if;
 end $$;
 
 grant select, update on public.cong_doan_ho_so to authenticated;

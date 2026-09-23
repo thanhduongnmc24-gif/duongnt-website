@@ -6,7 +6,7 @@ html:has(.cd-app),body:has(.cd-app),html:has(.cd-auth-shell),body:has(.cd-auth-s
 
 
 /* Cai dat ca nhan va chi tiet thang */
-.cd-summary-card { border: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.cd-summary-card { border: 1px solid #edf0f5; border-radius: 15px; padding: 15px 13px; background: #f5f8fc; text-align: left; cursor: pointer; font: inherit; color: inherit; }
 .cd-summary-card small { display: block; margin-top: 6px; color: #2563eb; font-size: 12px; font-weight: 700; }
 .cd-summary-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(15, 23, 42, .11); }
 .cd-settings-form { padding: 18px 20px; border-bottom: 1px solid #e2e8f0; display: grid; gap: 14px; }
@@ -24,13 +24,16 @@ html:has(.cd-app),body:has(.cd-app),html:has(.cd-auth-shell),body:has(.cd-auth-s
 .cd-month-details > header button { width: 42px; height: 42px; border: 0; border-radius: 50%; display: grid; place-items: center; background: #f1f5f9; color: #334155; cursor: pointer; }
 .cd-month-list { overflow-y: auto; padding: 12px; display: grid; gap: 8px; }
 .cd-month-day { width: 100%; border: 1px solid #e2e8f0; border-radius: 15px; padding: 12px; display: grid; grid-template-columns: 72px minmax(110px, 1fr) minmax(145px, 1.35fr); align-items: center; gap: 10px; text-align: left; background: #fff; color: #0f172a; cursor: pointer; }
-.cd-month-day.is-rest { background: #fff7f7; border-color: #fecaca; }
+.cd-month-day.is-nghi { background: #fff7f7; border-color: #fecaca; }
+.cd-month-day.is-chua-nhap { background: #f8fafc; border-style: dashed; }
 .cd-month-date, .cd-month-time { display: grid; gap: 2px; }
 .cd-month-date small, .cd-month-time small { color: #64748b; font-size: 12px; }
 .cd-month-time strong { color: #0f766e; }
-.cd-month-day.is-rest .cd-month-time strong { color: #dc2626; }
+.cd-month-day.is-nghi .cd-month-time strong { color: #dc2626; }
+.cd-month-day.is-chua-nhap .cd-month-time strong { color: #64748b; }
 .cd-month-status { color: #475569; font-size: 13px; font-weight: 700; }
 @media (max-width: 560px) {
+  .cd-summary-card { padding: 13px; }
   .cd-settings-times { grid-template-columns: 1fr; }
   .cd-month-day { grid-template-columns: 64px 1fr; }
   .cd-month-status { grid-column: 1 / -1; padding-top: 7px; border-top: 1px dashed #cbd5e1; }
