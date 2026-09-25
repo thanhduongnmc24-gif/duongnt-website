@@ -8,7 +8,9 @@
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint",
     "test:congdoan": "node --test scripts/test-congdoan-pwa.mjs",
-    "test:lichlamviec": "node --test scripts/test-lichlamviec-pwa.mjs"
+    "test:lichlamviec": "node --test scripts/test-lichlamviec-pwa.mjs",
+    "test:toanlop1": "node --test scripts/test-toanlop1.mjs",
+    "test:toanlop1:phase3": "node --test scripts/test-toanlop1.mjs scripts/test-toanlop1-phase3.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
