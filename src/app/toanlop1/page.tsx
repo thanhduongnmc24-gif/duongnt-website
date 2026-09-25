@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, BookOpen, Check, ChevronRight, LockKeyhole, RotateCcw, Sparkles, Star, Trophy } from "lucide-react";
+import { ArrowLeft, BookOpen, Check, ChevronRight, LockKeyhole, RotateCcw, Sparkles, Star, Trophy, Map, Gift, Rocket } from "lucide-react";
 import { BaiHoc, CauHoi, cacTuanHoc } from "@/data/toan-lop-1";
 import { TaiKhoanToan } from "@/components/toan-lop-1/tai-khoan-toan";
 import "./toanlop1.css";
@@ -81,7 +81,9 @@ export default function ToanLop1Page() {
   if (baiDangHoc) {
     const hoanThanh = tongSo > 0 && soDung === tongSo;
     return (
-      <main className="tl1-shell">
+      <main className="tl1-app">
+        <header className="tl1-kid-header"><div className="tl1-brand"><span>➕</span><div><b>Vương quốc Toán</b><small>Học vui, lớn khôn mỗi ngày</small></div></div><div className="tl1-header-stars">⭐ {soDung} sao trong bài</div></header>
+        <div className="tl1-shell">
         <TaiKhoanToan />
         <header className="tl1-lesson-header">
           <button className="tl1-back" type="button" onClick={() => setBaiDangHoc(null)}><ArrowLeft size={20} /> Danh sách bài</button>
@@ -96,18 +98,21 @@ export default function ToanLop1Page() {
           <Trophy size={50} /><h2>Hoàn thành xuất sắc!</h2><p>Anh bạn nhỏ đã trả lời đúng toàn bộ {tongSo} câu.</p>
           <button type="button" onClick={() => setKetQua({})}><RotateCcw size={18} /> Làm lại</button>
         </section>
-      </main>
+      </div></main>
     );
   }
 
   return (
-    <main className="tl1-shell">
+    <main className="tl1-app">
+      <header className="tl1-kid-header"><div className="tl1-brand"><span>➕</span><div><b>Vương quốc Toán</b><small>Học vui, lớn khôn mỗi ngày</small></div></div><div className="tl1-header-actions"><span>🔥 Mỗi ngày một bài</span><span>🏆 Chinh phục 9 tuần</span></div></header>
+      <div className="tl1-shell">
       <TaiKhoanToan />
       <section className="tl1-hero">
-        <div className="tl1-hero-copy"><span className="tl1-badge"><Sparkles size={16} /> Học vui mỗi ngày</span><h1>Toán lớp 1</h1><p>Chọn một bài học, trả lời từng câu và nhận sao ngay khi làm đúng.</p><div className="tl1-hero-stats"><div><strong>9</strong><span>Tuần học</span></div><div><strong>25</strong><span>Câu đã mở</span></div><div><strong>{Object.values(diemDaLuu).reduce((a, b) => a + b, 0)}</strong><span>Sao đã nhận</span></div></div></div>
-        <div className="tl1-mascot" aria-hidden="true">🦉<span>1 + 1 = 2</span></div>
+        <div className="tl1-floating tl1-float-one">✦</div><div className="tl1-floating tl1-float-two">●</div>
+        <div className="tl1-hero-copy"><span className="tl1-badge"><Rocket size={16} /> Sẵn sàng khám phá!</span><h1>Cùng Mít chinh phục<br/><em>Vương quốc Toán</em></h1><p>Làm bài, gom sao và mở từng hòn đảo kiến thức đầy bất ngờ.</p><div className="tl1-hero-actions"><a href="#lo-trinh"><Map size={19}/> Bắt đầu hành trình</a><span><Gift size={19}/> {Object.values(diemDaLuu).reduce((a, b) => a + b, 0)} ngôi sao đã gom</span></div></div>
+        <div className="tl1-mascot" aria-hidden="true"><div className="tl1-planet">🪐</div><div className="tl1-owl">🦉</div><span>Mình cùng học nhé!</span></div>
       </section>
-      <section className="tl1-title-row"><div><span>Lộ trình học</span><h2>Chọn tuần để bắt đầu</h2></div><BookOpen size={30} /></section>
+      <section id="lo-trinh" className="tl1-title-row"><div><span>🗺️ Bản đồ phiêu lưu</span><h2>Chọn một hòn đảo để khám phá</h2><p>Hoàn thành từng bài để thu thập đủ sao.</p></div><BookOpen size={30} /></section>
       <section className="tl1-week-grid">
         {cacTuanHoc.map((tuan) => (
           <article className={`tl1-week ${!tuan.moKhoa ? "locked" : ""}`} key={tuan.so}>
@@ -117,6 +122,6 @@ export default function ToanLop1Page() {
           </article>
         ))}
       </section>
-    </main>
+    </div></main>
   );
 }
