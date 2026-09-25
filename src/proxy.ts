@@ -12,10 +12,13 @@ export function proxy(request: NextRequest) {
   // This header is internal routing context, never trusted from the client.
   requestHeaders.delete("x-duongtube-app");
   requestHeaders.delete("x-congdoan-app");
+  requestHeaders.delete("x-lichlamviec-app");
   const laYoutubePreview = pathname === "/youtube" || pathname.startsWith("/youtube/");
   const laCongDoanPreview = pathname === "/congdoan" || pathname.startsWith("/congdoan/");
+  const laLichLamViec = pathname === "/lichlamviec" || pathname.startsWith("/lichlamviec/");
   if (laYoutube || laYoutubePreview) requestHeaders.set("x-duongtube-app", "1");
   if (laCongDoanPreview) requestHeaders.set("x-congdoan-app", "1");
+  if (laLichLamViec) requestHeaders.set("x-lichlamviec-app", "1");
 
   if (!laYoutube) return NextResponse.next({ request: { headers: requestHeaders } });
 
