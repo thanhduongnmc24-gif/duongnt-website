@@ -41,3 +41,11 @@ test("service worker chỉ quản lý trang lịch và có trang ngoại tuyến
   const response = workerRoute.GET(); assert.equal(response.headers.get("service-worker-allowed"), "/lichlamviec");
   const code = await response.text(); assert.match(code, /lichlamviec-pwa-/); assert.match(code, /offline\.html/); assert.match(code, /url\.pathname\.startsWith\("\/api\/"\)/);
 });
+
+test("đăng ký dùng khóa công khai và chỉ báo trùng khi Supabase xác nhận", async () => {
+  const source = await readFile(new URL("../src/app/api/lichlamviec/dang-ky/route.ts", import.meta.url), "utf8");
+  assert.match(source, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
+  assert.match(source, /supabase\.auth\.signUp/);
+  assert.match(source, /error\?\.code === "user_already_exists"/);
+  assert.doesNotMatch(source, /\/already\|registered\|exists\/i/);
+});

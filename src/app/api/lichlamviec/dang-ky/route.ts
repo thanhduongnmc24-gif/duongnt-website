@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { taoSupabaseQuanTri } from "@/lib/supabase/quan-tri";
+import { createClient } from "@supabase/supabase-js";
 import { taoEmailLichLamViec } from "@/lib/supabase/lich-lam-viec";
 import { taoDuongDan } from "@/lib/tien-ich/tao-duong-dan";
 
@@ -38,20 +38,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ loi: "Mật khẩu cần từ 6 đến 72 ký tự." }, { status: 400 });
   }
 
-  const admin = taoSupabaseQuanTri();
-  const { data: existing } = await admin.from("lich_lam_viec_ho_so").select("nguoi_dung_id").eq("ten_dang_nhap", username).maybeSingle();
-  if (existing) return NextResponse.json({ loi: "Tên đăng nhập này đã được sử dụng." }, { status: 409 });
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) {
+    return NextResponse.json({ loi: "Máy chủ chưa được cấu hình Supabase." }, { status: 500 });
+  }
 
-  const { data, error } = await admin.auth.admin.createUser({
+  const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data, error } = await supabase.auth.signUp({
     email: taoEmailLichLamViec(username),
     password,
-    email_confirm: true,
-    user_metadata: { ung_dung: "lich_lam_viec", ten_dang_nhap: username },
-    app_metadata: { ung_dung: "lich_lam_viec" },
+    options: { data: { ung_dung: "lich_lam_viec", ten_dang_nhap: username } },
   });
   if (error || !data.user) {
-    const duplicate = /already|registered|exists/i.test(error?.message || "");
-    return NextResponse.json({ loi: duplicate ? "Tên đăng nhập này đã được sử dụng." : "Chưa tạo được tài khoản." }, { status: duplicate ? 409 : 400 });
+    const duplicate = error?.code === "user_already_exists" || /user already registered|email already exists/i.test(error?.message || "");
+    return NextResponse.json(
+      { loi: duplicate ? "Tên đăng nhập này đã được sử dụng." : "Chưa tạo được tài khoản. Hãy thử lại sau." },
+      { status: duplicate ? 409 : 400 },
+    );
+  }
+  if (!data.session) {
+    return NextResponse.json({ loi: "Tài khoản cần được xác nhận nhưng địa chỉ đăng nhập nội bộ không nhận được email." }, { status: 503 });
   }
 
   return NextResponse.json({ thanh_cong: true }, { status: 201 });
