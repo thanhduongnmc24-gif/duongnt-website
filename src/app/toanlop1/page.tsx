@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, BookOpen, Check, ChevronRight, LockKeyhole, RotateCcw, Sparkles, Star, Trophy, Map, Gift, Rocket } from "lucide-react";
 import { BaiHoc, CauHoi, cacTuanHoc } from "@/data/toan-lop-1";
 import { TaiKhoanToan } from "@/components/toan-lop-1/tai-khoan-toan";
+import { CauHoiVietTrucTiep } from "@/components/toan-lop-1/cau-hoi-viet-truc-tiep";
 import "./toanlop1.css";
 
 type KetQua = Record<string, { traLoi: string; dung: boolean }>;
@@ -73,10 +74,19 @@ export default function ToanLop1Page() {
   }
 
   function moBai(bai: BaiHoc) {
+    sessionStorage.setItem("toanlop1-scroll", String(window.scrollY));
     setBaiDangHoc(bai);
     setKetQua({});
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
+
+  function quayLaiDanhSach() {
+    setBaiDangHoc(null);
+    setTimeout(() => window.scrollTo({ top: Number(sessionStorage.getItem("toanlop1-scroll") || 0), behavior: "instant" }), 0);
+  }
+
+  const tatCaBai = cacTuanHoc.flatMap((tuan) => tuan.baiHoc.map((bai, index) => ({ bai, tuan: tuan.so, trang: 3 + (tuan.so - 1) * 5 + index })));
+  const viTriBai = baiDangHoc ? tatCaBai.findIndex((item) => item.bai.id === baiDangHoc.id) : -1;
 
   if (baiDangHoc) {
     const hoanThanh = tongSo > 0 && soDung === tongSo;
@@ -86,14 +96,13 @@ export default function ToanLop1Page() {
         <div className="tl1-shell">
         <TaiKhoanToan />
         <header className="tl1-lesson-header">
-          <button className="tl1-back" type="button" onClick={() => setBaiDangHoc(null)}><ArrowLeft size={20} /> Danh sách bài</button>
-          <div><span>Tuần 1</span><h1>{baiDangHoc.ten}</h1><p>{baiDangHoc.moTa}</p></div>
+          <button className="tl1-back" type="button" onClick={quayLaiDanhSach}><ArrowLeft size={20} /> Danh sách bài</button>
+          <div><span>{cacTuanHoc.find((tuan) => tuan.baiHoc.some((bai) => bai.id === baiDangHoc.id))?.ten}</span><h1>{baiDangHoc.ten}</h1><p>{baiDangHoc.moTa}</p></div>
           <div className="tl1-score"><Star size={22} fill="currentColor" /> {soDung}/{tongSo}</div>
         </header>
         <section className="tl1-progress"><div style={{ width: `${tongSo ? (soDung / tongSo) * 100 : 0}%` }} /></section>
-        <section className="tl1-question-list">
-          {baiDangHoc.cauHoi.map((cauHoi, index) => <TheCauHoi key={cauHoi.id} cauHoi={cauHoi} thuTu={index + 1} ketQua={ketQua[cauHoi.id]} onTraLoi={(value) => traLoi(cauHoi, value)} />)}
-        </section>
+        <section className="tl1-direct-list">{baiDangHoc.cauHoi.map((cauHoi,index)=><CauHoiVietTrucTiep key={cauHoi.id} soCau={index+1} src={`/toanlop1-questions/p${String(tatCaBai[viTriBai]?.trang || 3).padStart(2,"0")}-q${index+1}.webp`} dapAn={cauHoi.dapAn} onDung={()=>traLoi(cauHoi,cauHoi.dapAn)}/>)}</section>
+        <nav className="tl1-lesson-nav"><button disabled={viTriBai<=0} onClick={()=>viTriBai>0&&moBai(tatCaBai[viTriBai-1].bai)}>← Tiết trước</button><span>{viTriBai+1}/{tatCaBai.length}</span><button disabled={viTriBai>=tatCaBai.length-1} onClick={()=>viTriBai<tatCaBai.length-1&&moBai(tatCaBai[viTriBai+1].bai)}>Tiết sau →</button></nav>
         <section className={`tl1-finish ${hoanThanh ? "show" : ""}`}>
           <Trophy size={50} /><h2>Hoàn thành xuất sắc!</h2><p>Anh bạn nhỏ đã trả lời đúng toàn bộ {tongSo} câu.</p>
           <button type="button" onClick={() => setKetQua({})}><RotateCcw size={18} /> Làm lại</button>
