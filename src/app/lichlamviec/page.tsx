@@ -199,7 +199,7 @@ export default function LichLamViecPage() {
       <div className={`llv-calendar ${loadingData ? "loading" : ""}`} aria-busy={loadingData}>{calendarCells.map((day, index) => {
         if (!day) return <span className="llv-empty" key={`empty-${index}`} />;
         const key = khoaNgay(monthDate.getFullYear(), monthDate.getMonth(), day); const date = docNgay(key); const entry = entries[key]; const shift = caTrongNgay(profile?.ngay_bat_dau_chu_ky || todayKey, key);
-        return <button key={key} className={`llv-day ${date.getDay() === 0 ? "sunday" : ""} ${key === todayKey ? "today" : ""} shift-${shift}`} onClick={() => openDay(key)}><span className="llv-day-top"><strong>{day}</strong><i title={shift === "ngay" ? "Ca ngày" : shift === "dem" ? "Ca đêm" : "Ngày nghỉ"}><ShiftIcon shift={shift} /></i></span><small>{ngayAm(date)}</small>{entry?.danh_sach_ten.length ? <span className="llv-names">{entry.danh_sach_ten.map(name => <b key={name}>{name}</b>)}</span> : null}</button>;
+        return <button key={key} className={`llv-day ${date.getDay() === 0 ? "sunday" : ""} ${key === todayKey ? "today" : ""} shift-${shift}`} onClick={() => openDay(key)}><span className="llv-day-top"><strong>{day}</strong><small>{ngayAm(date)}</small><i title={shift === "ngay" ? "Ca ngày" : shift === "dem" ? "Ca đêm" : "Ngày nghỉ"}><ShiftIcon shift={shift} /></i></span>{entry?.danh_sach_ten.length ? <span className="llv-names">{entry.danh_sach_ten.slice(0, 4).map(name => <b key={name} title={name}>{name}</b>)}</span> : null}</button>;
       })}</div>
       <div className="llv-legend"><span><i className="sun"><Sun /></i>Ca ngày</span><span><i className="moon"><Moon /></i>Ca đêm</span><span><i className="coffee"><Coffee /></i>Nghỉ</span></div>
     </section>
