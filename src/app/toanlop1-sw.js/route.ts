@@ -1,6 +1,6 @@
 export const dynamic = "force-static";
 
-const code = `const CACHE="toanlop1-pwa-v6";const SHELL=["/toanlop1","/toanlop1-assets/offline.html","/toanlop1-assets/icon-192.png","/toanlop1-assets/icon-512.png"];
+const code = `const CACHE="toanlop1-pwa-v7";const SHELL=["/toanlop1","/toanlop1-assets/offline.html","/toanlop1-assets/icon-192.png","/toanlop1-assets/icon-512.png"];
 self.addEventListener("install",event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL))));
 self.addEventListener("activate",event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith("toanlop1-pwa-")&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener("message",event=>{if(event.data?.type==="SKIP_WAITING")self.skipWaiting()});

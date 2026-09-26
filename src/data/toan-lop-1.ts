@@ -42,7 +42,7 @@ function taoTuan(index: number): TuanHoc {
       tuan: so,
       tuanTrongQuyen,
       trang,
-      banVeSvg: `/toanlop1-workbook/q${quyen}-page-${String(trang).padStart(2, "0")}.svg?v=4`,
+      banVeSvg: `/toanlop1-workbook/q${quyen}-page-${String(trang).padStart(2, "0")}.svg?v=5`,
     };
   });
   return {
