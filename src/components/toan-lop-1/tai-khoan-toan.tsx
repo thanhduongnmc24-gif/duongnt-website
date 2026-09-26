@@ -5,7 +5,7 @@ import type { User } from "@supabase/supabase-js";
 import { taoEmailToanLop1, taoSupabaseToanLop1 } from "@/lib/supabase/toan-lop-1";
 
 type HoSo = { ten_dang_nhap: string; ten_hien_thi: string; ma_phu_huynh: string; tong_sao: number; chuoi_ngay: number };
-type TienDo = { bai_hoc_id: string; so_cau_dung: number; tong_so_cau: number; da_hoan_thanh: boolean; ngay_cap_nhat: string };
+type TienDo = { bai_hoc_id: string; so_cau_dung: number; tong_so_cau: number; da_hoan_thanh: boolean; ngay_cap_nhat: string; du_lieu_net_ve?: unknown[]; diem?: number; quyen?: number; trang?: number };
 
 export function TaiKhoanToan() {
   const supabase = useMemo(() => taoSupabaseToanLop1(), []);
@@ -18,16 +18,19 @@ export function TaiKhoanToan() {
       supabase.from("toan_lop_1_ho_so").select("*").eq("user_id", account.id).maybeSingle(),
       supabase.from("toan_lop_1_tien_do").select("*").eq("user_id", account.id).order("ngay_cap_nhat", { ascending: false }),
     ]);
-    setProfile(p as HoSo | null); setProgress((t || []) as TienDo[]);
+    const tienDo = (t || []) as TienDo[];
+    setProfile(p as HoSo | null); setProgress(tienDo);
+    sessionStorage.setItem("toanlop1-remote-progress", JSON.stringify(tienDo));
+    for (const item of tienDo) window.dispatchEvent(new CustomEvent("toanlop1:remote-progress", { detail: { baiHocId: item.bai_hoc_id, duLieuNetVe: item.du_lieu_net_ve || [] } }));
   }
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => load(data.user));
     const { data } = supabase.auth.onAuthStateChange((_event, session) => load(session?.user || null));
     const sync = async (event: Event) => {
-      const detail = (event as CustomEvent).detail as { baiHocId: string; soDung: number; tongSo: number };
+      const detail = (event as CustomEvent).detail as { baiHocId: string; soDung: number; tongSo: number; duLieuNetVe?: unknown[]; diem?: number; quyen?: number; trang?: number };
       const { data: auth } = await supabase.auth.getUser(); if (!auth.user) return;
-      await supabase.from("toan_lop_1_tien_do").upsert({ user_id: auth.user.id, bai_hoc_id: detail.baiHocId, so_cau_dung: detail.soDung, tong_so_cau: detail.tongSo, da_hoan_thanh: detail.soDung === detail.tongSo, ngay_cap_nhat: new Date().toISOString() });
+      await supabase.from("toan_lop_1_tien_do").upsert({ user_id: auth.user.id, bai_hoc_id: detail.baiHocId, so_cau_dung: detail.soDung, tong_so_cau: detail.tongSo, da_hoan_thanh: detail.soDung === detail.tongSo, du_lieu_net_ve: detail.duLieuNetVe || [], diem: detail.diem || 0, quyen: detail.quyen, trang: detail.trang, ngay_cap_nhat: new Date().toISOString() });
       await load(auth.user);
     };
     window.addEventListener("toanlop1:progress", sync);

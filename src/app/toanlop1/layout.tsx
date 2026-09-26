@@ -2,8 +2,14 @@ import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
   title: { absolute: "Vương quốc Toán lớp 1" },
-  description: "Không gian học Toán lớp 1 tương tác, vui nhộn và an toàn cho trẻ nhỏ.",
+  description: "Vở Toán lớp 1 tương tác: viết trực tiếp trên đề gốc, tự lưu và chấm bài thông minh.",
   applicationName: "Toán lớp 1",
+  manifest: "/toanlop1-manifest.webmanifest",
+  icons: {
+    icon: [{ url: "/toanlop1-assets/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/toanlop1-assets/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: { capable: true, title: "Toán lớp 1", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -11,7 +17,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#fff8e8",
+  themeColor: "#674fc1",
   colorScheme: "light",
 };
 
