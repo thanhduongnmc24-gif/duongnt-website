@@ -14,14 +14,17 @@ export function proxy(request: NextRequest) {
   requestHeaders.delete("x-congdoan-app");
   requestHeaders.delete("x-lichlamviec-app");
   requestHeaders.delete("x-toanlop1-app");
+  requestHeaders.delete("x-demthep-app");
   const laYoutubePreview = pathname === "/youtube" || pathname.startsWith("/youtube/");
   const laCongDoanPreview = pathname === "/congdoan" || pathname.startsWith("/congdoan/");
   const laLichLamViec = pathname === "/lichlamviec" || pathname.startsWith("/lichlamviec/");
   const laToanLop1 = pathname === "/toanlop1" || pathname.startsWith("/toanlop1/");
+  const laDemThep = pathname === "/demthep" || pathname.startsWith("/demthep/");
   if (laYoutube || laYoutubePreview) requestHeaders.set("x-duongtube-app", "1");
   if (laCongDoanPreview) requestHeaders.set("x-congdoan-app", "1");
   if (laLichLamViec) requestHeaders.set("x-lichlamviec-app", "1");
   if (laToanLop1) requestHeaders.set("x-toanlop1-app", "1");
+  if (laDemThep) requestHeaders.set("x-demthep-app", "1");
 
   if (!laYoutube) return NextResponse.next({ request: { headers: requestHeaders } });
 
