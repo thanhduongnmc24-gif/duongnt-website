@@ -39,9 +39,18 @@ test("ảnh Thông số chỉ đi qua API máy chủ có xác thực", async () 
   const api = await readFile(new URL("../src/app/api/thongso/anh/route.ts", import.meta.url), "utf8");
   assert.match(page, /Authorization: `Bearer \$\{token\}`/);
   assert.match(page, /capture="environment"/);
-  assert.match(api, /db\.auth\.getUser\(token\)/);
+  assert.match(api, /taoSupabaseTheoToken\(token\)/);
+  assert.match(api, /db\.auth\.getUser\(\)/);
   assert.match(api, /timHoacTaoThuMucThongSo/);
   assert.match(api, /image\.size > 10 \* 1024 \* 1024/);
+});
+
+test("mỗi bảng có tìm kiếm và khối giới thiệu cũ đã được bỏ", async () => {
+  const page = await readFile(new URL("../src/app/thongso/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /searchByBoard/);
+  assert.match(page, /Tìm trong bảng này/);
+  assert.match(page, /visibleRows/);
+  assert.doesNotMatch(page, /Hồ sơ kỹ thuật xưởng/i);
 });
 
 test("hai trang có thanh chuyển khu vực dùng chung", async () => {

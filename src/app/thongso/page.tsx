@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { Camera, Check, Download, FileImage, Gauge, ImagePlus, LoaderCircle, LogOut, Minus, Plus, Save, Table2, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Camera, Check, Download, FileImage, Gauge, ImagePlus, LoaderCircle, LogOut, Minus, Plus, RefreshCw, Save, Search, Table2, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { XuongCanNav } from "@/components/xuong-can/xuong-can-nav";
 import { useLichLamViecPwa } from "@/components/lich-lam-viec/use-lich-lam-viec-pwa";
 import { taoEmailLichLamViec, taoSupabaseLichLamViec } from "@/lib/supabase/lich-lam-viec";
@@ -29,18 +29,27 @@ function thongBaoAuth(message: string) {
   return message || "Chưa thể hoàn thành. Hãy thử lại.";
 }
 
+function chuThuongKhongDau(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLocaleLowerCase("vi");
+}
+
 function AnhO({ anh, token, onOpen }: { anh: Anh; token: string; onOpen: (src: string, anh: Anh) => void }) {
   const [src, setSrc] = useState("");
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true; let objectUrl = "";
+    setFailed(false); setSrc("");
     void fetch(`/api/thongso/anh/${anh.id}`, { headers: { Authorization: `Bearer ${token}` } }).then(async response => {
       if (!response.ok) throw new Error();
       objectUrl = URL.createObjectURL(await response.blob());
       if (active) setSrc(objectUrl);
-    }).catch(() => { if (active) setSrc(""); });
+    }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [anh.id, anh.ngay_cap_nhat, token]);
-  return src ? <button className="ts-photo" onClick={() => onOpen(src, anh)} aria-label={`Xem ảnh ${anh.ten_tep}`}><img src={src} alt={anh.ten_tep} /></button> : <span className="ts-photo-loading"><LoaderCircle className="ts-spin" /></span>;
+  }, [anh.id, anh.ngay_cap_nhat, token, attempt]);
+  if (src) return <button className="ts-photo" onClick={() => onOpen(src, anh)} aria-label={`Xem ảnh ${anh.ten_tep}`}><img src={src} alt={anh.ten_tep} /></button>;
+  if (failed) return <button className="ts-photo-error" onClick={() => setAttempt(value => value + 1)}><RefreshCw />Thử tải lại ảnh</button>;
+  return <span className="ts-photo-loading"><LoaderCircle className="ts-spin" /></span>;
 }
 
 export default function ThongSoPage() {
@@ -55,6 +64,8 @@ export default function ThongSoPage() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
   const [message, setMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [searchByBoard, setSearchByBoard] = useState<Record<string, string>>({});
   const [boards, setBoards] = useState<Bang[]>([]);
   const [images, setImages] = useState<Anh[]>([]);
   const [savingId, setSavingId] = useState("");
@@ -165,12 +176,15 @@ export default function ThongSoPage() {
   }
   async function uploadImage(boardId: string, rowId: string, columnId: string, file?: File) {
     if (!file || !token) return;
-    const cell = `${boardId}:${rowId}:${columnId}`; setUploadingCell(cell); setMessage("");
+    const cell = `${boardId}:${rowId}:${columnId}`; setUploadingCell(cell); setMessage(""); setSuccessMessage("");
     const form = new FormData(); form.set("bang_id", boardId); form.set("hang_id", rowId); form.set("cot_id", columnId); form.set("anh", file);
     const response = await fetch("/api/thongso/anh", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
     const result = await response.json();
     if (!response.ok) setMessage(result.loi || "Chưa tải được ảnh.");
-    else setImages(current => [...current.filter(item => !(item.bang_id === boardId && item.hang_id === rowId && item.cot_id === columnId)), result.anh as Anh]);
+    else {
+      setImages(current => [...current.filter(item => !(item.bang_id === boardId && item.hang_id === rowId && item.cot_id === columnId)), result.anh as Anh]);
+      setSuccessMessage("Đã tải ảnh lên thư mục Thong-so-can riêng của tài khoản trên Google Drive.");
+    }
     setUploadingCell("");
   }
 
@@ -187,19 +201,30 @@ export default function ThongSoPage() {
     <header className="ts-header"><div className="ts-title"><span><Gauge /></span><div><h1>Thông số cán</h1><p>@{profile?.ten_dang_nhap || "đang tải"}</p></div></div><div className="ts-header-actions">{pwa.canInstall && !pwa.installed && <button onClick={() => void pwa.install()} aria-label="Cài ứng dụng"><Download /></button>}<button onClick={() => void supabase.auth.signOut()} aria-label="Đăng xuất"><LogOut /></button></div></header>
     <XuongCanNav />
     {pwa.updateAvailable && <div className="ts-alert info">Có phiên bản mới.<button onClick={pwa.update}>Cập nhật</button></div>}
+    {successMessage && <div className="ts-alert success" role="status">{successMessage}<button onClick={() => setSuccessMessage("")}><X /></button></div>}
     {message && <div className="ts-alert" role="alert">{message}<button onClick={() => setMessage("")}><X /></button></div>}
-    <section className="ts-intro"><div><span>Hồ sơ kỹ thuật xưởng</span><h2>Thông số thiết bị</h2><p>Chạm vào ô để nhập dữ liệu. Ảnh được lưu riêng trên Google Drive.</p></div><button onClick={() => void addBoard()}><Plus />Thêm bảng</button></section>
-    {loadingData ? <div className="ts-empty"><LoaderCircle className="ts-spin" />Đang tải dữ liệu…</div> : boards.map(board => <section className="ts-board" key={board.id}>
+    <div className="ts-page-tools"><button onClick={() => void addBoard()}><Plus />Thêm bảng</button></div>
+    {loadingData ? <div className="ts-empty"><LoaderCircle className="ts-spin" />Đang tải dữ liệu…</div> : boards.map(board => {
+      const searchValue = searchByBoard[board.id] || "";
+      const normalizedSearch = chuThuongKhongDau(searchValue.trim());
+      const visibleRows = normalizedSearch ? board.danh_sach_hang.filter(row => {
+        const textValues = Object.values(row.cells).join(" ");
+        const imageNames = images.filter(image => image.bang_id === board.id && image.hang_id === row.id).map(image => image.ten_tep).join(" ");
+        return chuThuongKhongDau(`${textValues} ${imageNames}`).includes(normalizedSearch);
+      }) : board.danh_sach_hang;
+      return <section className="ts-board" key={board.id}>
       <header><input value={board.tieu_de} maxLength={120} aria-label="Tiêu đề bảng" onChange={event => updateLocal(board.id, current => ({ ...current, tieu_de: event.target.value }))} onBlur={() => { const current = currentBoard(board.id); if (current) void saveBoard(current); }} /><div>{savingId === board.id && <span><LoaderCircle className="ts-spin" />Đang lưu</span>}<button onClick={() => setAddColumnBoard(board.id)}><Plus />Thêm cột</button><button className="danger" aria-label="Xóa bảng" onClick={() => void deleteBoard(board)}><Trash2 /></button></div></header>
+      <div className="ts-board-search"><Search /><input type="search" value={searchValue} onChange={event => setSearchByBoard(current => ({ ...current, [board.id]: event.target.value }))} placeholder="Tìm trong bảng này…" aria-label={`Tìm trong ${board.tieu_de}`} />{searchValue && <button onClick={() => setSearchByBoard(current => ({ ...current, [board.id]: "" }))} aria-label="Xóa nội dung tìm kiếm"><X /></button>}<span>{visibleRows.length}/{board.danh_sach_hang.length} dòng</span></div>
       <div className="ts-table-wrap"><table><thead><tr><th className="ts-index">STT</th>{board.danh_sach_cot.map(column => <th key={column.id}><div><span>{column.ten}</span><small>{column.kieu === "image" ? "Ảnh" : "Văn bản"}</small><button onClick={() => void removeColumn(board, column.id)} aria-label={`Xóa cột ${column.ten}`}><X /></button></div></th>)}<th className="ts-row-actions" /></tr></thead><tbody>
-        {board.danh_sach_hang.map((row, rowIndex) => <tr key={row.id}><td className="ts-index">{rowIndex + 1}</td>{board.danh_sach_cot.map(column => {
+        {visibleRows.map(row => { const rowIndex = board.danh_sach_hang.findIndex(item => item.id === row.id); return <tr key={row.id}><td className="ts-index">{rowIndex + 1}</td>{board.danh_sach_cot.map(column => {
           const image = images.find(item => item.bang_id === board.id && item.hang_id === row.id && item.cot_id === column.id); const cell = `${board.id}:${row.id}:${column.id}`;
-          return <td key={column.id} className={column.kieu === "image" ? "ts-image-cell" : undefined}>{column.kieu === "text" ? <textarea rows={2} value={row.cells[column.id] || ""} placeholder="Nhập thông số…" onChange={event => updateLocal(board.id, current => ({ ...current, danh_sach_hang: current.danh_sach_hang.map(item => item.id === row.id ? { ...item, cells: { ...item.cells, [column.id]: event.target.value } } : item) }))} onBlur={() => { const current = currentBoard(board.id); if (current) void saveBoard(current); }} /> : image ? <div className="ts-image-box"><AnhO anh={image} token={token} onOpen={(src, selected) => { setViewer({ src, anh: selected }); setZoom(1); }} /><div><label title="Thay ảnh"><ImagePlus /><input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => void uploadImage(board.id, row.id, column.id, event.target.files?.[0])} /></label><button onClick={() => void deleteImage(image)} title="Xóa ảnh"><Trash2 /></button></div></div> : <div className="ts-image-empty">{uploadingCell === cell ? <LoaderCircle className="ts-spin" /> : <><FileImage /><span>Thêm ảnh</span><div><label><ImagePlus />Chọn ảnh<input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => void uploadImage(board.id, row.id, column.id, event.target.files?.[0])} /></label><label><Camera />Chụp ảnh<input type="file" accept="image/*" capture="environment" onChange={event => void uploadImage(board.id, row.id, column.id, event.target.files?.[0])} /></label></div></>}</div>}</td>;
-        })}<td className="ts-row-actions"><button aria-label={`Xóa dòng ${rowIndex + 1}`} onClick={() => void removeRow(board, row.id)}><Minus /></button></td></tr>)}
+          return <td key={column.id} className={column.kieu === "image" ? "ts-image-cell" : undefined}>{column.kieu === "text" ? <textarea rows={2} value={row.cells[column.id] || ""} placeholder="Nhập thông số…" onChange={event => updateLocal(board.id, current => ({ ...current, danh_sach_hang: current.danh_sach_hang.map(item => item.id === row.id ? { ...item, cells: { ...item.cells, [column.id]: event.target.value } } : item) }))} onBlur={() => { const current = currentBoard(board.id); if (current) void saveBoard(current); }} /> : image ? <div className="ts-image-box"><AnhO anh={image} token={token} onOpen={(src, selected) => { setViewer({ src, anh: selected }); setZoom(1); }} /><div><label title="Thay ảnh"><ImagePlus /><input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => void uploadImage(board.id, row.id, column.id, event.target.files?.[0])} /></label><button onClick={() => void deleteImage(image)} title="Xóa ảnh"><Trash2 /></button></div></div> : <div className="ts-image-empty">{uploadingCell === cell ? <><LoaderCircle className="ts-spin" /><small>Đang tải lên Google Drive…</small></> : <><FileImage /><span>Thêm ảnh</span><div><label><ImagePlus />Chọn ảnh<input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => void uploadImage(board.id, row.id, column.id, event.target.files?.[0])} /></label><label><Camera />Chụp ảnh<input type="file" accept="image/*" capture="environment" onChange={event => void uploadImage(board.id, row.id, column.id, event.target.files?.[0])} /></label></div><small>Lưu trong thư mục Thong-so-can trên Google Drive</small></>}</div>}</td>;
+        })}<td className="ts-row-actions"><button aria-label={`Xóa dòng ${rowIndex + 1}`} onClick={() => void removeRow(board, row.id)}><Minus /></button></td></tr>; })}
         {!board.danh_sach_hang.length && <tr><td className="ts-no-row" colSpan={board.danh_sach_cot.length + 2}>Chưa có dòng dữ liệu. Hãy thêm dòng đầu tiên.</td></tr>}
+        {!!board.danh_sach_hang.length && !visibleRows.length && <tr><td className="ts-no-row" colSpan={board.danh_sach_cot.length + 2}>Không có dòng nào khớp với “{searchValue}”.</td></tr>}
       </tbody></table></div>
       <footer><button onClick={() => void addRow(board)}><Plus />Thêm dòng</button><button onClick={() => { const current = currentBoard(board.id); if (current) void saveBoard(current); }}><Save />Lưu bảng</button></footer>
-    </section>)}
+    </section>; })}
     {!loadingData && !boards.length && <div className="ts-empty"><Table2 /><strong>Chưa có bảng thông số</strong><button onClick={() => void addBoard()}><Plus />Tạo bảng đầu tiên</button></div>}
 
     {addColumnBoard && <div className="ts-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setAddColumnBoard(null); }}><form className="ts-dialog" onSubmit={addColumn}><header><div><strong>Thêm cột</strong><small>Chọn loại dữ liệu phù hợp</small></div><button type="button" onClick={() => setAddColumnBoard(null)}><X /></button></header><label>Tên cột<input autoFocus value={columnName} onChange={event => setColumnName(event.target.value)} maxLength={60} placeholder="Ví dụ: Áp suất" required /></label><label>Loại dữ liệu<select value={columnType} onChange={event => setColumnType(event.target.value as KieuCot)}><option value="text">Văn bản / số liệu</option><option value="image">Hình ảnh</option></select></label><button className="ts-primary"><Plus />Thêm cột</button></form></div>}

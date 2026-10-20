@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { taoGoogleDrive } from "@/lib/google-drive/ket-noi";
-import { taoSupabaseQuanTri } from "@/lib/supabase/quan-tri";
+import { taoSupabaseTheoToken } from "@/lib/supabase/theo-token";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return NextResponse.json({ loi: "Chưa đăng nhập." }, { status: 401 });
-  const db = taoSupabaseQuanTri();
-  const { data: auth } = await db.auth.getUser(token);
+  const db = taoSupabaseTheoToken(token);
+  const { data: auth } = await db.auth.getUser();
   if (!auth.user || auth.user.user_metadata?.ung_dung !== "lich_lam_viec") return NextResponse.json({ loi: "Phiên đăng nhập không hợp lệ." }, { status: 401 });
   const { id } = await params;
   const { data: anh } = await db.from("thong_so_anh").select("google_drive_file_id,kieu_tep").eq("id", id).eq("nguoi_dung_id", auth.user.id).maybeSingle();
