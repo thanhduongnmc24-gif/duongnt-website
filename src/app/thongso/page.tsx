@@ -14,6 +14,10 @@ type Hang = { id: string; cells: Record<string, string> };
 type Bang = { id: string; tieu_de: string; danh_sach_cot: Cot[]; danh_sach_hang: Hang[]; thu_tu: number };
 type Anh = { id: string; bang_id: string; hang_id: string; cot_id: string; ten_tep: string; kieu_tep: string; ngay_cap_nhat: string };
 type HoSo = { ten_dang_nhap: string };
+type CheDoAnh = "thumb" | "full";
+type ViTriAnh = { x: number; y: number };
+
+const BO_NHO_ANH = "thongso-images-v1";
 
 const COT_MAC_DINH: Cot[] = [
   { id: "thiet-bi", ten: "Thiết bị", kieu: "text" },
@@ -33,20 +37,69 @@ function chuThuongKhongDau(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLocaleLowerCase("vi");
 }
 
-function AnhO({ anh, token, onOpen }: { anh: Anh; token: string; onOpen: (anh: Anh) => void }) {
+function khoaBoNhoAnh(anh: Anh, cheDo: CheDoAnh, taiKhoanId: string) {
+  return `${location.origin}/__thongso-cache/${taiKhoanId}/${cheDo}/${anh.id}?updated=${encodeURIComponent(anh.ngay_cap_nhat)}`;
+}
+
+async function taiAnhCoBoNho(anh: Anh, cheDo: CheDoAnh, taiKhoanId: string, token: string, onBlob: (blob: Blob) => void) {
+  const apiUrl = `/api/thongso/anh/${anh.id}${cheDo === "thumb" ? "?che_do=thumb" : ""}`;
+  if (!("caches" in window)) {
+    const response = await fetch(apiUrl, { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) throw new Error();
+    onBlob(await response.blob());
+    return;
+  }
+
+  const cache = await caches.open(BO_NHO_ANH);
+  const cacheKey = khoaBoNhoAnh(anh, cheDo, taiKhoanId);
+  const exact = await cache.match(cacheKey);
+  if (exact) {
+    onBlob(await exact.blob());
+    return;
+  }
+
+  const prefix = `/__thongso-cache/${taiKhoanId}/${cheDo}/${anh.id}`;
+  const oldKeys = (await cache.keys()).filter(key => new URL(key.url).pathname === prefix);
+  if (oldKeys[0]) {
+    const oldResponse = await cache.match(oldKeys[0]);
+    if (oldResponse) onBlob(await oldResponse.blob());
+  }
+
+  const response = await fetch(apiUrl, { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) throw new Error();
+  const blob = await response.blob();
+  await cache.put(cacheKey, new Response(blob, { headers: { "Content-Type": blob.type || anh.kieu_tep } }));
+  await Promise.all(oldKeys.map(key => cache.delete(key)));
+  onBlob(blob);
+}
+
+async function xoaAnhKhoiBoNho(anhId: string, taiKhoanId: string) {
+  if (!("caches" in window)) return;
+  const cache = await caches.open(BO_NHO_ANH);
+  const prefix = `/__thongso-cache/${taiKhoanId}/`;
+  const keys = await cache.keys();
+  await Promise.all(keys.filter(key => {
+    const path = new URL(key.url).pathname;
+    return path.startsWith(prefix) && path.endsWith(`/${anhId}`);
+  }).map(key => cache.delete(key)));
+}
+
+function AnhO({ anh, token, taiKhoanId, onOpen }: { anh: Anh; token: string; taiKhoanId: string; onOpen: (anh: Anh) => void }) {
   const [src, setSrc] = useState("");
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true; let objectUrl = "";
     setFailed(false); setSrc("");
-    void fetch(`/api/thongso/anh/${anh.id}?che_do=thumb`, { headers: { Authorization: `Bearer ${token}` } }).then(async response => {
-      if (!response.ok) throw new Error();
-      objectUrl = URL.createObjectURL(await response.blob());
-      if (active) setSrc(objectUrl);
-    }).catch(() => { if (active) setFailed(true); });
+    void taiAnhCoBoNho(anh, "thumb", taiKhoanId, token, blob => {
+      if (!active) return;
+      const nextUrl = URL.createObjectURL(blob);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = nextUrl;
+      setSrc(nextUrl);
+    }).catch(() => { if (active && !objectUrl) setFailed(true); });
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [anh.id, anh.ngay_cap_nhat, token, attempt]);
+  }, [anh, taiKhoanId, token, attempt]);
   if (src) return <button className="ts-photo" onClick={() => onOpen(anh)} aria-label={`Xem ảnh ${anh.ten_tep}`}><img src={src} alt={anh.ten_tep} /></button>;
   if (failed) return <button className="ts-photo-error" onClick={() => setAttempt(value => value + 1)}><RefreshCw />Thử tải lại ảnh</button>;
   return <span className="ts-photo-loading"><LoaderCircle className="ts-spin" /></span>;
@@ -75,8 +128,12 @@ export default function ThongSoPage() {
   const [columnType, setColumnType] = useState<KieuCot>("text");
   const [viewer, setViewer] = useState<{ src: string; anh: Anh } | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState<ViTriAnh>({ x: 0, y: 0 });
   const [draggedColumn, setDraggedColumn] = useState<{ boardId: string; columnId: string } | null>(null);
-  const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
+  const pinchRef = useRef<{ distance: number; zoom: number; center: ViTriAnh; pan: ViTriAnh } | null>(null);
+  const dragRef = useRef<{ start: ViTriAnh; pan: ViTriAnh } | null>(null);
+  const viewerStageRef = useRef<HTMLDivElement | null>(null);
+  const viewerImageRef = useRef<HTMLImageElement | null>(null);
   const viewerUrlRef = useRef("");
   const viewerRequestRef = useRef(0);
 
@@ -153,7 +210,10 @@ export default function ThongSoPage() {
   }
   async function deleteImage(anh: Anh) {
     const response = await fetch(`/api/thongso/anh?id=${anh.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-    if (response.ok) setImages(current => current.filter(item => item.id !== anh.id)); else setMessage("Chưa xóa được ảnh.");
+    if (response.ok) {
+      setImages(current => current.filter(item => item.id !== anh.id));
+      if (user) void xoaAnhKhoiBoNho(anh.id, user.id);
+    } else setMessage("Chưa xóa được ảnh.");
   }
   async function deleteBoard(board: Bang) {
     if (!confirm(`Xóa “${board.tieu_de}” cùng toàn bộ hình ảnh?`)) return;
@@ -195,26 +255,64 @@ export default function ThongSoPage() {
     const x = touches[0].clientX - touches[1].clientX; const y = touches[0].clientY - touches[1].clientY;
     return Math.hypot(x, y);
   }
+  function pinchCenter(touches: React.TouchList) {
+    return { x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 };
+  }
+  function limitPan(next: ViTriAnh, nextZoom: number) {
+    const stage = viewerStageRef.current; const image = viewerImageRef.current;
+    if (!stage || !image || nextZoom <= 1) return { x: 0, y: 0 };
+    const maxX = Math.max(0, (image.offsetWidth * nextZoom - stage.clientWidth) / 2);
+    const maxY = Math.max(0, (image.offsetHeight * nextZoom - stage.clientHeight) / 2);
+    return { x: Math.max(-maxX, Math.min(maxX, next.x)), y: Math.max(-maxY, Math.min(maxY, next.y)) };
+  }
+  function zoomAt(nextZoomValue: number, clientPoint?: ViTriAnh) {
+    const nextZoom = Math.min(6, Math.max(1, nextZoomValue));
+    const stage = viewerStageRef.current;
+    setPan(current => {
+      if (!stage || !clientPoint || nextZoom === 1) return limitPan(current, nextZoom);
+      const rect = stage.getBoundingClientRect();
+      const focus = { x: clientPoint.x - rect.left - rect.width / 2, y: clientPoint.y - rect.top - rect.height / 2 };
+      return limitPan({
+        x: focus.x - (focus.x - current.x) * nextZoom / zoom,
+        y: focus.y - (focus.y - current.y) * nextZoom / zoom,
+      }, nextZoom);
+    });
+    setZoom(nextZoom);
+  }
+  function startPan(clientX: number, clientY: number) {
+    if (zoom <= 1) return;
+    dragRef.current = { start: { x: clientX, y: clientY }, pan };
+  }
+  function movePan(clientX: number, clientY: number) {
+    if (!dragRef.current || zoom <= 1) return;
+    setPan(limitPan({ x: dragRef.current.pan.x + clientX - dragRef.current.start.x, y: dragRef.current.pan.y + clientY - dragRef.current.start.y }, zoom));
+  }
+  function toggleZoom(clientX: number, clientY: number) {
+    if (zoom > 1) { setZoom(1); setPan({ x: 0, y: 0 }); }
+    else zoomAt(2.5, { x: clientX, y: clientY });
+  }
   function closeViewer() {
     viewerRequestRef.current += 1;
     if (viewerUrlRef.current) URL.revokeObjectURL(viewerUrlRef.current);
     viewerUrlRef.current = "";
     pinchRef.current = null;
+    dragRef.current = null;
+    setZoom(1); setPan({ x: 0, y: 0 });
     setViewer(null);
   }
   async function openFullImage(anh: Anh) {
     const requestId = ++viewerRequestRef.current;
     if (viewerUrlRef.current) URL.revokeObjectURL(viewerUrlRef.current);
     viewerUrlRef.current = "";
-    setViewer({ src: "", anh }); setZoom(1); setMessage("");
+    setViewer({ src: "", anh }); setZoom(1); setPan({ x: 0, y: 0 }); setMessage("");
     try {
-      const response = await fetch(`/api/thongso/anh/${anh.id}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!response.ok) throw new Error();
-      const blob = await response.blob();
-      if (viewerRequestRef.current !== requestId) return;
-      const objectUrl = URL.createObjectURL(blob);
-      viewerUrlRef.current = objectUrl;
-      setViewer({ src: objectUrl, anh });
+      await taiAnhCoBoNho(anh, "full", user!.id, token, blob => {
+        if (viewerRequestRef.current !== requestId) return;
+        const objectUrl = URL.createObjectURL(blob);
+        if (viewerUrlRef.current) URL.revokeObjectURL(viewerUrlRef.current);
+        viewerUrlRef.current = objectUrl;
+        setViewer({ src: objectUrl, anh });
+      });
     } catch {
       if (viewerRequestRef.current === requestId) {
         setViewer(null);
@@ -266,7 +364,7 @@ export default function ThongSoPage() {
       <div className="ts-table-wrap"><table><thead><tr><th className="ts-index">STT</th>{board.danh_sach_cot.map((column, columnIndex) => <th key={column.id} className={draggedColumn?.boardId === board.id && draggedColumn.columnId === column.id ? "ts-column-dragging" : undefined} draggable onDragStart={() => setDraggedColumn({ boardId: board.id, columnId: column.id })} onDragEnd={() => setDraggedColumn(null)} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (draggedColumn?.boardId === board.id) void moveColumn(board, draggedColumn.columnId, columnIndex); setDraggedColumn(null); }}><div><i className="ts-drag-handle" title="Kéo để di chuyển cột"><GripVertical /></i><span>{column.ten}</span><small>{column.kieu === "image" ? "Ảnh" : "Văn bản"}</small><span className="ts-column-move"><button disabled={columnIndex === 0} onClick={() => void moveColumn(board, column.id, columnIndex - 1)} aria-label={`Chuyển cột ${column.ten} sang trái`}><ArrowLeft /></button><button disabled={columnIndex === board.danh_sach_cot.length - 1} onClick={() => void moveColumn(board, column.id, columnIndex + 1)} aria-label={`Chuyển cột ${column.ten} sang phải`}><ArrowRight /></button></span><button className="ts-column-delete" onClick={() => void removeColumn(board, column.id)} aria-label={`Xóa cột ${column.ten}`}><X /></button></div></th>)}<th className="ts-row-actions" /></tr></thead><tbody>
         {visibleRows.map(row => { const rowIndex = board.danh_sach_hang.findIndex(item => item.id === row.id); return <tr key={row.id}><td className="ts-index">{rowIndex + 1}</td>{board.danh_sach_cot.map(column => {
           const image = images.find(item => item.bang_id === board.id && item.hang_id === row.id && item.cot_id === column.id); const cell = `${board.id}:${row.id}:${column.id}`;
-          return <td key={column.id} className={column.kieu === "image" ? "ts-image-cell" : undefined}>{column.kieu === "text" ? <textarea rows={2} value={row.cells[column.id] || ""} placeholder="Nhập thông số…" onChange={event => updateLocal(board.id, current => ({ ...current, danh_sach_hang: current.danh_sach_hang.map(item => item.id === row.id ? { ...item, cells: { ...item.cells, [column.id]: event.target.value } } : item) }))} onBlur={() => { const current = currentBoard(board.id); if (current) void saveBoard(current); }} /> : image ? <div className="ts-image-box"><AnhO anh={image} token={token} onOpen={selected => void openFullImage(selected)} /><div><label title="Thay ảnh"><ImagePlus /><input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => void uploadImage(board.id, row.id, column.id, event.target.files?.[0])} /></label><button onClick={() => void deleteImage(image)} title="Xóa ảnh"><Trash2 /></button></div></div> : <div className="ts-image-empty">{uploadingCell === cell ? <><LoaderCircle className="ts-spin" /><small>Đang tải lên Google Drive…</small></> : <><FileImage /><span>Thêm ảnh</span><div><label><ImagePlus />Chọn ảnh<input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => void uploadImage(board.id, row.id, column.id, event.target.files?.[0])} /></label><label><Camera />Chụp ảnh<input type="file" accept="image/*" capture="environment" onChange={event => void uploadImage(board.id, row.id, column.id, event.target.files?.[0])} /></label></div><small>Lưu trong thư mục Thong-so-can trên Google Drive</small></>}</div>}</td>;
+          return <td key={column.id} className={column.kieu === "image" ? "ts-image-cell" : undefined}>{column.kieu === "text" ? <textarea rows={2} value={row.cells[column.id] || ""} placeholder="Nhập thông số…" onChange={event => updateLocal(board.id, current => ({ ...current, danh_sach_hang: current.danh_sach_hang.map(item => item.id === row.id ? { ...item, cells: { ...item.cells, [column.id]: event.target.value } } : item) }))} onBlur={() => { const current = currentBoard(board.id); if (current) void saveBoard(current); }} /> : image ? <div className="ts-image-box"><AnhO anh={image} token={token} taiKhoanId={user.id} onOpen={selected => void openFullImage(selected)} /><div><label title="Thay ảnh"><ImagePlus /><input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => void uploadImage(board.id, row.id, column.id, event.target.files?.[0])} /></label><button onClick={() => void deleteImage(image)} title="Xóa ảnh"><Trash2 /></button></div></div> : <div className="ts-image-empty">{uploadingCell === cell ? <><LoaderCircle className="ts-spin" /><small>Đang tải lên Google Drive…</small></> : <><FileImage /><span>Thêm ảnh</span><div><label><ImagePlus />Chọn ảnh<input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => void uploadImage(board.id, row.id, column.id, event.target.files?.[0])} /></label><label><Camera />Chụp ảnh<input type="file" accept="image/*" capture="environment" onChange={event => void uploadImage(board.id, row.id, column.id, event.target.files?.[0])} /></label></div><small>Lưu trong thư mục Thong-so-can trên Google Drive</small></>}</div>}</td>;
         })}<td className="ts-row-actions"><button aria-label={`Xóa dòng ${rowIndex + 1}`} onClick={() => void removeRow(board, row.id)}><Minus /></button></td></tr>; })}
         {!board.danh_sach_hang.length && <tr><td className="ts-no-row" colSpan={board.danh_sach_cot.length + 2}>Chưa có dòng dữ liệu. Hãy thêm dòng đầu tiên.</td></tr>}
         {!!board.danh_sach_hang.length && !visibleRows.length && <tr><td className="ts-no-row" colSpan={board.danh_sach_cot.length + 2}>Không có dòng nào khớp với “{searchValue}”.</td></tr>}
@@ -276,6 +374,6 @@ export default function ThongSoPage() {
     {!loadingData && !boards.length && <div className="ts-empty"><Table2 /><strong>Chưa có bảng thông số</strong><button onClick={() => void addBoard()}><Plus />Tạo bảng đầu tiên</button></div>}
 
     {addColumnBoard && <div className="ts-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setAddColumnBoard(null); }}><form className="ts-dialog" onSubmit={addColumn}><header><div><strong>Thêm cột</strong><small>Chọn loại dữ liệu phù hợp</small></div><button type="button" onClick={() => setAddColumnBoard(null)}><X /></button></header><label>Tên cột<input autoFocus value={columnName} onChange={event => setColumnName(event.target.value)} maxLength={60} placeholder="Ví dụ: Áp suất" required /></label><label>Loại dữ liệu<select value={columnType} onChange={event => setColumnType(event.target.value as KieuCot)}><option value="text">Văn bản / số liệu</option><option value="image">Hình ảnh</option></select></label><button className="ts-primary"><Plus />Thêm cột</button></form></div>}
-    {viewer && <div className="ts-viewer" role="dialog" aria-modal="true" aria-label="Xem ảnh thông số"><header><div><strong>{viewer.anh.ten_tep}</strong><span>{viewer.src ? `${Math.round(zoom * 100)}%` : "Đang tải ảnh gốc"}</span></div><div><button disabled={!viewer.src} onClick={() => setZoom(value => Math.max(.5, value - .25))}><ZoomOut /></button><button disabled={!viewer.src} onClick={() => setZoom(value => Math.min(4, value + .25))}><ZoomIn /></button><button onClick={closeViewer}><X /></button></div></header><div className="ts-viewer-stage" onWheel={event => { if (!viewer.src) return; event.preventDefault(); setZoom(value => Math.min(4, Math.max(.5, value + (event.deltaY < 0 ? .15 : -.15)))); }} onTouchStart={event => { if (viewer.src && event.touches.length === 2) pinchRef.current = { distance: pinchDistance(event.touches), zoom }; }} onTouchMove={event => { if (!viewer.src || event.touches.length !== 2 || !pinchRef.current) return; event.preventDefault(); const ratio = pinchDistance(event.touches) / pinchRef.current.distance; setZoom(Math.min(4, Math.max(.5, pinchRef.current.zoom * ratio))); }} onTouchEnd={event => { if (event.touches.length < 2) pinchRef.current = null; }}>{viewer.src ? <><img src={viewer.src} alt={viewer.anh.ten_tep} style={{ transform: `scale(${zoom})` }} /><small>Chụm hoặc tách hai ngón tay để thu phóng</small></> : <div className="ts-viewer-loading"><LoaderCircle className="ts-spin" /><span>Đang tải ảnh đầy đủ chất lượng…</span></div>}</div></div>}
+    {viewer && <div className="ts-viewer" role="dialog" aria-modal="true" aria-label="Xem ảnh thông số"><header><div><strong>{viewer.anh.ten_tep}</strong><span>{viewer.src ? `${Math.round(zoom * 100)}%` : "Đang tải ảnh gốc"}</span></div><div><button disabled={!viewer.src || zoom <= 1} onClick={() => zoomAt(zoom - .5)}><ZoomOut /></button><button disabled={!viewer.src || zoom >= 6} onClick={() => zoomAt(zoom + .5)}><ZoomIn /></button><button onClick={closeViewer}><X /></button></div></header><div ref={viewerStageRef} className={`ts-viewer-stage${zoom > 1 ? " is-zoomed" : ""}`} onWheel={event => { if (!viewer.src) return; event.preventDefault(); zoomAt(zoom + (event.deltaY < 0 ? .3 : -.3), { x: event.clientX, y: event.clientY }); }} onDoubleClick={event => { if (viewer.src) toggleZoom(event.clientX, event.clientY); }} onMouseDown={event => startPan(event.clientX, event.clientY)} onMouseMove={event => { if (event.buttons === 1) movePan(event.clientX, event.clientY); }} onMouseUp={() => { dragRef.current = null; }} onMouseLeave={() => { dragRef.current = null; }} onTouchStart={event => { if (!viewer.src) return; if (event.touches.length === 2) { pinchRef.current = { distance: pinchDistance(event.touches), zoom, center: pinchCenter(event.touches), pan }; dragRef.current = null; } else if (event.touches.length === 1) startPan(event.touches[0].clientX, event.touches[0].clientY); }} onTouchMove={event => { if (!viewer.src) return; if (event.touches.length === 2 && pinchRef.current) { event.preventDefault(); const stage = viewerStageRef.current; if (!stage) return; const ratio = pinchDistance(event.touches) / pinchRef.current.distance; const nextZoom = Math.min(6, Math.max(1, pinchRef.current.zoom * ratio)); const rect = stage.getBoundingClientRect(); const currentCenter = pinchCenter(event.touches); const oldFocus = { x: pinchRef.current.center.x - rect.left - rect.width / 2, y: pinchRef.current.center.y - rect.top - rect.height / 2 }; const nextFocus = { x: currentCenter.x - rect.left - rect.width / 2, y: currentCenter.y - rect.top - rect.height / 2 }; setZoom(nextZoom); setPan(limitPan({ x: nextFocus.x - (oldFocus.x - pinchRef.current.pan.x) * nextZoom / pinchRef.current.zoom, y: nextFocus.y - (oldFocus.y - pinchRef.current.pan.y) * nextZoom / pinchRef.current.zoom }, nextZoom)); } else if (event.touches.length === 1) { event.preventDefault(); movePan(event.touches[0].clientX, event.touches[0].clientY); } }} onTouchEnd={event => { pinchRef.current = null; if (event.touches.length === 1) startPan(event.touches[0].clientX, event.touches[0].clientY); else dragRef.current = null; }}>{viewer.src ? <><img ref={viewerImageRef} draggable={false} src={viewer.src} alt={viewer.anh.ten_tep} style={{ transform: `translate3d(${pan.x}px,${pan.y}px,0) scale(${zoom})` }} /><small>Chụm để phóng to · Kéo để xem xung quanh · Chạm hai lần để đặt lại</small></> : <div className="ts-viewer-loading"><LoaderCircle className="ts-spin" /><span>Đang tải ảnh đầy đủ chất lượng…</span></div>}</div></div>}
   </main>;
 }

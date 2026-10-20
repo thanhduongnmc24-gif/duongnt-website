@@ -1,0 +1,10 @@
+import { createClient } from '@supabase/supabase-js';
+import { readFile, writeFile } from 'node:fs/promises';
+const base='http://127.0.0.1:3100'; const url=process.env.NEXT_PUBLIC_SUPABASE_URL; const anon=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; const secret=process.env.SUPABASE_SECRET_KEY;
+const admin=createClient(url,secret,{auth:{persistSession:false}}); const username=`uizoom${Date.now()}`; const email=`${username}@lichlamviec.internal.duongnt.io.vn`; const password='Test-zoom-927461';
+const created=await admin.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{ung_dung:'lich_lam_viec',ten_dang_nhap:username}}); if(created.error) throw created.error; const uid=created.data.user.id;
+const client=createClient(url,anon,{auth:{persistSession:false}}); const login=await client.auth.signInWithPassword({email,password}); if(login.error) throw login.error; const token=login.data.session.access_token;
+const board=await client.from('thong_so_bang').insert({nguoi_dung_id:uid,tieu_de:'Kiểm tra bộ nhớ ảnh',danh_sach_cot:[{id:'anh',ten:'Ảnh',kieu:'image'}],danh_sach_hang:[{id:'hang-1',cells:{}}],thu_tu:0}).select('id').single(); if(board.error) throw board.error;
+const bytes=await readFile('C:/Users/duong/AppData/Local/Temp/codex-clipboard-dbf20277-10de-4dcb-9bdd-2ec31bc98fbb.png'); const form=new FormData(); form.set('bang_id',board.data.id); form.set('hang_id','hang-1'); form.set('cot_id','anh'); form.set('anh',new File([bytes],'kiem-tra.png',{type:'image/png'}));
+const upload=await fetch(`${base}/api/thongso/anh`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:form}); const result=await upload.json(); if(!upload.ok) throw new Error(JSON.stringify(result));
+await writeFile('.verify-ui-data.json',JSON.stringify({uid,username,password,imageId:result.anh.id})); console.log(JSON.stringify({username,password}));

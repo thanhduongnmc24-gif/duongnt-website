@@ -65,7 +65,18 @@ test("cột có thể đổi vị trí và ảnh hỗ trợ chụm hai ngón tay
   assert.match(page, /Chuyển cột.*sang trái/);
   assert.match(page, /onTouchMove=/);
   assert.match(page, /pinchDistance/);
-  assert.match(page, /Chụm hoặc tách hai ngón tay/);
+  assert.match(page, /Chụm để phóng to/);
+});
+
+test("ảnh được lưu trên thiết bị và có thể kéo sau khi zoom", async () => {
+  const page = await readFile(new URL("../src/app/thongso/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /caches\.open\(BO_NHO_ANH\)/);
+  assert.match(page, /ngay_cap_nhat/);
+  assert.match(page, /async function taiAnhCoBoNho/);
+  assert.match(page, /function movePan/);
+  assert.match(page, /translate3d\(/);
+  assert.match(page, /onDoubleClick=/);
+  assert.match(page, /Kéo để xem xung quanh/);
 });
 
 test("hai trang có thanh chuyển khu vực dùng chung", async () => {
