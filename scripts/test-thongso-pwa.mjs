@@ -37,12 +37,17 @@ test("service worker quản lý cả Thông số và Lịch làm việc", async 
 test("ảnh Thông số chỉ đi qua API máy chủ có xác thực", async () => {
   const page = await readFile(new URL("../src/app/thongso/page.tsx", import.meta.url), "utf8");
   const api = await readFile(new URL("../src/app/api/thongso/anh/route.ts", import.meta.url), "utf8");
+  const imageApi = await readFile(new URL("../src/app/api/thongso/anh/[id]/route.ts", import.meta.url), "utf8");
   assert.match(page, /Authorization: `Bearer \$\{token\}`/);
   assert.match(page, /capture="environment"/);
   assert.match(api, /taoSupabaseTheoToken\(token\)/);
   assert.match(api, /db\.auth\.getUser\(\)/);
   assert.match(api, /timHoacTaoThuMucThongSo/);
   assert.match(api, /image\.size > 10 \* 1024 \* 1024/);
+  assert.match(page, /\?che_do=thumb/);
+  assert.match(page, /async function openFullImage/);
+  assert.match(imageApi, /thumbnailLink/);
+  assert.match(imageApi, /max-age=3600/);
 });
 
 test("mỗi bảng có tìm kiếm và khối giới thiệu cũ đã được bỏ", async () => {
@@ -51,6 +56,16 @@ test("mỗi bảng có tìm kiếm và khối giới thiệu cũ đã được b
   assert.match(page, /Tìm trong bảng này/);
   assert.match(page, /visibleRows/);
   assert.doesNotMatch(page, /Hồ sơ kỹ thuật xưởng/i);
+});
+
+test("cột có thể đổi vị trí và ảnh hỗ trợ chụm hai ngón tay", async () => {
+  const page = await readFile(new URL("../src/app/thongso/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /async function moveColumn/);
+  assert.match(page, /draggable onDragStart/);
+  assert.match(page, /Chuyển cột.*sang trái/);
+  assert.match(page, /onTouchMove=/);
+  assert.match(page, /pinchDistance/);
+  assert.match(page, /Chụm hoặc tách hai ngón tay/);
 });
 
 test("hai trang có thanh chuyển khu vực dùng chung", async () => {

@@ -12,7 +12,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { data: anh } = await db.from("thong_so_anh").select("google_drive_file_id,kieu_tep").eq("id", id).eq("nguoi_dung_id", auth.user.id).maybeSingle();
   if (!anh) return NextResponse.json({ loi: "Không tìm thấy ảnh." }, { status: 404 });
   try {
-    const { data } = await taoGoogleDrive().files.get({ fileId: anh.google_drive_file_id, alt: "media" }, { responseType: "arraybuffer" });
+    const drive = taoGoogleDrive();
+    const cheDoAnhNho = new URL(request.url).searchParams.get("che_do") === "thumb";
+    if (cheDoAnhNho) {
+      const { data: metadata } = await drive.files.get({ fileId: anh.google_drive_file_id, fields: "thumbnailLink" });
+      if (metadata.thumbnailLink) {
+        const thumbnail = await fetch(metadata.thumbnailLink);
+        if (thumbnail.ok) {
+          return new NextResponse(await thumbnail.arrayBuffer(), { headers: { "Content-Type": thumbnail.headers.get("content-type") || "image/jpeg", "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff" } });
+        }
+      }
+    }
+    const { data } = await drive.files.get({ fileId: anh.google_drive_file_id, alt: "media" }, { responseType: "arraybuffer" });
     return new NextResponse(Buffer.from(data as ArrayBuffer), { headers: { "Content-Type": anh.kieu_tep, "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff" } });
   } catch { return NextResponse.json({ loi: "Không thể đọc ảnh từ Google Drive." }, { status: 502 }); }
 }
