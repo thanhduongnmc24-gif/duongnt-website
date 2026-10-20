@@ -17,7 +17,7 @@ export function proxy(request: NextRequest) {
   requestHeaders.delete("x-demthep-app");
   const laYoutubePreview = pathname === "/youtube" || pathname.startsWith("/youtube/");
   const laCongDoanPreview = pathname === "/congdoan" || pathname.startsWith("/congdoan/");
-  const laLichLamViec = pathname === "/lichlamviec" || pathname.startsWith("/lichlamviec/");
+  const laLichLamViec = pathname === "/lichlamviec" || pathname.startsWith("/lichlamviec/") || pathname === "/thongso" || pathname.startsWith("/thongso/");
   const laToanLop1 = pathname === "/toanlop1" || pathname.startsWith("/toanlop1/");
   const laDemThep = pathname === "/demthep" || pathname.startsWith("/demthep/");
   if (laYoutube || laYoutubePreview) requestHeaders.set("x-duongtube-app", "1");

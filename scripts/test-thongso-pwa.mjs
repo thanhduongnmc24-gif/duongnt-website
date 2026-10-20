@@ -1,0 +1,57 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import test from "node:test";
+import vm from "node:vm";
+import ts from "typescript";
+
+const require = createRequire(import.meta.url);
+async function loadRoute(path) {
+  const source = await readFile(new URL(`../${path}`, import.meta.url), "utf8");
+  const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
+  const exports = {};
+  vm.runInNewContext(outputText, { exports, require, Response, Headers, URL });
+  return exports;
+}
+
+const manifestRoute = await loadRoute("src/app/thongso-manifest.webmanifest/route.ts");
+const workerRoute = await loadRoute("src/app/thongso-sw.js/route.ts");
+
+test("PWA Xưởng cán mở mặc định trang Thông số", async () => {
+  const manifest = await manifestRoute.GET().json();
+  assert.equal(manifest.id, "/thongso");
+  assert.equal(manifest.start_url, "/thongso?source=pwa");
+  assert.equal(manifest.scope, "/");
+  assert.equal(manifest.display, "standalone");
+});
+
+test("service worker quản lý cả Thông số và Lịch làm việc", async () => {
+  const response = workerRoute.GET();
+  assert.equal(response.headers.get("service-worker-allowed"), "/");
+  const code = await response.text();
+  assert.match(code, /url\.pathname === "\/thongso"/);
+  assert.match(code, /url\.pathname === "\/lichlamviec"/);
+  assert.match(code, /url\.pathname\.startsWith\("\/api\/"\)/);
+});
+
+test("ảnh Thông số chỉ đi qua API máy chủ có xác thực", async () => {
+  const page = await readFile(new URL("../src/app/thongso/page.tsx", import.meta.url), "utf8");
+  const api = await readFile(new URL("../src/app/api/thongso/anh/route.ts", import.meta.url), "utf8");
+  assert.match(page, /Authorization: `Bearer \$\{token\}`/);
+  assert.match(page, /capture="environment"/);
+  assert.match(api, /db\.auth\.getUser\(token\)/);
+  assert.match(api, /timHoacTaoThuMucThongSo/);
+  assert.match(api, /image\.size > 10 \* 1024 \* 1024/);
+});
+
+test("hai trang có thanh chuyển khu vực dùng chung", async () => {
+  const [thongSo, lich, nav] = await Promise.all([
+    readFile(new URL("../src/app/thongso/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/lichlamviec/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/components/xuong-can/xuong-can-nav.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(thongSo, /<XuongCanNav \/>/);
+  assert.match(lich, /<XuongCanNav \/>/);
+  assert.match(nav, /href="\/thongso"/);
+  assert.match(nav, /href="\/lichlamviec"/);
+});

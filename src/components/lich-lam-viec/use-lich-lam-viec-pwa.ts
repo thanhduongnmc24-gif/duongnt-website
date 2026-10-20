@@ -19,7 +19,7 @@ export function useLichLamViecPwa() {
     window.addEventListener("beforeinstallprompt", beforeInstall);
     window.addEventListener("appinstalled", onInstalled);
     if ("serviceWorker" in navigator && window.isSecureContext) {
-      void navigator.serviceWorker.register("/lichlamviec-sw.js", { scope: "/lichlamviec", updateViaCache: "none" }).then(registration => {
+      void navigator.serviceWorker.register("/thongso-sw.js", { scope: "/", updateViaCache: "none" }).then(registration => {
         if (disposed) return;
         registrationRef.current = registration;
         setUpdateAvailable(!!registration.waiting);

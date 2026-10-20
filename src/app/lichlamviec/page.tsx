@@ -5,6 +5,7 @@ import { CalendarDays, Check, ChevronLeft, ChevronRight, Coffee, Download, Loade
 import type { User } from "@supabase/supabase-js";
 import { taoEmailLichLamViec, taoSupabaseLichLamViec } from "@/lib/supabase/lich-lam-viec";
 import { useLichLamViecPwa } from "@/components/lich-lam-viec/use-lich-lam-viec-pwa";
+import { XuongCanNav } from "@/components/xuong-can/xuong-can-nav";
 import "./lichlamviec.css";
 
 type HoSo = { ten_dang_nhap: string; ngay_bat_dau_chu_ky: string };
@@ -183,6 +184,7 @@ export default function LichLamViecPage() {
   if (loadingSession) return <main className="llv-loading"><LoaderCircle className="llv-spin" /> Đang mở lịch…</main>;
   if (!user) return <main className="llv-auth-shell"><section className="llv-auth-card">
     <div className="llv-brand"><span><CalendarDays /></span><div><strong>Lịch làm việc</strong><small>Ca làm & nghỉ luân phiên</small></div></div>
+    <XuongCanNav />
     <h1>{authMode === "login" ? "Đăng nhập lịch riêng" : "Tạo tài khoản lịch"}</h1><p>Tài khoản này tách riêng khỏi Công đoạn và các khu vực khác.</p>
     <div className="llv-auth-tabs"><button className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setAuthMessage(""); }}>Đăng nhập</button><button className={authMode === "signup" ? "active" : ""} onClick={() => { setAuthMode("signup"); setAuthMessage(""); }}>Đăng ký</button></div>
     <form onSubmit={submitAuth}><label>Tên đăng nhập<input name="username" autoComplete="username" minLength={3} maxLength={40} pattern="[a-z0-9._-]+" placeholder="vi-du: duong24" required /></label><label>Mật khẩu<input name="password" type="password" autoComplete={authMode === "login" ? "current-password" : "new-password"} minLength={6} maxLength={72} required /></label>{authMessage && <p className="llv-form-message error" role="alert">{authMessage}</p>}<button className="llv-primary" disabled={authBusy}>{authBusy ? <LoaderCircle className="llv-spin" /> : <UserRound />}{authMode === "login" ? "Đăng nhập" : "Tạo tài khoản"}</button></form>
@@ -191,6 +193,7 @@ export default function LichLamViecPage() {
 
   return <main className="llv-app">
     <header className="llv-header"><div className="llv-title"><span><CalendarDays /></span><div><h1>Lịch làm việc</h1><p>@{profile?.ten_dang_nhap || "đang tải"}</p></div></div><button aria-label="Mở cài đặt" onClick={openSettings}><Settings2 /></button></header>
+    <XuongCanNav />
     {pwa.updateAvailable && <div className="llv-update">Có phiên bản mới.<button onClick={pwa.update}>Cập nhật</button></div>}
     {message && <div className="llv-alert" role="alert">{message}<button onClick={() => setMessage("")}><X /></button></div>}
     <section className="llv-calendar-card">

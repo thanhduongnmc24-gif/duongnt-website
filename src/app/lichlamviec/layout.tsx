@@ -3,9 +3,9 @@ import type { Metadata, Viewport } from "next";
 export const metadata: Metadata = {
   title: { absolute: "Lịch làm việc" },
   description: "Theo dõi ca làm việc và ngày nghỉ luân phiên của nhân viên.",
-  manifest: "/lichlamviec-manifest.webmanifest",
-  appleWebApp: { capable: true, title: "Lịch làm việc", statusBarStyle: "default" },
-  applicationName: "Lịch làm việc",
+  manifest: "/thongso-manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Xưởng cán", statusBarStyle: "default" },
+  applicationName: "Xưởng cán",
   icons: {
     icon: [
       { url: "/lichlamviec-assets/icon.svg", type: "image/svg+xml" },
