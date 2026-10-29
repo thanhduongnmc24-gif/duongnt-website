@@ -26,6 +26,17 @@ Worker mới chờ đến khi ứng dụng cũ đóng. Có thể chủ động �
 - Thanh điều khiển phía dưới gọi trực tiếp các hàm `playVideo`, `pauseVideo`, `seekTo`, chuyển video và điều chỉnh âm lượng trên cùng trình phát.
 - Chế độ nghe âm thanh trong nền và nút tai nghe riêng đã được loại bỏ.
 
+## Luồng âm thanh cho ESP32
+
+`GET /api/youtube/esp32/stream?id=VIDEO_ID` tạo luồng Ogg/Opus mono 48 kHz, 48 kbps để firmware ESP32 phát trực tiếp. Route này chạy ở Node.js và cần hai chương trình trên máy chủ:
+
+- `yt-dlp` để lấy nguồn âm thanh. Có thể đặt đường dẫn bằng `YTDLP_PATH`.
+- `ffmpeg` có bộ mã hóa `libopus`. Có thể đặt đường dẫn bằng `FFMPEG_PATH`.
+
+Nếu YouTube yêu cầu phiên đăng nhập, đặt `YTDLP_COOKIES_FILE` thành đường dẫn tuyệt đối đến tệp cookies trên máy chủ. Không đưa cookies vào Git. Route phát trực tiếp và không lưu bài hát lên ổ đĩa.
+
+Đây là tác vụ dài, vì vậy cần chạy website trên máy chủ Node.js thường trực. Không triển khai route này lên môi trường serverless có giới hạn thời gian ngắn.
+
 ## Gợi ý nội dung
 
 Lần mở đầu hiển thị video thịnh hành chung tại Việt Nam, không giới hạn trong danh mục âm nhạc. Thứ tự gợi ý được trộn lại khi mở ứng dụng hoặc chọn lại một chủ đề, nên các hàng **Tất cả**, **Âm nhạc**, **Nhạc Việt** và các chủ đề khác không còn luôn lặp lại cùng một nhóm video mẫu. Sau khi người dùng tìm kiếm hoặc phát nội dung, ứng dụng lưu lịch sử trên thiết bị và trộn kết quả liên quan với danh sách thịnh hành. Đây là gợi ý cục bộ của DuongTube; ứng dụng không có quyền truy cập lịch sử hoặc hệ thống đề xuất riêng của tài khoản YouTube.
