@@ -38,6 +38,7 @@ export async function GET() {
   const [ytDlp, ffmpeg] = await Promise.all([version("yt-dlp"), version("ffmpeg")]);
   return Response.json({
     ready: ytDlp.installed && ffmpeg.installed,
+    revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null,
     ytDlp,
     ffmpeg,
   }, {
