@@ -1,23 +1,11 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import path from "node:path";
+import { ensureYtDlp } from "@/lib/youtube/yt-dlp-runtime";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
-
-function executable(name: "yt-dlp" | "ffmpeg") {
-  const configured = name === "yt-dlp" ? process.env.YTDLP_PATH : process.env.FFMPEG_PATH;
-  if (configured) return configured;
-  if (name === "yt-dlp" && process.platform === "win32") {
-    return path.join(process.cwd(), ".ytdlp-venv", "Scripts", "yt-dlp.exe");
-  }
-  if (name === "yt-dlp" && process.platform === "linux") {
-    return path.join(process.cwd(), ".yt-dlp-bin", "yt-dlp");
-  }
-  return name;
-}
 
 function stop(child: ChildProcess | undefined) {
   if (child && !child.killed) child.kill();
@@ -27,6 +15,13 @@ export async function GET(request: Request) {
   const id = new URL(request.url).searchParams.get("id")?.trim() ?? "";
   if (!VIDEO_ID.test(id)) {
     return Response.json({ loi: "Mã video không hợp lệ." }, { status: 400 });
+  }
+
+  let ytDlp: string;
+  try {
+    ytDlp = await ensureYtDlp();
+  } catch {
+    return Response.json({ loi: "Máy chủ chưa chuẩn bị được yt-dlp." }, { status: 503 });
   }
 
   const sourceArgs = [
@@ -42,11 +37,11 @@ export async function GET(request: Request) {
   if (cookies) sourceArgs.push("--cookies", cookies);
   sourceArgs.push(`https://www.youtube.com/watch?v=${id}`);
 
-  const downloader = spawn(executable("yt-dlp"), sourceArgs, {
+  const downloader = spawn(ytDlp, sourceArgs, {
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
   });
-  const encoder = spawn(executable("ffmpeg"), [
+  const encoder = spawn(process.env.FFMPEG_PATH || "ffmpeg", [
     "-hide_banner",
     "-loglevel",
     "error",

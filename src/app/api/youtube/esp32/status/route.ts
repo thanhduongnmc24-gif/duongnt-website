@@ -1,28 +1,17 @@
 import { execFile } from "node:child_process";
-import path from "node:path";
 import { promisify } from "node:util";
+import { ensureYtDlp } from "@/lib/youtube/yt-dlp-runtime";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const execFileAsync = promisify(execFile);
 
-function executable(name: "yt-dlp" | "ffmpeg") {
-  const configured = name === "yt-dlp" ? process.env.YTDLP_PATH : process.env.FFMPEG_PATH;
-  if (configured) return configured;
-  if (name === "yt-dlp" && process.platform === "win32") {
-    return path.join(process.cwd(), ".ytdlp-venv", "Scripts", "yt-dlp.exe");
-  }
-  if (name === "yt-dlp" && process.platform === "linux") {
-    return path.join(process.cwd(), ".yt-dlp-bin", "yt-dlp");
-  }
-  return name;
-}
-
 async function version(name: "yt-dlp" | "ffmpeg") {
   try {
     const args = name === "yt-dlp" ? ["--version"] : ["-version"];
-    const { stdout, stderr } = await execFileAsync(executable(name), args, {
+    const executable = name === "yt-dlp" ? await ensureYtDlp() : process.env.FFMPEG_PATH || "ffmpeg";
+    const { stdout, stderr } = await execFileAsync(executable, args, {
       timeout: 5000,
       windowsHide: true,
       maxBuffer: 64 * 1024,
