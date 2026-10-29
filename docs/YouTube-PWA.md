@@ -30,6 +30,8 @@ Worker mới chờ đến khi ứng dụng cũ đóng. Có thể chủ động �
 
 `GET /api/youtube/esp32/stream?id=VIDEO_ID` tạo luồng Ogg/Opus mono 48 kHz, 48 kbps để firmware ESP32 phát trực tiếp. Route này chạy ở Node.js và cần hai chương trình trên máy chủ:
 
+Mở `GET /api/youtube/esp32/status` để kiểm tra ngay trên trình duyệt xem máy chủ đã có đủ hai chương trình hay chưa. Trường `ready` chỉ có giá trị `true` khi cả hai đều chạy được.
+
 - `yt-dlp` để lấy nguồn âm thanh. Có thể đặt đường dẫn bằng `YTDLP_PATH`.
 - `ffmpeg` có bộ mã hóa `libopus`. Có thể đặt đường dẫn bằng `FFMPEG_PATH`.
 
