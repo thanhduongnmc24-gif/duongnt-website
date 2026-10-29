@@ -13,6 +13,9 @@ function executable(name: "yt-dlp" | "ffmpeg") {
   if (name === "yt-dlp" && process.platform === "win32") {
     return path.join(process.cwd(), ".ytdlp-venv", "Scripts", "yt-dlp.exe");
   }
+  if (name === "yt-dlp" && process.platform === "linux") {
+    return path.join(process.cwd(), ".yt-dlp-bin", "yt-dlp");
+  }
   return name;
 }
 

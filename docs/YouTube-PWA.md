@@ -35,6 +35,8 @@ Mở `GET /api/youtube/esp32/status` để kiểm tra ngay trên trình duyệt 
 - `yt-dlp` để lấy nguồn âm thanh. Có thể đặt đường dẫn bằng `YTDLP_PATH`.
 - `ffmpeg` có bộ mã hóa `libopus`. Có thể đặt đường dẫn bằng `FFMPEG_PATH`.
 
+Trong lúc `npm install` trên Linux, script `postinstall` tự tải bản `yt-dlp_linux` chính thức vào `.yt-dlp-bin/yt-dlp`. Nhờ vậy dịch vụ Render hiện có không cần Shell trả phí. Tệp được tạo trong bản build và không được đưa vào Git.
+
 Nếu YouTube yêu cầu phiên đăng nhập, đặt `YTDLP_COOKIES_FILE` thành đường dẫn tuyệt đối đến tệp cookies trên máy chủ. Không đưa cookies vào Git. Route phát trực tiếp và không lưu bài hát lên ổ đĩa.
 
 Đây là tác vụ dài, vì vậy cần chạy website trên máy chủ Node.js thường trực. Không triển khai route này lên môi trường serverless có giới hạn thời gian ngắn.
