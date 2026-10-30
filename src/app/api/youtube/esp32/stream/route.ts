@@ -37,10 +37,15 @@ export async function GET(request: Request) {
   if (cookies) sourceArgs.push("--cookies", cookies);
   sourceArgs.push(`https://www.youtube.com/watch?v=${id}`);
 
-  const downloader = spawn(ytDlp, sourceArgs, {
+  const ytDlpIsPython = ytDlp.endsWith(".pyz");
+  const downloader = spawn(
+    ytDlpIsPython ? process.env.PYTHON_PATH || "python3" : ytDlp,
+    ytDlpIsPython ? [ytDlp, ...sourceArgs] : sourceArgs,
+    {
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
-  });
+    },
+  );
   const encoder = spawn(process.env.FFMPEG_PATH || "ffmpeg", [
     "-hide_banner",
     "-loglevel",

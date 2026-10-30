@@ -10,8 +10,12 @@ const execFileAsync = promisify(execFile);
 async function version(name: "yt-dlp" | "ffmpeg") {
   try {
     const args = name === "yt-dlp" ? ["--version"] : ["-version"];
-    const executable = name === "yt-dlp" ? await ensureYtDlp() : process.env.FFMPEG_PATH || "ffmpeg";
-    const { stdout, stderr } = await execFileAsync(executable, args, {
+    const ytDlp = name === "yt-dlp" ? await ensureYtDlp() : null;
+    const executable = ytDlp?.endsWith(".pyz")
+      ? process.env.PYTHON_PATH || "python3"
+      : ytDlp || process.env.FFMPEG_PATH || "ffmpeg";
+    const commandArgs = ytDlp?.endsWith(".pyz") ? [ytDlp, ...args] : args;
+    const { stdout, stderr } = await execFileAsync(executable, commandArgs, {
       timeout: 5000,
       windowsHide: true,
       maxBuffer: 64 * 1024,
