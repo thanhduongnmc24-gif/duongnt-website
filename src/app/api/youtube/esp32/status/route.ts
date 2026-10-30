@@ -18,8 +18,9 @@ async function version(name: "yt-dlp" | "ffmpeg") {
     });
     const firstLine = `${stdout || stderr}`.split(/\r?\n/, 1)[0].trim();
     return { installed: true, version: firstLine };
-  } catch {
-    return { installed: false, version: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return { installed: false, version: null, error: message.slice(0, 300) };
   }
 }
 
