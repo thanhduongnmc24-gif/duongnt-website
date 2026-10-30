@@ -4,7 +4,7 @@ import path from "node:path";
 if (process.platform !== "linux") process.exit(0);
 
 const directory = path.join(process.cwd(), ".yt-dlp-bin");
-const target = path.join(directory, "yt-dlp");
+const target = path.join(directory, "yt-dlp.pyz");
 
 try {
   const current = await stat(target);
@@ -17,7 +17,7 @@ try {
 }
 
 await mkdir(directory, { recursive: true });
-const response = await fetch("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux");
+const response = await fetch("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp");
 if (!response.ok) {
   throw new Error(`Cannot download yt-dlp (${response.status} ${response.statusText})`);
 }

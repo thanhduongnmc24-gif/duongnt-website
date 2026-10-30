@@ -16,14 +16,14 @@ async function usable(file: string) {
 }
 
 async function installLinuxBinary() {
-  const bundled = path.join(process.cwd(), ".yt-dlp-bin", "yt-dlp");
+  const bundled = path.join(process.cwd(), ".yt-dlp-bin", "yt-dlp.pyz");
   if (await usable(bundled)) return bundled;
 
-  const target = path.join(os.tmpdir(), "duongtube-yt-dlp");
+  const target = path.join(os.tmpdir(), "duongtube-yt-dlp.pyz");
   if (await usable(target)) return target;
 
   const response = await fetch(
-    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux",
+    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp",
     { cache: "no-store", signal: AbortSignal.timeout(60_000) },
   );
   if (!response.ok) {
