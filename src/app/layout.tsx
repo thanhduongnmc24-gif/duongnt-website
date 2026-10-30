@@ -34,14 +34,15 @@ export default async function RootLayout({
   const laLichLamViec = headerStore.get("x-lichlamviec-app") === "1";
   const laToanLop1 = headerStore.get("x-toanlop1-app") === "1";
   const laDemThep = headerStore.get("x-demthep-app") === "1";
-  const laUngDung = laDuongTube || laCongDoan || laLichLamViec || laToanLop1 || laDemThep;
+  const laDmx = headerStore.get("x-dmx-app") === "1";
+  const laUngDung = laDuongTube || laCongDoan || laLichLamViec || laToanLop1 || laDemThep || laDmx;
   const theme = laUngDung ? null : await layThemeWebsite();
 
   return (
-    <html lang="vi" data-theme={laDuongTube ? "duongtube" : laCongDoan ? "congdoan" : laLichLamViec ? "lichlamviec" : laToanLop1 ? "toanlop1" : laDemThep ? "demthep" : theme?.ma}>
+    <html lang="vi" data-theme={laDuongTube ? "duongtube" : laCongDoan ? "congdoan" : laLichLamViec ? "lichlamviec" : laToanLop1 ? "toanlop1" : laDemThep ? "demthep" : laDmx ? "dmx" : theme?.ma}>
       <body
-        className={`${inter.className} min-h-screen ${laDuongTube ? "bg-[#0f0f0f] text-[#f1f1f1]" : laToanLop1 ? "bg-[#fff8e8] text-[#24324a]" : laDemThep ? "bg-[#0f172a] text-[#f1f5f9]" : laCongDoan || laLichLamViec ? "bg-[#f5f7fb] text-[#172033]" : "bg-slate-100 text-slate-900"}`}
-        style={laDuongTube ? { backgroundColor: "#0f0f0f", color: "#f1f1f1", colorScheme: "dark" } : laToanLop1 ? { backgroundColor: "#fff8e8", color: "#24324a", colorScheme: "light" } : laDemThep ? { backgroundColor: "#0f172a", color: "#f1f5f9" } : laCongDoan || laLichLamViec ? { backgroundColor: "#f5f7fb", color: "#172033", colorScheme: "light" } : undefined}
+        className={`${inter.className} min-h-screen ${laDuongTube ? "bg-[#0f0f0f] text-[#f1f1f1]" : laToanLop1 ? "bg-[#fff8e8] text-[#24324a]" : laDemThep ? "bg-[#0f172a] text-[#f1f5f9]" : laDmx ? "bg-[#f3f7ff] text-[#15233b]" : laCongDoan || laLichLamViec ? "bg-[#f5f7fb] text-[#172033]" : "bg-slate-100 text-slate-900"}`}
+        style={laDuongTube ? { backgroundColor: "#0f0f0f", color: "#f1f1f1", colorScheme: "dark" } : laToanLop1 ? { backgroundColor: "#fff8e8", color: "#24324a", colorScheme: "light" } : laDemThep ? { backgroundColor: "#0f172a", color: "#f1f5f9" } : laDmx ? { backgroundColor: "#f3f7ff", color: "#15233b", colorScheme: "light" } : laCongDoan || laLichLamViec ? { backgroundColor: "#f5f7fb", color: "#172033", colorScheme: "light" } : undefined}
       >
         {!laUngDung ? <ThemeCss /> : null}
         {!laUngDung ? <ThanhDieuHuong /> : null}

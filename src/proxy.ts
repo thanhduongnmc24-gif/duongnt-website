@@ -6,6 +6,10 @@ export function proxy(request: NextRequest) {
     host === "youtube.duongnt.io.vn" ||
     host === "youtube.localhost" ||
     host.startsWith("youtube.localhost.");
+  const laDmx =
+    host === "dmx.duongnt.io.vn" ||
+    host === "dmx.localhost" ||
+    host.startsWith("dmx.localhost.");
 
   const pathname = request.nextUrl.pathname;
   const requestHeaders = new Headers(request.headers);
@@ -15,18 +19,34 @@ export function proxy(request: NextRequest) {
   requestHeaders.delete("x-lichlamviec-app");
   requestHeaders.delete("x-toanlop1-app");
   requestHeaders.delete("x-demthep-app");
+  requestHeaders.delete("x-dmx-app");
   const laYoutubePreview = pathname === "/youtube" || pathname.startsWith("/youtube/");
   const laCongDoanPreview = pathname === "/congdoan" || pathname.startsWith("/congdoan/");
   const laLichLamViec = pathname === "/lichlamviec" || pathname.startsWith("/lichlamviec/") || pathname === "/thongso" || pathname.startsWith("/thongso/");
   const laToanLop1 = pathname === "/toanlop1" || pathname.startsWith("/toanlop1/");
   const laDemThep = pathname === "/demthep" || pathname.startsWith("/demthep/");
+  const laDmxPreview = pathname === "/dmx" || pathname.startsWith("/dmx/");
   if (laYoutube || laYoutubePreview) requestHeaders.set("x-duongtube-app", "1");
   if (laCongDoanPreview) requestHeaders.set("x-congdoan-app", "1");
   if (laLichLamViec) requestHeaders.set("x-lichlamviec-app", "1");
   if (laToanLop1) requestHeaders.set("x-toanlop1-app", "1");
   if (laDemThep) requestHeaders.set("x-demthep-app", "1");
+  if (laDmx || laDmxPreview) requestHeaders.set("x-dmx-app", "1");
 
-  if (!laYoutube) return NextResponse.next({ request: { headers: requestHeaders } });
+  if (!laYoutube && !laDmx) return NextResponse.next({ request: { headers: requestHeaders } });
+
+  if (laDmx) {
+    if (
+      pathname.startsWith("/_next/") ||
+      pathname.startsWith("/api/dmx/") ||
+      pathname.startsWith("/dmx-assets/") ||
+      pathname === "/dmx-manifest.webmanifest" ||
+      pathname === "/dmx-sw.js"
+    ) return NextResponse.next({ request: { headers: requestHeaders } });
+    const dmxUrl = request.nextUrl.clone();
+    dmxUrl.pathname = laDmxPreview ? pathname : pathname === "/" ? "/dmx" : `/dmx${pathname}`;
+    return NextResponse.rewrite(dmxUrl, { request: { headers: requestHeaders } });
+  }
 
   if (
     pathname.startsWith("/_next/") ||
