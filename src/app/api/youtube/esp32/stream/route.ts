@@ -1,13 +1,20 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import type { Readable } from "node:stream";
-import { Quality, Ytdl } from "@distube/ytdl-core";
+import { Client, Quality, Ytdl } from "@distube/ytdl-core";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
-const youtube = new Ytdl({ country: "VN", lang: "vi", timeoutMs: 30_000 });
+const youtube = new Ytdl({
+  country: "VN",
+  lang: "vi",
+  timeoutMs: 30_000,
+  // VisionOS supplies audio formats without downloading YouTube's changing web-player script.
+  // This is more reliable from Render data-center IPs.
+  clients: [Client.VisionOS],
+});
 
 function stop(child: ChildProcess | undefined) {
   if (child && !child.killed) child.kill();
