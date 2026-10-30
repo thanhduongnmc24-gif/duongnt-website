@@ -28,16 +28,14 @@ Worker mới chờ đến khi ứng dụng cũ đóng. Có thể chủ động �
 
 ## Luồng âm thanh cho ESP32
 
-`GET /api/youtube/esp32/stream?id=VIDEO_ID` tạo luồng Ogg/Opus mono 48 kHz, 48 kbps để firmware ESP32 phát trực tiếp. Route này chạy ở Node.js và cần hai chương trình trên máy chủ:
+`GET /api/youtube/esp32/stream?id=VIDEO_ID` tạo luồng Ogg/Opus mono 48 kHz, 48 kbps để firmware ESP32 phát trực tiếp. Route này chạy ở Node.js và dùng:
 
 Mở `GET /api/youtube/esp32/status` để kiểm tra ngay trên trình duyệt xem máy chủ đã có đủ hai chương trình hay chưa. Trường `ready` chỉ có giá trị `true` khi cả hai đều chạy được.
 
-- `yt-dlp` để lấy nguồn âm thanh. Có thể đặt đường dẫn bằng `YTDLP_PATH`.
+- `@distube/ytdl-core` để lấy nguồn âm thanh trực tiếp trong Node.js, không cần Python hoặc chương trình `yt-dlp` ngoài.
 - `ffmpeg` có bộ mã hóa `libopus`. Có thể đặt đường dẫn bằng `FFMPEG_PATH`.
 
-Trong lúc `npm install` trên Linux, script `postinstall` tự tải bản Python đa nền tảng chính thức vào `.yt-dlp-bin/yt-dlp.pyz`. Nhờ vậy dịch vụ Render hiện có không cần Shell trả phí và không phụ thuộc bản thực thi Linux đóng gói sẵn. Tệp được tạo trong bản build và không được đưa vào Git.
-
-Nếu YouTube yêu cầu phiên đăng nhập, đặt `YTDLP_COOKIES_FILE` thành đường dẫn tuyệt đối đến tệp cookies trên máy chủ. Không đưa cookies vào Git. Route phát trực tiếp và không lưu bài hát lên ổ đĩa.
+Route phát trực tiếp và không lưu bài hát lên ổ đĩa.
 
 Đây là tác vụ dài, vì vậy cần chạy website trên máy chủ Node.js thường trực. Không triển khai route này lên môi trường serverless có giới hạn thời gian ngắn.
 

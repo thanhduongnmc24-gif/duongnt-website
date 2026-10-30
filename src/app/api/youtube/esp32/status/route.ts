@@ -1,21 +1,14 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { ensureYtDlp } from "@/lib/youtube/yt-dlp-runtime";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const execFileAsync = promisify(execFile);
 
-async function version(name: "yt-dlp" | "ffmpeg") {
+async function ffmpegVersion() {
   try {
-    const args = name === "yt-dlp" ? ["--version"] : ["-version"];
-    const ytDlp = name === "yt-dlp" ? await ensureYtDlp() : null;
-    const executable = ytDlp?.endsWith(".pyz")
-      ? process.env.PYTHON_PATH || "python3"
-      : ytDlp || process.env.FFMPEG_PATH || "ffmpeg";
-    const commandArgs = ytDlp?.endsWith(".pyz") ? [ytDlp, ...args] : args;
-    const { stdout, stderr } = await execFileAsync(executable, commandArgs, {
+    const { stdout, stderr } = await execFileAsync(process.env.FFMPEG_PATH || "ffmpeg", ["-version"], {
       timeout: 5000,
       windowsHide: true,
       maxBuffer: 64 * 1024,
@@ -29,11 +22,13 @@ async function version(name: "yt-dlp" | "ffmpeg") {
 }
 
 export async function GET() {
-  const [ytDlp, ffmpeg] = await Promise.all([version("yt-dlp"), version("ffmpeg")]);
+  const ffmpeg = await ffmpegVersion();
+  const youtubeResolver = { installed: true, version: "@distube/ytdl-core 5.2.0" };
   return Response.json({
-    ready: ytDlp.installed && ffmpeg.installed,
+    ready: youtubeResolver.installed && ffmpeg.installed,
     revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null,
-    ytDlp,
+    ytDlp: { installed: false, version: null, replacedBy: youtubeResolver.version },
+    youtubeResolver,
     ffmpeg,
   }, {
     headers: {

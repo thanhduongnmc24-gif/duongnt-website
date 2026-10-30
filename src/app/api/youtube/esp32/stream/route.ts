@@ -1,11 +1,13 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { ensureYtDlp } from "@/lib/youtube/yt-dlp-runtime";
+import type { Readable } from "node:stream";
+import { Quality, Ytdl } from "@distube/ytdl-core";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+const youtube = new Ytdl({ country: "VN", lang: "vi", timeoutMs: 30_000 });
 
 function stop(child: ChildProcess | undefined) {
   if (child && !child.killed) child.kill();
@@ -17,35 +19,20 @@ export async function GET(request: Request) {
     return Response.json({ loi: "Mã video không hợp lệ." }, { status: 400 });
   }
 
-  let ytDlp: string;
+  let source: Readable;
   try {
-    ytDlp = await ensureYtDlp();
+    const info = await youtube.getInfo(`https://www.youtube.com/watch?v=${id}`, {
+      signal: request.signal,
+    });
+    source = youtube.download(info, {
+      quality: Quality.HighestAudio,
+      filter: { hasAudio: true, hasVideo: false },
+      signal: request.signal,
+      highWaterMark: 512 * 1024,
+    });
   } catch {
-    return Response.json({ loi: "Máy chủ chưa chuẩn bị được yt-dlp." }, { status: 503 });
+    return Response.json({ loi: "YouTube chưa cung cấp được nguồn âm thanh." }, { status: 502 });
   }
-
-  const sourceArgs = [
-    "--no-playlist",
-    "--no-progress",
-    "--quiet",
-    "-f",
-    "bestaudio/best",
-    "-o",
-    "-",
-  ];
-  const cookies = process.env.YTDLP_COOKIES_FILE;
-  if (cookies) sourceArgs.push("--cookies", cookies);
-  sourceArgs.push(`https://www.youtube.com/watch?v=${id}`);
-
-  const ytDlpIsPython = ytDlp.endsWith(".pyz");
-  const downloader = spawn(
-    ytDlpIsPython ? process.env.PYTHON_PATH || "python3" : ytDlp,
-    ytDlpIsPython ? [ytDlp, ...sourceArgs] : sourceArgs,
-    {
-    windowsHide: true,
-    stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
   const encoder = spawn(process.env.FFMPEG_PATH || "ffmpeg", [
     "-hide_banner",
     "-loglevel",
@@ -73,13 +60,13 @@ export async function GET(request: Request) {
     stdio: ["pipe", "pipe", "pipe"],
   });
 
-  downloader.stdout.pipe(encoder.stdin);
+  source.pipe(encoder.stdin);
   let closed = false;
   const close = () => {
     if (closed) return;
     closed = true;
-    downloader.stdout.unpipe(encoder.stdin);
-    stop(downloader);
+    source.unpipe(encoder.stdin);
+    source.destroy();
     stop(encoder);
   };
   request.signal.addEventListener("abort", close, { once: true });
@@ -95,7 +82,7 @@ export async function GET(request: Request) {
         if (!closed) controller.error(error);
         close();
       });
-      downloader.once("error", (error) => {
+      source.once("error", (error) => {
         if (!closed) controller.error(error);
         close();
       });
