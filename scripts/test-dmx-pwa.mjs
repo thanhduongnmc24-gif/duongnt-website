@@ -20,6 +20,10 @@ test("Gemini nhận ảnh ở máy chủ và trả về bảng có cấu trúc",
   assert.match(route, /responseSchema/);
   assert.match(route, /KetQuaSchema/);
   assert.match(route, /vuotGioiHan/);
+  assert.match(route, /maxOutputTokens: 32768/);
+  assert.match(route, /thinkingBudget: 0/);
+  assert.match(route, /docJsonGemini/);
+  assert.match(route, /safeParse/);
 });
 
 test("PWA và subdomain ĐMX được cấu hình", async () => {

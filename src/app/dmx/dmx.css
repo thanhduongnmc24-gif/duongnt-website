@@ -1,4 +1,1054 @@
-.dmx-app{--blue:#3159ea;--green:#18a45d;--orange:#f28a19;--ink:#18253c;--muted:#71809a;--line:#dfe7f2;min-height:100dvh;padding-bottom:60px;background:radial-gradient(circle at 0 -10%,#dfeaff 0,transparent 34rem),linear-gradient(180deg,#f9fbff,#f1f5fb);color:var(--ink);font-family:var(--font-inter),Arial,sans-serif}.dmx-app *{box-sizing:border-box}.dmx-app button,.dmx-app label{cursor:pointer}.dmx-header{height:74px;padding:0 max(18px,calc((100vw - 1040px)/2));display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e4eaf3;background:#ffffffdd;backdrop-filter:blur(14px);position:sticky;z-index:20;top:0}.dmx-brand{display:flex;align-items:center;gap:12px}.dmx-brand>span{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;color:#fff;background:linear-gradient(145deg,#3f75ff,#2545d0);box-shadow:0 8px 24px #3159ea44}.dmx-brand svg{width:22px}.dmx-brand strong,.dmx-brand small{display:block}.dmx-brand strong{font-size:15px;letter-spacing:.7px}.dmx-brand small{margin-top:3px;color:var(--muted);font-size:10px}.dmx-ai{display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #d9e4f2;border-radius:20px;background:#fff;color:#55708e;font-size:10px;font-weight:800}.dmx-ai i{width:8px;height:8px;border-radius:50%;background:#20ba70;box-shadow:0 0 0 4px #20ba7020}.dmx-hero{width:min(1000px,calc(100% - 28px));margin:36px auto 25px;text-align:center}.dmx-hero>span,.dmx-section-title span,.dmx-result-head span{color:#2f63e9;font-size:10px;font-weight:900;letter-spacing:1.1px}.dmx-hero h1{max-width:680px;margin:7px auto 0;font-size:clamp(28px,5vw,46px);line-height:1.08;letter-spacing:-1.5px}.dmx-hero p{max-width:660px;margin:12px auto 0;color:var(--muted);font-size:13px;line-height:1.6}.dmx-types{width:min(1000px,calc(100% - 28px));margin:0 auto 22px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.dmx-types button{position:relative;min-height:104px;padding:15px;display:flex;align-items:center;gap:12px;border:2px solid transparent;border-radius:18px;background:#fff;text-align:left;box-shadow:0 10px 32px #50627b12;transition:.18s}.dmx-types button>span{width:43px;height:43px;flex:0 0 auto;border-radius:13px;display:grid;place-items:center}.dmx-types button>span svg{width:21px}.dmx-types strong,.dmx-types small{display:block}.dmx-types strong{font-size:14px;color:var(--ink)}.dmx-types small{margin-top:5px;color:var(--muted);font-size:9px;line-height:1.4}.dmx-types .blue>span{background:#e8edff;color:var(--blue)}.dmx-types .green>span{background:#e4f7ed;color:var(--green)}.dmx-types .orange>span{background:#fff0df;color:var(--orange)}.dmx-types .blue.active{border-color:var(--blue);box-shadow:0 10px 30px #3159ea22}.dmx-types .green.active{border-color:var(--green);box-shadow:0 10px 30px #18a45d22}.dmx-types .orange.active{border-color:var(--orange);box-shadow:0 10px 30px #f28a1922}.dmx-types .check{position:absolute;right:10px;top:10px;width:17px;color:#28a567}.dmx-workspace,.dmx-results,.dmx-history{width:min(1000px,calc(100% - 28px));margin:0 auto 20px;padding:22px;border:1px solid var(--line);border-radius:23px;background:#fff;box-shadow:0 16px 50px #52637d13}.dmx-section-title,.dmx-result-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}.dmx-section-title h2,.dmx-result-head h2{margin-top:4px;font-size:22px}.dmx-section-title>small{color:var(--muted);font-size:11px}.dmx-upload{min-height:170px;margin-top:17px;padding:22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;border:2px dashed #a9bce2;border-radius:17px;background:#f7faff;color:#6680a8;text-align:center}.dmx-upload:hover{border-color:var(--blue);background:#f2f6ff}.dmx-upload svg{width:39px;height:39px;color:var(--blue)}.dmx-upload strong{font-size:14px;color:#32435e}.dmx-upload span{font-size:10px}.dmx-upload input,.dmx-capture-row input{display:none}.dmx-capture-row{margin-top:10px;display:flex;justify-content:center;gap:9px}.dmx-capture-row label{height:40px;padding:0 13px;border-radius:11px;display:flex;align-items:center;gap:6px;background:#eaf0ff;color:#3159d9;font-size:11px;font-weight:800}.dmx-capture-row label:last-child{background:#e7f7ee;color:#16834d}.dmx-capture-row svg{width:16px}.dmx-previews{margin-top:16px;display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.dmx-previews article{position:relative;min-width:0;padding:5px;border:1px solid var(--line);border-radius:12px;background:#f7f9fc}.dmx-previews img{width:100%;height:100px;object-fit:cover;border-radius:8px}.dmx-previews article>span{position:absolute;left:9px;top:9px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#17233bcc;color:#fff;font-size:10px;font-weight:800}.dmx-previews button{position:absolute;right:9px;top:9px;width:25px;height:25px;border:0;border-radius:50%;display:grid;place-items:center;background:#d9364b;color:#fff}.dmx-previews button svg{width:13px}.dmx-previews small{display:block;padding:5px 3px 1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:8px}.dmx-how{margin-top:17px;padding:12px 14px;border-radius:13px;display:flex;align-items:flex-start;gap:10px;background:#f0f6ff;color:#55708f}.dmx-how svg{width:20px;flex:0 0 auto;color:#3370dd}.dmx-how p{font-size:10px;line-height:1.55}.dmx-how strong{color:#294463}.dmx-error{margin-top:12px;padding:11px 13px;border-radius:11px;background:#fff0f2;color:#bb3044;font-size:11px}.dmx-read{width:100%;height:51px;margin-top:17px;border:0;border-radius:14px;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#4775f4,#2a4cd4);color:#fff;font-weight:850;box-shadow:0 10px 26px #3159ea33}.dmx-read:disabled{opacity:.5;cursor:default}.dmx-read svg{width:19px}.spin{animation:dmx-spin .8s linear infinite}.dmx-results{margin-top:20px}.dmx-result-head>div:last-child{display:flex;gap:7px}.dmx-result-head button{height:39px;padding:0 12px;border:0;border-radius:10px;display:flex;align-items:center;gap:6px;background:#e9f1ff;color:#2f5bd1;font-size:10px;font-weight:800}.dmx-result-head button:last-child{background:#e6f7ee;color:#178350}.dmx-result-head button svg{width:15px}.dmx-result-head p{margin-top:5px;color:var(--muted);font-size:10px}.dmx-summary{margin-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px}.dmx-summary article{padding:14px;border:1px solid #dce6f4;border-radius:14px;background:linear-gradient(145deg,#f7faff,#eef4ff)}.dmx-summary small,.dmx-summary strong{display:block}.dmx-summary small{color:var(--muted);font-size:9px}.dmx-summary strong{margin-top:7px;color:#254bc4;font-size:20px}.dmx-table-card{margin-top:17px;border:1px solid var(--line);border-radius:15px;overflow:hidden}.dmx-table-card h3{padding:12px 14px;background:#f5f8fc;font-size:13px}.dmx-table-card>div{overflow:auto}.dmx-table-card table{width:100%;min-width:600px;border-collapse:collapse}.dmx-table-card th,.dmx-table-card td{border-top:1px solid var(--line);border-right:1px solid var(--line)}.dmx-table-card th{padding:10px;background:#eef3fa;color:#455675;font-size:10px;text-align:left}.dmx-table-card td input{width:100%;min-width:100px;height:39px;padding:0 9px;border:0;background:#fff;color:#263650;font:500 11px inherit;outline:0}.dmx-table-card td input:focus{box-shadow:inset 0 0 0 2px #4f76e8;background:#f8faff}.dmx-warnings{margin-top:16px;padding:13px;border-radius:13px;background:#fff8e7;color:#895d12}.dmx-warnings strong{font-size:11px}.dmx-warnings p{margin-top:5px;font-size:10px}.dmx-history h2{font-size:17px}.dmx-history>div{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}.dmx-history>div button{padding:12px;border:1px solid var(--line);border-radius:12px;background:#f9fbfd;text-align:left}.dmx-history>div span,.dmx-history>div strong,.dmx-history>div small{display:block}.dmx-history>div span{color:#3660d5;font-size:9px;font-weight:800}.dmx-history>div strong{margin-top:4px;font-size:11px}.dmx-history>div small{margin-top:5px;color:var(--muted);font-size:8px}.dmx-clear{margin-top:12px;border:0;background:none;color:#bc4050;display:flex;align-items:center;gap:5px;font-size:10px}.dmx-clear svg{width:14px}@keyframes dmx-spin{to{transform:rotate(360deg)}}
-html:has(.dmx-app),body:has(.dmx-app){width:100%;max-width:100%;overflow-x:hidden;background:#f3f7ff}
-@media(max-width:700px){.dmx-header{height:66px;padding:0 12px}.dmx-brand>span{width:40px;height:40px}.dmx-brand strong{font-size:13px}.dmx-ai{padding:7px 9px}.dmx-hero{margin-top:26px}.dmx-hero h1{font-size:30px}.dmx-types{display:flex;overflow:auto;scroll-snap-type:x mandatory;padding-bottom:4px}.dmx-types button{min-width:78vw;scroll-snap-align:center}.dmx-workspace,.dmx-results,.dmx-history{padding:15px;border-radius:18px}.dmx-previews{grid-template-columns:repeat(2,1fr)}.dmx-previews img{height:125px}.dmx-result-head{align-items:flex-start;flex-direction:column}.dmx-summary{grid-template-columns:repeat(2,1fr)}.dmx-section-title h2,.dmx-result-head h2{font-size:19px}}
-@media(prefers-reduced-motion:reduce){.dmx-app *{scroll-behavior:auto!important;animation-duration:.01ms!important}}
+/* =========================================================================
+   PWA TỔNG HỢP SỐ LIỆU ĐMX - GIAO DIỆN ĐỒNG BỘ 100% VỚI APP iOS
+   ========================================================================= */
+
+.dmx-app {
+  min-height: 100dvh;
+  background-color: #f2f4f8;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px));
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dmx-hidden-input {
+  display: none !important;
+}
+
+/* =========================================================================
+   1. THANH ĐIỀU HƯỚNG TRÊN CÙNG (TOPBAR)
+   ========================================================================= */
+.dmx-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid #e2e8f0;
+  padding: calc(0.55rem + env(safe-area-inset-top, 0px)) 0.85rem 0.55rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.dmx-date-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dmx-date-btn:hover {
+  background: #e2e8f0;
+}
+
+.dmx-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.dmx-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0284c7;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dmx-icon-btn:hover:not(:disabled) {
+  background: #e0f2fe;
+  border-color: #bae6fd;
+}
+
+.dmx-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* =========================================================================
+   CONTAINER CHÍNH
+   ========================================================================= */
+.dmx-container {
+  max-width: 1024px;
+  margin: 0 auto;
+  padding: 0.65rem 0.65rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+/* =========================================================================
+   2. CỤM DOANH THU (2 THẺ GRADIENT: DOANH THU THỰC & DOANH THU QĐ)
+   ========================================================================= */
+.dmx-revenue-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.dmx-rev-card {
+  position: relative;
+  border: none;
+  border-radius: 14px;
+  padding: 0.65rem 0.75rem;
+  color: #ffffff;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  text-align: center;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.dmx-rev-card:active {
+  transform: scale(0.985);
+}
+
+.dmx-rev-card.blue {
+  background: linear-gradient(135deg, #2176ff 0%, #3b41e3 100%);
+}
+
+.dmx-rev-card.green {
+  background: linear-gradient(135deg, #169c46 0%, #1a913f 100%);
+}
+
+.dmx-rev-dot {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.dmx-rev-title {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  opacity: 0.95;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dmx-rev-value {
+  font-size: 1.32rem;
+  font-weight: 900;
+  line-height: 1.2;
+  margin: 0.22rem 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.dmx-rev-line {
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.26);
+  margin: 0.25rem 0;
+}
+
+.dmx-rev-target {
+  font-size: 0.66rem;
+  font-weight: 700;
+  opacity: 0.95;
+  font-variant-numeric: tabular-nums;
+}
+
+/* =========================================================================
+   3. CỤM 4 NÚT CHUYỂN MỤC (THI ĐUA + 3 DỰ PHÒNG)
+   ========================================================================= */
+.dmx-tabs-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.38rem;
+}
+
+.dmx-tabs-4 button {
+  border: 1px solid #cbd5e1;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0.48rem 0.25rem;
+  border-radius: 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.15s;
+}
+
+.dmx-tabs-4 button.active {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+}
+
+/* =========================================================================
+   4. THANH NÚT QUÉT ẢNH TƯƠNG ỨNG VỚI MỤC ĐANG CHỌN
+   ========================================================================= */
+.dmx-scan-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.dmx-scan-primary {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  height: 38px;
+  padding: 0 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dmx-scan-primary:hover:not(:disabled) {
+  background: #0369a1;
+}
+
+.dmx-scan-primary:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.dmx-scan-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.22);
+  border-radius: 10px;
+  height: 38px;
+  padding: 0 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dmx-scan-danger:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.16);
+}
+
+.dmx-scan-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  background: #e2e8f0;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  height: 38px;
+  padding: 0 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dmx-scan-secondary:hover {
+  background: #cbd5e1;
+}
+
+/* =========================================================================
+   CẢNH BÁO LỖI
+   ========================================================================= */
+.dmx-alert-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.dmx-alert-error button {
+  background: transparent;
+  border: none;
+  color: #b91c1c;
+  cursor: pointer;
+  display: inline-flex;
+  padding: 0.15rem;
+}
+
+/* =========================================================================
+   5. BỘ LỌC & SẮP XẾP THI ĐUA
+   ========================================================================= */
+.dmx-thidua-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dmx-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.42rem;
+}
+
+.dmx-segmented {
+  display: inline-flex;
+  background: #e2e8f0;
+  padding: 2px;
+  border-radius: 9px;
+  flex: 1 1 auto;
+}
+
+.dmx-segmented button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.36rem 0.45rem;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s;
+}
+
+.dmx-segmented button.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+.dmx-sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.dmx-sort-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 0.28rem 0.5rem;
+  color: #0284c7;
+}
+
+.dmx-sort-select select {
+  border: none;
+  background: transparent;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0284c7;
+  cursor: pointer;
+  outline: none;
+}
+
+.dmx-col-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(2, 132, 199, 0.1);
+  border: 1px solid rgba(2, 132, 199, 0.22);
+  color: #0284c7;
+  border-radius: 9px;
+  padding: 0.36rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* =========================================================================
+   TRẠNG THÁI TRỐNG & DỰ PHÒNG
+   ========================================================================= */
+.dmx-empty-card,
+.dmx-placeholder-card {
+  background: #ffffff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+}
+
+.dmx-empty-card strong,
+.dmx-placeholder-card strong {
+  color: #1e293b;
+  font-size: 0.96rem;
+}
+
+.dmx-empty-card p,
+.dmx-placeholder-card p {
+  margin: 0;
+}
+
+/* =========================================================================
+   6A. MẪU 1: BẢNG 8 CỘT CHI TIẾT (GIỐNG ẢNH BẢNG TỔNG HỢP THI ĐUA)
+   ========================================================================= */
+.dmx-table-wrap {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow-x: auto;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.dmx-table-8col {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 680px;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.dmx-table-8col thead th {
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid #cbd5e1;
+  border-right: 1px solid #e2e8f0;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.dmx-table-8col thead th.left {
+  text-align: left;
+  padding-left: 0.65rem;
+}
+
+.dmx-table-8col thead th.right {
+  text-align: right;
+  padding-right: 0.6rem;
+}
+
+.dmx-table-8col tbody tr {
+  cursor: pointer;
+  transition: filter 0.12s;
+}
+
+.dmx-table-8col tbody tr:hover {
+  filter: brightness(0.97);
+}
+
+.dmx-table-8col tbody tr.row-pass {
+  background: #f4fbf7;
+}
+
+.dmx-table-8col tbody tr.row-fail {
+  background: #fffafa;
+}
+
+.dmx-table-8col tbody td {
+  padding: 0.55rem 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #eef2f6;
+  vertical-align: middle;
+}
+
+.dmx-table-8col td.center {
+  text-align: center;
+}
+
+.dmx-table-8col td.left {
+  text-align: left;
+  padding-left: 0.65rem;
+  min-width: 190px;
+}
+
+.dmx-table-8col td.right {
+  text-align: right;
+  padding-right: 0.6rem;
+}
+
+.dmx-table-8col td.muted {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.dmx-table-8col td.bold {
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.dmx-table-8col td.text-green {
+  color: #16a34a;
+}
+
+.dmx-table-8col td.text-red {
+  color: #dc2626;
+}
+
+.dmx-pill {
+  display: inline-block;
+  min-width: 66px;
+  padding: 0.24rem 0.45rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.dmx-pill.pill-green {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.dmx-pill.pill-red {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* =========================================================================
+   6B. MẪU 2: THẺ TIẾN ĐỘ GỌN (1 CỘT / 2 CỘT)
+   ========================================================================= */
+.dmx-cards-grid {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.dmx-cards-grid.cols-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.dmx-cards-grid.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dmx-item-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.6rem 0.65rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  transition: border-color 0.12s, transform 0.1s;
+}
+
+.dmx-item-card:active {
+  transform: scale(0.99);
+}
+
+.dmx-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.dmx-item-top strong {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.28;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dmx-item-badge {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.16rem 0.42rem;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dmx-item-badge.badge-green {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.dmx-item-badge.badge-amber {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.dmx-item-badge.badge-red {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.dmx-item-mid {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.dmx-item-mid b {
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.dmx-item-mid small.con {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.dmx-item-mid small.vuot {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #16a34a;
+  white-space: nowrap;
+}
+
+.dmx-progress-track {
+  height: 5px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.dmx-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.dmx-progress-fill.bar-green {
+  background: #16a34a;
+}
+
+.dmx-progress-fill.bar-amber {
+  background: #f59e0b;
+}
+
+.dmx-progress-fill.bar-red {
+  background: #ef4444;
+}
+
+/* =========================================================================
+   7. OVERLAY ĐANG QUÉT & MODALS (CÀI ĐẶT, XUẤT BÁO CÁO, CHỈNH SỬA)
+   ========================================================================= */
+.dmx-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.dmx-loading-box {
+  background: rgba(15, 23, 42, 0.9);
+  color: #ffffff;
+  border-radius: 16px;
+  padding: 1.35rem 1.6rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.dmx-loading-box p {
+  margin: 0;
+}
+
+.dmx-spin {
+  animation: dmx-spin-anim 1s linear infinite;
+}
+
+@keyframes dmx-spin-anim {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dmx-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.85rem;
+}
+
+.dmx-modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 90dvh;
+  background: #f8fafc;
+  border-radius: 18px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25);
+}
+
+.dmx-sheet {
+  width: 100%;
+  max-width: 400px;
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25);
+}
+
+.dmx-sheet h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: #0f172a;
+  text-align: center;
+}
+
+.dmx-sheet p {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  color: #64748b;
+  text-align: center;
+}
+
+.dmx-sheet button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.72rem 0.85rem;
+  border-radius: 11px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.dmx-sheet button:hover {
+  background: #e2e8f0;
+}
+
+.dmx-sheet button.danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.dmx-sheet button.cancel {
+  justify-content: center;
+  background: #ffffff;
+  color: #64748b;
+  margin-top: 0.2rem;
+}
+
+.dmx-modal-head {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.8rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.dmx-modal-head h3 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.dmx-modal-head .dmx-save-btn {
+  border: none;
+  color: #ffffff;
+  background: #0284c7;
+  padding: 0.38rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dmx-modal-body {
+  padding: 0.9rem 1rem 1.1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.dmx-group-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.03em;
+  margin-top: 0.2rem;
+}
+
+.dmx-setting-box {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.dmx-setting-box p {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.dmx-setting-box p.mt-10 {
+  margin-top: 0.35rem;
+}
+
+.dmx-seg-2,
+.dmx-seg-4 {
+  display: grid;
+  gap: 0.35rem;
+  background: #f1f5f9;
+  padding: 0.25rem;
+  border-radius: 10px;
+}
+
+.dmx-seg-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dmx-seg-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dmx-seg-2 button,
+.dmx-seg-4 button {
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.45rem 0.35rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.dmx-seg-2 button.active,
+.dmx-seg-4 button.active {
+  background: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.25);
+}
+
+.dmx-phrase-input-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.dmx-phrase-input-row input {
+  flex: 1;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.84rem;
+  outline: none;
+}
+
+.dmx-phrase-input-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  border-radius: 9px;
+  padding: 0 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dmx-phrase-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dmx-phrase-list small.empty {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  font-style: italic;
+  padding: 0.2rem 0;
+}
+
+.dmx-phrase-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.dmx-phrase-item button {
+  background: transparent;
+  border: none;
+  color: #dc2626;
+  cursor: pointer;
+  display: inline-flex;
+  padding: 0.2rem;
+}
+
+/* Form chỉnh sửa dòng & doanh thu */
+.dmx-form-grid {
+  padding: 0.9rem 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  overflow-y: auto;
+}
+
+.dmx-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.dmx-form-grid input {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.88rem;
+  color: #0f172a;
+  outline: none;
+}
+
+.dmx-form-grid input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+}
+
+.dmx-delete-row-btn {
+  margin-top: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 0.55rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dmx-date-picker-row {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.dmx-date-picker-row input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.88rem;
+}
+
+/* =========================================================================
+   RESPONSIVE CHO MÀN HÌNH NHỎ (< 420px)
+   ========================================================================= */
+@media (max-width: 420px) {
+  .dmx-rev-value {
+    font-size: 1.15rem;
+  }
+
+  .dmx-item-top strong {
+    font-size: 0.73rem;
+  }
+
+  .dmx-item-badge {
+    font-size: 0.66rem;
+    padding: 0.12rem 0.35rem;
+  }
+
+  .dmx-item-mid {
+    font-size: 0.66rem;
+  }
+}
