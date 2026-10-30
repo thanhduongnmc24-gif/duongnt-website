@@ -11,6 +11,8 @@ const youtube = new Ytdl({
   country: "VN",
   lang: "vi",
   timeoutMs: 30_000,
+  // Keep this value in Render's secret environment settings, never in Git.
+  cookie: process.env.YOUTUBE_COOKIE,
   // VisionOS supplies audio formats without downloading YouTube's changing web-player script.
   // This is more reliable from Render data-center IPs.
   clients: [Client.VisionOS],

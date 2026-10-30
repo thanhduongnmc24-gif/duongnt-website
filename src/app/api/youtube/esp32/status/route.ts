@@ -27,6 +27,7 @@ export async function GET() {
   return Response.json({
     ready: youtubeResolver.installed && ffmpeg.installed,
     revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null,
+    youtubeCookieConfigured: Boolean(process.env.YOUTUBE_COOKIE),
     ytDlp: { installed: false, version: null, replacedBy: youtubeResolver.version },
     youtubeResolver,
     ffmpeg,

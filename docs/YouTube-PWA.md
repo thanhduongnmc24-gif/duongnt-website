@@ -37,6 +37,8 @@ Mở `GET /api/youtube/esp32/status` để kiểm tra ngay trên trình duyệt 
 
 Route phát trực tiếp và không lưu bài hát lên ổ đĩa.
 
+Nếu YouTube chặn IP trung tâm dữ liệu bằng yêu cầu xác nhận không phải bot, đặt biến môi trường bí mật `YOUTUBE_COOKIE` trên máy chủ. Giá trị là chuỗi `Cookie` của một tài khoản YouTube phụ; không ghi giá trị này vào mã nguồn, Git hoặc nhật ký.
+
 Đây là tác vụ dài, vì vậy cần chạy website trên máy chủ Node.js thường trực. Không triển khai route này lên môi trường serverless có giới hạn thời gian ngắn.
 
 ## Gợi ý nội dung
