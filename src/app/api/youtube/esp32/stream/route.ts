@@ -30,8 +30,12 @@ export async function GET(request: Request) {
       signal: request.signal,
       highWaterMark: 512 * 1024,
     });
-  } catch {
-    return Response.json({ loi: "YouTube chưa cung cấp được nguồn âm thanh." }, { status: 502 });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Unknown YouTube resolver error";
+    return Response.json({
+      loi: "YouTube chưa cung cấp được nguồn âm thanh.",
+      detail: detail.slice(0, 500),
+    }, { status: 502, headers: { "Cache-Control": "no-store" } });
   }
   const encoder = spawn(process.env.FFMPEG_PATH || "ffmpeg", [
     "-hide_banner",
