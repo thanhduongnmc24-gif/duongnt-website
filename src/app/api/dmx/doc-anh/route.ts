@@ -9,12 +9,19 @@ const AnhSchema = z.object({
 });
 
 const BodySchema = z.object({
-  loai: z.enum(["doanh_thu_thuc", "doanh_thu_quy_doi", "thi_dua"]),
+  loai: z.enum([
+    "doanh_thu_thuc",
+    "doanh_thu_quy_doi",
+    "thi_dua",
+    "thi_dua_nhan_vien",
+    "doanh_thu_nhan_vien",
+  ]),
+  tenNganhHangGoiY: z.string().max(200).optional(),
   anh: z.array(AnhSchema).min(1).max(10),
 });
 
 function chuoiToiDa(max: number) {
-  return z.preprocess(value => value == null ? "" : String(value), z.string().max(max));
+  return z.preprocess(value => (value == null ? "" : String(value)), z.string().max(max));
 }
 
 const SoSchema = z.preprocess(value => {
@@ -58,12 +65,44 @@ const DoanhThuSchema = z.object({
   phanTramTienDoThang: SoSchema.default(0),
 });
 
+const NhanVienThiDuaItemSchema = z.object({
+  maNV: chuoiToiDa(50).default(""),
+  hoTen: chuoiToiDa(120).default(""),
+  thucHien: SoSchema.default(0),
+  target: SoSchema.default(0),
+});
+
+const KhoiThiDuaNhanVienSchema = z.object({
+  tenNganhHang: chuoiToiDa(200).default(""),
+  danhSach: z.array(NhanVienThiDuaItemSchema).max(300).default([]),
+});
+
+const DoanhThuNhanVienItemSchema = z.object({
+  maNV: chuoiToiDa(50).default(""),
+  hoTen: chuoiToiDa(120).default(""),
+  soLuong: SoSchema.default(0),
+  doanhThuThuc: SoSchema.default(0),
+  doanhThuQD: SoSchema.default(0),
+  target: SoSchema.default(0),
+  dtQDKhoanVay: SoSchema.default(0),
+  dtTraThangQD: SoSchema.default(0),
+  dtTraGop: SoSchema.default(0),
+  phanTramHT: SoSchema.default(0),
+  phanTramQuyDoi: SoSchema.default(0),
+  phanTramTraGop: SoSchema.default(0),
+  gioCong: SoSchema.default(0),
+  soNgayNghi: SoSchema.default(0),
+  nangSuat: SoSchema.default(0),
+});
+
 const KetQuaSchema = z.object({
   tieuDe: chuoiToiDa(180).default("Kết quả tổng hợp ĐMX"),
   kyBaoCao: chuoiToiDa(120).default(""),
   donVi: chuoiToiDa(120).default(""),
   danhSachThiDua: z.array(DongThiDuaSchema).max(200).default([]),
   doanhThu: DoanhThuSchema.optional(),
+  thiDuaNhanVien: z.array(KhoiThiDuaNhanVienSchema).max(100).default([]),
+  doanhThuNhanVien: z.array(DoanhThuNhanVienItemSchema).max(300).default([]),
 });
 
 function docJsonGemini(text: string) {
@@ -100,24 +139,61 @@ export async function POST(request: Request) {
     return NextResponse.json({ loi: "Máy chủ chưa có khóa Gemini API." }, { status: 503 });
   }
 
-  const laThiDua = body.loai === "thi_dua";
+  let prompt = "";
+  if (body.loai === "thi_dua" || body.loai === "thi_dua_nhan_vien") {
+    prompt = `Bạn là hệ thống đọc ảnh báo cáo Thi Đua của Điện Máy Xanh (ĐMX).
+Hãy đọc ${body.anh.length} ảnh chụp màn hình và phân loại theo 2 trường hợp:
 
-  const prompt = laThiDua
-    ? `Bạn là hệ thống đọc ảnh báo cáo Thi Đua của Điện Máy Xanh (ĐMX).
-Hãy đọc ${body.anh.length} ảnh chụp màn hình mục "Thi đua" và trích xuất danh sách các chương trình thi đua.
-Mỗi khối chương trình trong ảnh có:
+TRƯỜNG HỢP A — Ảnh Thi đua tổng hợp siêu thị (có cột TARGET, % HT THÁNG, % DỰ BÁO):
+Trích xuất vào mảng danhSachThiDua:
 - Ô tiêu đề bên trái: Tên ngành hàng / chương trình (ví dụ: "T10 - Máy Lạnh", "T09 - T10 IPHONE 18 series, iPhone Duo", "T10 - NẠP - RÚT TIỀN TÀI KHOẢN NGÂN HÀNG", "T10 - Bảo Hiểm Tổng"...). Giữ nguyên tên chương trình trong ô tiêu đề, KHÔNG ghép tên siêu thị (như "ĐML_QNG_QNG - 275 Quang Trung") hay chữ "TỔNG" vào tên ngành hàng.
 - Cột 2: Tiêu đề là "SỐ LƯỢNG" (loaiChiTieu = "SL") hoặc "DOANH THU" (loaiChiTieu = "DT"), bên dưới là số Thực hiện (thucHien).
 - Cột 3: Tiêu đề là "TARGET", bên dưới là số Mục tiêu (target).
-- Cột 4: Tiêu đề là "% HT THÁNG", bên dưới là số % hoàn thành tháng (phanTramHT).
-- Cột 5: Tiêu đề là "% DỰ BÁO", bên dưới là số % dự báo (phanTramDuBao).
+- Cột 4: "% HT THÁNG" -> phanTramHT.
+- Cột 5: "% DỰ BÁO" -> phanTramDuBao.
+
+TRƯỜNG HỢP B — Ảnh Thi đua chi tiết từng nhân viên của một ngành hàng (ví dụ: góc trên bên trái có tên ngành hàng như "T09 - T10 IPHONE 18 series, iPhone Duo" hoặc "T10 - BẢO HIỂM THỢ ĐMX_CE", cột 2 là "DOANH THU" hoặc "SỐ LƯỢNG" hoặc "THỰC HIỆN", cột 3 là "HẠNG TRONG ST" hoặc "CÒN / VƯỢT", bên dưới liệt kê các dòng nhân viên như "261423 - Trần Nam Tùng | 583.19", "65255 - Nguyễn Thị Thu Thảo | 539.23" hoặc "Thị Chanh - 34922 | 58 / 48"):
+Trích xuất vào mảng thiDuaNhanVien:
+- tenNganhHang: Tên ngành hàng của bảng đó${body.tenNganhHangGoiY ? ` (nếu ảnh bị khuất tiêu đề thì dùng "${body.tenNganhHangGoiY}")` : ""}.
+- danhSach: Mảng các nhân viên trong bảng đó (bỏ qua dòng "TỔNG" hoặc "online - Online"):
+  + maNV: Mã số nhân viên (chỉ lấy chuỗi số, ví dụ "261423" từ "261423 - Trần Nam Tùng" hoặc "34922" từ "Thị Chanh - 34922").
+  + hoTen: Họ tên nhân viên (ví dụ "Trần Nam Tùng" hoặc "Thị Chanh").
+  + thucHien: Con số Thực hiện của nhân viên đó (ví dụ 583.19 hoặc 58).
+  + target: Con số Target cá nhân nếu có trong ảnh (ví dụ 48 trong "58 / 48", nếu không có thì để 0).
 
 Quy tắc quan trọng:
-1. Bỏ qua chữ in chìm (watermark) chéo trên nền như mã nhân viên (ví dụ "54453") và tên nhân viên.
-2. Nếu một khối ở sát đáy ảnh bị cắt khuất dòng số liệu bên dưới (chưa thấy số Thực hiện và Target), hãy bỏ qua khối bị cắt đó.
-3. Dấu phẩy trong số kiểu "4,476.28" là dấu phân cách hàng nghìn -> chuyển thành số thực 4476.28. Nếu ảnh định dạng kiểu "1.055,10" thì chuyển thành 1055.10.
-4. Khử trùng lặp nếu cùng một chương trình xuất hiện ở nhiều ảnh cuộn trang.`
-    : `Bạn là hệ thống đọc ảnh màn hình "Doanh thu hợp nhất" (Lũy kế DT thực & DT quy đổi) của Điện Máy Xanh (ĐMX).
+1. Bỏ qua chữ in chìm (watermark) chéo trên nền như mã nhân viên (ví dụ "54453 - Dũng Nguyễn Thanh").
+2. Nếu một khối ở sát đáy ảnh bị cắt khuất dòng số liệu bên dưới, hãy bỏ qua khối bị cắt đó.
+3. Chuyển đổi đúng dấu phân cách hàng nghìn ("4,476.28" -> 4476.28).`;
+  } else if (body.loai === "doanh_thu_nhan_vien") {
+    prompt = `Bạn là hệ thống đọc ảnh bảng "Doanh thu hợp nhất" theo nhân viên (hoặc bảng "Doanh thu nhân viên") của Điện Máy Xanh (ĐMX).
+Hãy đọc ${body.anh.length} ảnh chụp màn hình và trích xuất danh sách nhân viên vào mảng doanhThuNhanVien.
+Trong ảnh có thể là:
+1) Bảng lưới "Doanh thu hợp nhất" có các cột:
+   - "NHÂN VIÊN / NGÀ...": hiển thị dạng "24939 - Phan Ho..." hoặc "65255 - Nguyễn..." -> tách maNV = "24939", hoTen = "Phan Ho".
+   - "SỐ LƯỢNG": ví dụ 220 -> soLuong = 220.
+   - "DOANH THU QĐ": ví dụ "1,412" -> doanhThuQD = 1412.
+   - "DT QĐ KHOẢN VAY": ví dụ 0 hoặc 2 -> dtQDKhoanVay = 2.
+   - "DT TRẢ THẲNG QĐ": ví dụ 924 -> dtTraThangQD = 924.
+2) Hoặc bảng "Doanh thu nhân viên" có các cột:
+   - "HỌ VÀ TÊN": ví dụ "Hoàng Sơn - 24939" -> tách maNV = "24939", hoTen = "Hoàng Sơn".
+   - "DTLK": doanhThuThuc.
+   - "DTQĐ": doanhThuQD.
+   - "TARGET": target.
+   - "% HOÀN THÀNH": phanTramHT.
+   - "% QUY ĐỔI": phanTramQuyDoi.
+   - "% TRẢ GÓP": phanTramTraGop.
+   - "DT TRẢ GÓP": dtTraGop.
+   - "GIỜ CÔNG": gioCong.
+   - "SỐ NGÀY NGHỈ": soNgayNghi.
+   - "NĂNG SUẤT": nangSuat.
+
+Quy tắc:
+- Bỏ qua chữ in chìm (watermark) chéo trên nền (như "54453 - Dũng Nguyễn Thanh").
+- Bỏ qua dòng "Tổng" ở cuối bảng hoặc dòng bị cắt một nửa ở sát mép dưới ảnh.
+- Dấu phẩy trong "1,412", "1,278" là dấu phân cách hàng nghìn -> chuyển thành 1412, 1278. Nếu định dạng kiểu "1.361,09" thì chuyển thành 1361.09.`;
+  } else {
+    prompt = `Bạn là hệ thống đọc ảnh màn hình "Doanh thu hợp nhất" (Lũy kế DT thực & DT quy đổi) của Điện Máy Xanh (ĐMX).
 Người dùng có thể gửi 1 hoặc 2 ảnh chụp màn hình:
 - Ảnh chế độ "DT thực": bên dưới thanh "Quỹ thời gian" có thẻ đầu tiên là "DT thực" (kèm "DT dự kiến", "% HT target" có dòng phụ "Target trọn kỳ ...", "TT vs TB 3 tháng", "TLPVTC lũy kế", "Tỷ trọng trả chậm").
 - Ảnh chế độ "DT quy đổi": bên dưới thanh "Quỹ thời gian" có thẻ đầu tiên là "DT quy đổi" (kèm "DT quy đổi khoản vay", "DT dự kiến", "% HT target" có dòng phụ "Target trọn kỳ ...", "TT vs TB 3 tháng", "TLPVTC lũy kế", "Tỷ trọng trả chậm").
@@ -142,6 +218,7 @@ Hãy tổng hợp tất cả các ảnh được gửi và trích xuất vào đ
 - tb3Thang: Số "TB3T cùng cửa sổ: ..." ở dòng phụ thẻ "TT vs TB 3 tháng" (ví dụ "11,609" -> 11609).
 
 Lưu ý định dạng số: Dấu phẩy trong "10,957", "14,922", "19,149" là dấu phân cách hàng nghìn -> chuyển thành 10957, 14922, 19149. Nếu ảnh định dạng kiểu "8.541,00" thì chuyển thành 8541.00.`;
+  }
 
   const responseSchema = {
     type: "object",
@@ -188,6 +265,53 @@ Lưu ý định dạng số: Dấu phẩy trong "10,957", "14,922", "19,149" là
           phanTramTienDoThang: { type: "number" },
         },
         required: ["doanhThuThuc", "targetThuc", "doanhThuQuyDoi", "targetQuyDoi"],
+      },
+      thiDuaNhanVien: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            tenNganhHang: { type: "string" },
+            danhSach: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  maNV: { type: "string" },
+                  hoTen: { type: "string" },
+                  thucHien: { type: "number" },
+                  target: { type: "number" },
+                },
+                required: ["maNV", "hoTen", "thucHien"],
+              },
+            },
+          },
+          required: ["tenNganhHang", "danhSach"],
+        },
+      },
+      doanhThuNhanVien: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            maNV: { type: "string" },
+            hoTen: { type: "string" },
+            soLuong: { type: "number" },
+            doanhThuThuc: { type: "number" },
+            doanhThuQD: { type: "number" },
+            target: { type: "number" },
+            dtQDKhoanVay: { type: "number" },
+            dtTraThangQD: { type: "number" },
+            dtTraGop: { type: "number" },
+            phanTramHT: { type: "number" },
+            phanTramQuyDoi: { type: "number" },
+            phanTramTraGop: { type: "number" },
+            gioCong: { type: "number" },
+            soNgayNghi: { type: "number" },
+            nangSuat: { type: "number" },
+          },
+          required: ["maNV", "hoTen", "doanhThuQD"],
+        },
       },
     },
     required: ["tieuDe", "kyBaoCao", "donVi", "danhSachThiDua"],
