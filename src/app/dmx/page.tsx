@@ -1040,7 +1040,7 @@ export default function DmxPage() {
             title="Đọc ảnh và tạo bảng"
           >
             <Camera size={16} />
-            <span>Thêm ảnh {tenMucDangChon}</span>
+            <span>Thêm ảnh</span>
           </button>
 
           <button
@@ -1054,8 +1054,8 @@ export default function DmxPage() {
               }
             }}
           >
-            <RotateCcw size={15} />
-            <span>Xoá quét lại</span>
+            <Trash2 size={15} />
+            <span>Xoá</span>
           </button>
 
           {tabHienTai === "thiDua" && (
