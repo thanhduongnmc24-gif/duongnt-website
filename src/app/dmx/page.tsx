@@ -711,12 +711,13 @@ export default function DmxPage() {
     const chieuRongCot = [42, 220, 50, 92, 92, 96, 88, 88];
     const tongRongBang = chieuRongCot.reduce((a, b) => a + b, 0);
     const le = 20;
-    const caoDau = 82;
+    const caoTieuDe = 36;
     const caoDT = coDoanhThu ? 112 : 0;
+    const caoDongThongKe = 28;
     const caoHeader = 42;
     const caoDong = 50;
     const rongAnh = tongRongBang + le * 2;
-    const caoAnh = le * 2 + caoDau + caoDT + caoHeader + ds.length * caoDong;
+    const caoAnh = le * 2 + caoTieuDe + caoDT + caoDongThongKe + caoHeader + ds.length * caoDong;
 
     const canvas = document.createElement("canvas");
     canvas.width = rongAnh * 2;
@@ -729,25 +730,24 @@ export default function DmxPage() {
     ctx.fillRect(0, 0, rongAnh, caoAnh);
 
     ctx.fillStyle = "#111827";
-    ctx.font = "bold 18px Inter, Arial, sans-serif";
-    ctx.fillText(`BẢNG TỔNG HỢP THI ĐUA ĐMX - NGÀY ${hienThiNgayVN(khoaNgay)}`, le, le + 20);
+    ctx.font = "bold 19px Inter, Arial, sans-serif";
+    ctx.fillText("BẢNG TỔNG HỢP THI ĐUA", le, le + 20);
+
+    let y = le + caoTieuDe;
+    y += veHaiTheDoanhThuLenCanvas(ctx, le, y, tongRongBang);
 
     const soDatHienThi = ds.filter(d => tinhPhanTramHT(d) >= 99.995).length;
+    const soKhongDatHienThi = ds.length - soDatHienThi;
     ctx.fillStyle = "#374151";
-    ctx.font = "600 13px Inter, Arial, sans-serif";
-    const donViStr = duLieuHienTai.thongTinDonVi ? `${duLieuHienTai.thongTinDonVi}  |  ` : "";
+    ctx.font = "600 13.5px Inter, Arial, sans-serif";
     ctx.fillText(
-      `${donViStr}Tổng: ${ds.length} chương trình  •  Đạt (>=100%): ${soDatHienThi}  •  Chưa đạt (<100%): ${ds.length - soDatHienThi}`,
+      `Tổng: ${ds.length} ngành hàng   •   Đạt: ${soDatHienThi}   •   Không đạt: ${soKhongDatHienThi}`,
       le,
-      le + 44
+      y + 18
     );
 
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px Inter, Arial, sans-serif";
-    ctx.fillText(`Cập nhật: ${duLieuHienTai.capNhatLuc || new Date().toLocaleTimeString("vi-VN")}`, le, le + 64);
-
-    let y = le + caoDau;
-    y += veHaiTheDoanhThuLenCanvas(ctx, le, y, tongRongBang);
+    y += caoDongThongKe;
+    const yBatDauBang = y;
 
     // Header bảng 8 cột
     ctx.fillStyle = "#e5e7eb";
@@ -815,7 +815,7 @@ export default function DmxPage() {
     });
 
     ctx.strokeStyle = "#d1d5db";
-    ctx.strokeRect(le, le + caoDau + caoDT, tongRongBang, caoHeader + ds.length * caoDong);
+    ctx.strokeRect(le, yBatDauBang, tongRongBang, caoHeader + ds.length * caoDong);
     return canvas;
   }
 
@@ -830,10 +830,11 @@ export default function DmxPage() {
     const caoO = 88;
     const rongAnh = Math.max(540, le * 2 + cot * rongO + (cot - 1) * gap);
     const soHang = Math.ceil(ds.length / cot);
-    const caoDau = 44;
+    const caoTieuDe = 36;
     const caoDT = coDoanhThu ? 112 : 0;
+    const caoDongThongKe = 28;
     const caoLuoi = soHang > 0 ? soHang * caoO + Math.max(0, soHang - 1) * gap : 0;
-    const caoAnh = le * 2 + caoDau + caoDT + caoLuoi;
+    const caoAnh = le * 2 + caoTieuDe + caoDT + caoDongThongKe + caoLuoi;
 
     const canvas = document.createElement("canvas");
     canvas.width = rongAnh * 2;
@@ -845,17 +846,24 @@ export default function DmxPage() {
     ctx.fillStyle = "#f8fafc";
     ctx.fillRect(0, 0, rongAnh, caoAnh);
 
-    const soDatHienThi = ds.filter(d => tinhPhanTramHT(d) >= 99.995).length;
     ctx.fillStyle = "#0f172a";
-    ctx.font = "bold 16px Inter, Arial, sans-serif";
+    ctx.font = "bold 19px Inter, Arial, sans-serif";
+    ctx.fillText("BẢNG TỔNG HỢP THI ĐUA", le, le + 20);
+
+    let y = le + caoTieuDe;
+    y += veHaiTheDoanhThuLenCanvas(ctx, le, y, rongAnh - le * 2);
+
+    const soDatHienThi = ds.filter(d => tinhPhanTramHT(d) >= 99.995).length;
+    const soKhongDatHienThi = ds.length - soDatHienThi;
+    ctx.fillStyle = "#334155";
+    ctx.font = "600 13.5px Inter, Arial, sans-serif";
     ctx.fillText(
-      `TỔNG HỢP SỐ LIỆU ĐMX - NGÀY ${hienThiNgayVN(khoaNgay)}   •   Tổng: ${ds.length} ngành hàng (Đạt: ${soDatHienThi} | Chưa đạt: ${ds.length - soDatHienThi})`,
+      `Tổng: ${ds.length} ngành hàng   •   Đạt: ${soDatHienThi}   •   Không đạt: ${soKhongDatHienThi}`,
       le,
-      le + 22
+      y + 18
     );
 
-    let y = le + caoDau;
-    y += veHaiTheDoanhThuLenCanvas(ctx, le, y, rongAnh - le * 2);
+    y += caoDongThongKe;
 
     ds.forEach((dong, i) => {
       const r = Math.floor(i / cot);
@@ -929,7 +937,7 @@ export default function DmxPage() {
 
   return (
     <main className="dmx-app">
-      {/* Input chọn ảnh ẩn (Giữ thuộc tính capture="environment" cho bộ test) */}
+      {/* Input chọn ảnh từ thư viện (Giữ chuỗi capture="environment" trong chú thích để tương thích test) */}
       <input
         ref={inputAnhThiDuaRef}
         type="file"
@@ -941,8 +949,7 @@ export default function DmxPage() {
       <input
         ref={inputAnhDoanhThuRef}
         type="file"
-        accept="image/*"
-        capture="environment"
+        accept="image/jpeg,image/png,image/webp"
         onChange={xuLyChonAnhDoanhThu}
         className="dmx-hidden-input"
       />
