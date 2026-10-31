@@ -23,16 +23,27 @@ export type KetQuaQuetThiDuaOffline = {
   thongTinDonVi: string;
 };
 
-// Quản lý singleton Tesseract Worker trên trình duyệt (chạy 100% trên thiết bị như Apple Vision, không gọi Gemini)
-type TesseractWord = {
+// Quản lý singleton Tesseract Worker trên trình duyệt (chạy 100% trên thiết bị như Apple Vision, không gọi máy chủ ngoài)
+export type TesseractWord = {
   text: string;
+  confidence?: number;
   bbox: { x0: number; y0: number; x1: number; y1: number };
+};
+
+type TesseractData = {
+  words?: TesseractWord[];
+  blocks?: {
+    paragraphs?: { lines?: { words?: TesseractWord[] }[] }[];
+  }[];
 };
 
 type TesseractWorkerInstance = {
   recognize: (
-    image: HTMLCanvasElement | HTMLImageElement | File | Blob
-  ) => Promise<{ data: { words?: TesseractWord[] } }>;
+    image: HTMLCanvasElement,
+    options?: Record<string, unknown>,
+    output?: Record<string, boolean>
+  ) => Promise<{ data: TesseractData }>;
+  setParameters: (params: Record<string, string>) => Promise<unknown>;
 };
 
 let workerPromise: Promise<TesseractWorkerInstance> | null = null;
@@ -68,7 +79,13 @@ async function layWorkerOCR(): Promise<TesseractWorkerInstance> {
           createWorker: (langs: string, oem?: number) => Promise<TesseractWorkerInstance>;
         };
       };
-      return await win.Tesseract.createWorker("vie+eng", 1);
+      const worker = await win.Tesseract.createWorker("vie+eng", 1);
+      // PSM 11 (sparse text): đọc từng ô rời rạc của bảng, giống cách Apple Vision trả về từng phần tử chữ
+      await worker.setParameters({
+        tessedit_pageseg_mode: "11",
+        preserve_interword_spaces: "1",
+      });
+      return worker;
     })().catch(err => {
       workerPromise = null;
       throw err;
@@ -77,25 +94,98 @@ async function layWorkerOCR(): Promise<TesseractWorkerInstance> {
   return workerPromise;
 }
 
-function docFileThanhCanvas(
-  file: File
-): Promise<{ canvas: HTMLCanvasElement; width: number; height: number }> {
+/** Lấy danh sách từ từ kết quả Tesseract (hỗ trợ cả data.words lẫn data.blocks tùy phiên bản) */
+export function layDanhSachTu(data: TesseractData | undefined): TesseractWord[] {
+  if (!data) return [];
+  if (Array.isArray(data.words) && data.words.length) return data.words;
+  const tu: TesseractWord[] = [];
+  for (const b of data.blocks || [])
+    for (const p of b.paragraphs || [])
+      for (const l of p.lines || []) for (const w of l.words || []) tu.push(w);
+  return tu;
+}
+
+type CanvasLike = {
+  width: number;
+  height: number;
+  getContext: (type: "2d") => CanvasRenderingContext2D | null;
+};
+
+/**
+ * Tiền xử lý ảnh trước khi OCR - bước quyết định độ chính xác:
+ *  1. Ảnh chụp màn hình nhỏ (~475px) được phóng lên (tối đa 3 lần) để chữ đủ lớn cho Tesseract.
+ *  2. Chuyển xám rồi nhị phân hóa (ngưỡng Otsu, kẹp 140–185): chữ đen/xanh/đỏ đậm được giữ lại,
+ *     còn chữ in chìm (watermark) xám nhạt và nền màu của badge % bị loại bỏ.
+ */
+export function chuanBiCanvasChoOCR<T extends CanvasLike>(
+  nguon: CanvasImageSource,
+  rongGoc: number,
+  caoGoc: number,
+  taoCanvas: (w: number, h: number) => T
+): T {
+  let heSo = Math.min(3, Math.max(1, 1500 / rongGoc));
+  if (caoGoc * heSo > 4800) heSo = Math.max(1, 4800 / caoGoc);
+  const w = Math.max(1, Math.round(rongGoc * heSo));
+  const h = Math.max(1, Math.round(caoGoc * heSo));
+  const canvas = taoCanvas(w, h);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Không khởi tạo được bộ đệm ảnh.");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(nguon, 0, 0, w, h);
+
+  const anh = ctx.getImageData(0, 0, w, h);
+  const d = anh.data;
+  const xam = new Uint8Array(w * h);
+  const bieuDo = new Array<number>(256).fill(0);
+  for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+    const g = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+    xam[j] = g;
+    bieuDo[g]++;
+  }
+
+  // Otsu
+  const tong = w * h;
+  let tongCoTrongSo = 0;
+  for (let t = 0; t < 256; t++) tongCoTrongSo += t * bieuDo[t];
+  let nenSum = 0;
+  let wNen = 0;
+  let maxPhuongSai = -1;
+  let nguong = 165;
+  for (let t = 0; t < 256; t++) {
+    wNen += bieuDo[t];
+    if (wNen === 0) continue;
+    const wChu = tong - wNen;
+    if (wChu === 0) break;
+    nenSum += t * bieuDo[t];
+    const mNen = nenSum / wNen;
+    const mChu = (tongCoTrongSo - nenSum) / wChu;
+    const phuongSai = wNen * wChu * (mNen - mChu) * (mNen - mChu);
+    if (phuongSai > maxPhuongSai) {
+      maxPhuongSai = phuongSai;
+      nguong = t;
+    }
+  }
+  nguong = Math.min(185, Math.max(140, nguong));
+
+  for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+    const v = xam[j] < nguong ? 0 : 255;
+    d[i] = v;
+    d[i + 1] = v;
+    d[i + 2] = v;
+    d[i + 3] = 255;
+  }
+  ctx.putImageData(anh, 0, 0);
+  return canvas;
+}
+
+function docFileThanhAnh(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const maxDim = 2000;
-      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-      const width = Math.max(1, Math.round(img.width * scale));
-      const height = Math.max(1, Math.round(img.height * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return reject(new Error("Không khởi tạo được bộ đệm ảnh."));
-      ctx.drawImage(img, 0, 0, width, height);
-      resolve({ canvas, width, height });
+      resolve(img);
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
@@ -106,20 +196,31 @@ function docFileThanhCanvas(
 }
 
 /**
- * Thực hiện OCR trực tiếp trên thiết bị (chuyển đổi các từ cùng ô thành cụm văn bản kèm tọa độ chuẩn hóa 0..1 giống hệt VNRecognizeTextRequest của Apple Vision)
+ * Thực hiện OCR trực tiếp trên thiết bị (chuyển đổi các từ cùng ô thành cụm văn bản kèm tọa độ chuẩn hóa 0..1 giống VNRecognizeTextRequest của Apple Vision)
  */
 export async function thucHienOCR(file: File): Promise<PhanTuVanBan[]> {
-  const [{ canvas, width, height }, worker] = await Promise.all([
-    docFileThanhCanvas(file),
-    layWorkerOCR(),
-  ]);
+  const [img, worker] = await Promise.all([docFileThanhAnh(file), layWorkerOCR()]);
+  const canvas = chuanBiCanvasChoOCR(img, img.naturalWidth || img.width, img.naturalHeight || img.height, (w, h) => {
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    return c;
+  });
+  const ketQua = await worker.recognize(canvas, {}, { blocks: true });
+  return gomTuThanhCum(layDanhSachTu(ketQua?.data), canvas.width, canvas.height);
+}
 
-  const ketQua = await worker.recognize(canvas);
-  const words = (ketQua?.data?.words || []).filter(
-    w => w.text && w.text.trim().length > 0
-  );
+/**
+ * Chuyển các từ OCR (pixel) sang tọa độ chuẩn hóa 0..1 và gom các từ cùng dòng, sát nhau thành cụm
+ * giống kết quả của Apple Vision. Tách riêng để kiểm thử được mà không cần trình duyệt.
+ */
+export function gomTuThanhCum(
+  tuOCR: TesseractWord[],
+  width: number,
+  height: number
+): PhanTuVanBan[] {
+  const words = tuOCR.filter(w => w.text && w.text.trim().length > 0);
 
-  // Chuyển sang tọa độ chuẩn hóa 0..1
   const cacTu: PhanTuVanBan[] = words.map(w => {
     const x0 = Math.max(0, w.bbox.x0) / width;
     const y0 = Math.max(0, w.bbox.y0) / height;
@@ -134,7 +235,6 @@ export async function thucHienOCR(file: File): Promise<PhanTuVanBan[]> {
     };
   });
 
-  // Gom các từ nằm trên cùng một dòng và thuộc cùng một cột (khoảng cách ngang < 0.032) thành một cụm giống kết quả của Apple Vision
   cacTu.sort((a, b) => {
     if (Math.abs(a.y - b.y) < 0.01) return a.x - b.x;
     return a.y - b.y;
@@ -142,7 +242,6 @@ export async function thucHienOCR(file: File): Promise<PhanTuVanBan[]> {
 
   const cacCum: PhanTuVanBan[] = [];
   for (const tu of cacTu) {
-    // Tìm cụm hiện có cùng dòng (chênh lệch Y nhỏ) và nằm sát bên trái (cùng 1 ô bảng)
     let daGop = false;
     for (let i = cacCum.length - 1; i >= 0; i--) {
       const cum = cacCum[i];

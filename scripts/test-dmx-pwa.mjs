@@ -64,5 +64,6 @@ test("PWA và subdomain ĐMX được cấu hình", async () => {
   assert.match(proxy, /x-dmx-app/);
   assert.match(manifest, /start_url: "\/dmx\?source=pwa"/);
   assert.match(manifest, /display: "standalone"/);
-  assert.match(worker, /dmx-pwa-v1/);
+  assert.match(worker, /dmx-pwa-v2-local-ocr/);
+  assert.match(worker, /skipWaiting/);
 });
