@@ -1,5 +1,5 @@
 import "server-only";
-import { google } from "googleapis";
+import { auth, drive } from "googleapis/build/src/apis/drive";
 
 export function taoGoogleDrive() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -10,7 +10,7 @@ export function taoGoogleDrive() {
     throw new Error("Thiếu cấu hình OAuth Google Drive.");
   }
 
-  const oauth2Client = new google.auth.OAuth2(
+  const oauth2Client = new auth.OAuth2(
     clientId,
     clientSecret
   );
@@ -19,7 +19,7 @@ export function taoGoogleDrive() {
     refresh_token: refreshToken,
   });
 
-  return google.drive({
+  return drive({
     version: "v3",
     auth: oauth2Client,
   });
