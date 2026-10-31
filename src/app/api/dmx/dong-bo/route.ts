@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient, type User } from "@supabase/supabase-js";
 import { taoSupabaseMayChu } from "@/lib/supabase/may-chu";
 import { taoSupabaseQuanTri } from "@/lib/supabase/quan-tri";
 
@@ -60,12 +61,27 @@ async function ghiFileCloud(
   });
 }
 
-export async function GET() {
+async function layNguoiDung(request: Request): Promise<User | null> {
+  const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (bearer) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) return null;
+    const client = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const { data } = await client.auth.getUser(bearer);
+    return data.user || null;
+  }
+
+  const supabase = await taoSupabaseMayChu();
+  const { data } = await supabase.auth.getUser();
+  return data.user || null;
+}
+
+export async function GET(request: Request) {
   try {
-    const supabase = await taoSupabaseMayChu();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await layNguoiDung(request);
 
     if (!user || user.user_metadata?.ung_dung !== "dmx") {
       return NextResponse.json({ loi: "Chưa đăng nhập tài khoản ĐMX." }, { status: 401 });
@@ -118,10 +134,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await taoSupabaseMayChu();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await layNguoiDung(request);
 
     if (!user || user.user_metadata?.ung_dung !== "dmx") {
       return NextResponse.json({ loi: "Chưa đăng nhập tài khoản ĐMX." }, { status: 401 });
