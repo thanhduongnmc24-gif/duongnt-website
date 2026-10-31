@@ -39,8 +39,23 @@ const DongThiDuaSchema = z.object({
 const DoanhThuSchema = z.object({
   doanhThuThuc: SoSchema.default(0),
   targetThuc: SoSchema.default(0),
+  duKienThuc: SoSchema.default(0),
+  phanTramHTThuc: SoSchema.default(0),
   doanhThuQuyDoi: SoSchema.default(0),
   targetQuyDoi: SoSchema.default(0),
+  duKienQuyDoi: SoSchema.default(0),
+  phanTramHTQuyDoi: SoSchema.default(0),
+  phanTramTraGop: SoSchema.default(0),
+  doanhThuTraGop: SoSchema.default(0),
+  luotKhach: SoSchema.default(0),
+  soBill: SoSchema.default(0),
+  phanTramPVTC: SoSchema.default(0),
+  tangGiamCungKy: SoSchema.default(0),
+  coTangGiam: z.boolean().default(false),
+  tb3Thang: SoSchema.default(0),
+  soNgayDaQua: SoSchema.default(0),
+  tongSoNgay: SoSchema.default(0),
+  phanTramTienDoThang: SoSchema.default(0),
 });
 
 const KetQuaSchema = z.object({
@@ -102,13 +117,31 @@ Quy tắc quan trọng:
 2. Nếu một khối ở sát đáy ảnh bị cắt khuất dòng số liệu bên dưới (chưa thấy số Thực hiện và Target), hãy bỏ qua khối bị cắt đó.
 3. Dấu phẩy trong số kiểu "4,476.28" là dấu phân cách hàng nghìn -> chuyển thành số thực 4476.28. Nếu ảnh định dạng kiểu "1.055,10" thì chuyển thành 1055.10.
 4. Khử trùng lặp nếu cùng một chương trình xuất hiện ở nhiều ảnh cuộn trang.`
-    : `Bạn là hệ thống đọc ảnh chỉ số Doanh Thu (Doanh thu thực & Doanh thu quy đổi) của Điện Máy Xanh (ĐMX).
-Hãy đọc ảnh và trích xuất 4 con số vào đối tượng doanhThu:
-- doanhThuThuc: Con số Doanh thu thực hiện
-- targetThuc: Con số Target của Doanh thu thực (nếu có)
-- doanhThuQuyDoi: Con số Doanh thu quy đổi (QĐ)
-- targetQuyDoi: Con số Target của Doanh thu quy đổi (nếu có)
-Lưu ý: Chuyển đổi đúng định dạng số (ví dụ "8.541,00" -> 8541.00, "14.466,40" -> 14466.40, hoặc "8,541.00" -> 8541.00).`;
+    : `Bạn là hệ thống đọc ảnh màn hình "Doanh thu hợp nhất" (Lũy kế DT thực & DT quy đổi) của Điện Máy Xanh (ĐMX).
+Người dùng có thể gửi 1 hoặc 2 ảnh chụp màn hình:
+- Ảnh chế độ "DT thực": bên dưới thanh "Quỹ thời gian" có thẻ đầu tiên là "DT thực" (kèm "DT dự kiến", "% HT target" có dòng phụ "Target trọn kỳ ...", "TT vs TB 3 tháng", "TLPVTC lũy kế", "Tỷ trọng trả chậm").
+- Ảnh chế độ "DT quy đổi": bên dưới thanh "Quỹ thời gian" có thẻ đầu tiên là "DT quy đổi" (kèm "DT quy đổi khoản vay", "DT dự kiến", "% HT target" có dòng phụ "Target trọn kỳ ...", "TT vs TB 3 tháng", "TLPVTC lũy kế", "Tỷ trọng trả chậm").
+(Lưu ý: Trên thanh nút chuyển đổi phía trên "Quỹ thời gian" luôn có cả 2 chữ "DT thực" và "DT quy đổi"; hãy phân biệt ảnh đang ở chế độ nào dựa vào tiêu đề của thẻ đầu tiên bên dưới thanh "Quỹ thời gian" hoặc nút nào đang tô màu xanh đậm).
+
+Hãy tổng hợp tất cả các ảnh được gửi và trích xuất vào đối tượng doanhThu:
+- soNgayDaQua, tongSoNgay, phanTramTienDoThang: Đọc từ thanh "Quỹ thời gian: 29/31 ngày ... 94%" (hoặc "Tiến độ tháng Ngày 21 / 31 ... 67.7%") -> soNgayDaQua = 29, tongSoNgay = 31, phanTramTienDoThang = 94.
+- doanhThuThuc: Số lớn trong thẻ "DT thực" (ví dụ "10,957" -> 10957).
+- targetThuc: Số "Target trọn kỳ ..." trong thẻ "% HT target" của ảnh DT thực (ví dụ "Target trọn kỳ 11,128" -> 11128).
+- duKienThuc: Số lớn trong thẻ "DT dự kiến" của ảnh DT thực (ví dụ "11,698" -> 11698).
+- phanTramHTThuc: Số % trong thẻ "% HT target" của ảnh DT thực (ví dụ "98.5%" -> 98.5).
+- doanhThuQuyDoi: Số lớn trong thẻ "DT quy đổi" (ví dụ "14,922" -> 14922).
+- targetQuyDoi: Số "Target trọn kỳ ..." trong thẻ "% HT target" của ảnh DT quy đổi (ví dụ "Target trọn kỳ 14,957" -> 14957).
+- duKienQuyDoi: Số lớn trong thẻ "DT dự kiến" của ảnh DT quy đổi (ví dụ "15,936" -> 15936).
+- phanTramHTQuyDoi: Số % trong thẻ "% HT target" của ảnh DT quy đổi (ví dụ "99.8%" -> 99.8).
+- phanTramTraGop: Số % trong thẻ "Tỷ trọng trả chậm" hoặc "% TRẢ GÓP" (ví dụ "41.9%" hoặc "42.7%" -> 42.7).
+- doanhThuTraGop: Số doanh thu trả góp ở dòng phụ bên dưới thẻ "Tỷ trọng trả chậm" (ví dụ "DT trả góp 4,587 / 10,957" -> 4587, hoặc "DT trả góp QĐ 6,379 / 14,922" -> 6379).
+- phanTramPVTC: Số % lớn trong thẻ "TLPVTC lũy kế" (ví dụ "11.7%" -> 11.7).
+- soBill: Số bill ở dòng phụ thẻ "TLPVTC lũy kế" (ví dụ "2,238 bill / 19,149 khách" -> 2238).
+- luotKhach: Số khách ở dòng phụ thẻ "TLPVTC lũy kế" (ví dụ "2,238 bill / 19,149 khách" -> 19149).
+- tangGiamCungKy: Số % (giữ nguyên dấu âm/dương) trong thẻ "TT vs TB 3 tháng" hoặc "TĂNG/GIẢM CÙNG KỲ" (ví dụ "-5.6%" -> -5.6). Đặt coTangGiam = true nếu đọc được chỉ số này.
+- tb3Thang: Số "TB3T cùng cửa sổ: ..." ở dòng phụ thẻ "TT vs TB 3 tháng" (ví dụ "11,609" -> 11609).
+
+Lưu ý định dạng số: Dấu phẩy trong "10,957", "14,922", "19,149" là dấu phân cách hàng nghìn -> chuyển thành 10957, 14922, 19149. Nếu ảnh định dạng kiểu "8.541,00" thì chuyển thành 8541.00.`;
 
   const responseSchema = {
     type: "object",
@@ -136,8 +169,23 @@ Lưu ý: Chuyển đổi đúng định dạng số (ví dụ "8.541,00" -> 8541
         properties: {
           doanhThuThuc: { type: "number" },
           targetThuc: { type: "number" },
+          duKienThuc: { type: "number" },
+          phanTramHTThuc: { type: "number" },
           doanhThuQuyDoi: { type: "number" },
           targetQuyDoi: { type: "number" },
+          duKienQuyDoi: { type: "number" },
+          phanTramHTQuyDoi: { type: "number" },
+          phanTramTraGop: { type: "number" },
+          doanhThuTraGop: { type: "number" },
+          luotKhach: { type: "number" },
+          soBill: { type: "number" },
+          phanTramPVTC: { type: "number" },
+          tangGiamCungKy: { type: "number" },
+          coTangGiam: { type: "boolean" },
+          tb3Thang: { type: "number" },
+          soNgayDaQua: { type: "number" },
+          tongSoNgay: { type: "number" },
+          phanTramTienDoThang: { type: "number" },
         },
         required: ["doanhThuThuc", "targetThuc", "doanhThuQuyDoi", "targetQuyDoi"],
       },

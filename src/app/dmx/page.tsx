@@ -32,8 +32,23 @@ type KieuSapXepThiDua = "phanTramCaoThap" | "phanTramThapCao" | "tenAZ" | "tenZA
 type ThongTinDoanhThu = {
   doanhThuThuc: number;
   targetThuc: number;
+  duKienThuc?: number;
+  phanTramHTThuc?: number;
   doanhThuQuyDoi: number;
   targetQuyDoi: number;
+  duKienQuyDoi?: number;
+  phanTramHTQuyDoi?: number;
+  phanTramTraGop?: number;
+  doanhThuTraGop?: number;
+  luotKhach?: number;
+  soBill?: number;
+  phanTramPVTC?: number;
+  tangGiamCungKy?: number;
+  coTangGiam?: boolean;
+  tb3Thang?: number;
+  soNgayDaQua?: number;
+  tongSoNgay?: number;
+  phanTramTienDoThang?: number;
 };
 
 type DongThiDua = {
@@ -107,8 +122,41 @@ function chuoiSoVN(so: number): string {
   }).format(Number.isFinite(so) ? so : 0);
 }
 
+function chuoiSoNguyenVN(so: number): string {
+  return new Intl.NumberFormat("vi-VN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(so) ? Math.round(so) : 0);
+}
+
 function chuoiPhanTramVN(so: number): string {
   return `${chuoiSoVN(so)}%`;
+}
+
+function gopDoanhThu(cu: ThongTinDoanhThu, moi: Partial<ThongTinDoanhThu>): ThongTinDoanhThu {
+  return {
+    doanhThuThuc: (moi.doanhThuThuc && moi.doanhThuThuc > 0) ? moi.doanhThuThuc : cu.doanhThuThuc,
+    targetThuc: (moi.targetThuc && moi.targetThuc > 0) ? moi.targetThuc : cu.targetThuc,
+    duKienThuc: (moi.duKienThuc && moi.duKienThuc > 0) ? moi.duKienThuc : (cu.duKienThuc || 0),
+    phanTramHTThuc: (moi.phanTramHTThuc && moi.phanTramHTThuc > 0) ? moi.phanTramHTThuc : (cu.phanTramHTThuc || 0),
+    doanhThuQuyDoi: (moi.doanhThuQuyDoi && moi.doanhThuQuyDoi > 0) ? moi.doanhThuQuyDoi : cu.doanhThuQuyDoi,
+    targetQuyDoi: (moi.targetQuyDoi && moi.targetQuyDoi > 0) ? moi.targetQuyDoi : cu.targetQuyDoi,
+    duKienQuyDoi: (moi.duKienQuyDoi && moi.duKienQuyDoi > 0) ? moi.duKienQuyDoi : (cu.duKienQuyDoi || 0),
+    phanTramHTQuyDoi: (moi.phanTramHTQuyDoi && moi.phanTramHTQuyDoi > 0) ? moi.phanTramHTQuyDoi : (cu.phanTramHTQuyDoi || 0),
+    phanTramTraGop: (moi.phanTramTraGop && moi.phanTramTraGop > 0) ? moi.phanTramTraGop : (cu.phanTramTraGop || 0),
+    doanhThuTraGop: (moi.doanhThuTraGop && moi.doanhThuTraGop > 0) ? moi.doanhThuTraGop : (cu.doanhThuTraGop || 0),
+    luotKhach: (moi.luotKhach && moi.luotKhach > 0) ? moi.luotKhach : (cu.luotKhach || 0),
+    soBill: (moi.soBill && moi.soBill > 0) ? moi.soBill : (cu.soBill || 0),
+    phanTramPVTC: (moi.phanTramPVTC && moi.phanTramPVTC > 0) ? moi.phanTramPVTC : (cu.phanTramPVTC || 0),
+    tangGiamCungKy: (moi.coTangGiam || (moi.tangGiamCungKy !== undefined && Math.abs(moi.tangGiamCungKy) > 0.001))
+      ? (moi.tangGiamCungKy || 0)
+      : (cu.tangGiamCungKy || 0),
+    coTangGiam: Boolean(moi.coTangGiam || cu.coTangGiam || (moi.tangGiamCungKy && Math.abs(moi.tangGiamCungKy) > 0.001)),
+    tb3Thang: (moi.tb3Thang && moi.tb3Thang > 0) ? moi.tb3Thang : (cu.tb3Thang || 0),
+    soNgayDaQua: (moi.soNgayDaQua && moi.soNgayDaQua > 0) ? moi.soNgayDaQua : (cu.soNgayDaQua || 0),
+    tongSoNgay: (moi.tongSoNgay && moi.tongSoNgay > 0) ? moi.tongSoNgay : (cu.tongSoNgay || 0),
+    phanTramTienDoThang: (moi.phanTramTienDoThang && moi.phanTramTienDoThang > 0) ? moi.phanTramTienDoThang : (cu.phanTramTienDoThang || 0),
+  };
 }
 
 function chuoiSoLieuBang(so: number): string {
@@ -368,7 +416,9 @@ export default function DmxPage() {
     duLieuHienTai.doanhThu.doanhThuThuc > 0 ||
     duLieuHienTai.doanhThu.targetThuc > 0 ||
     duLieuHienTai.doanhThu.doanhThuQuyDoi > 0 ||
-    duLieuHienTai.doanhThu.targetQuyDoi > 0;
+    duLieuHienTai.doanhThu.targetQuyDoi > 0 ||
+    (duLieuHienTai.doanhThu.phanTramTraGop || 0) > 0 ||
+    (duLieuHienTai.doanhThu.luotKhach || 0) > 0;
 
   // MARK: - Quét ảnh Thi đua & Doanh thu qua API
 
@@ -450,32 +500,27 @@ export default function DmxPage() {
   }
 
   async function xuLyChonAnhDoanhThu(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files || []);
     event.target.value = "";
-    if (!file) return;
+    if (!files.length) return;
 
     setDangQuet(true);
     setThongBaoLoi("");
-    setTienTrinhQuet("Đang đọc ảnh Doanh thu...");
+    setTienTrinhQuet(`Đang đọc ${files.length} ảnh Doanh thu...`);
     try {
-      const anhNen = await resizeImage(file);
+      const anhNen = await Promise.all(files.map(resizeImage));
       const loai: LoaiBaoCaoAPI = "doanh_thu_thuc";
       const res = await fetch("/api/dmx/doc-anh", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ loai, anh: [anhNen] }),
+        body: JSON.stringify({ loai, anh: anhNen }),
       });
       const kq = await res.json();
       if (!res.ok) throw new Error(kq.loi || "Chưa đọc được ảnh Doanh thu.");
 
       const dt = kq.doanhThu || {};
-      const moi: ThongTinDoanhThu = {
-        doanhThuThuc: Number(dt.doanhThuThuc) || 0,
-        targetThuc: Number(dt.targetThuc) || 0,
-        doanhThuQuyDoi: Number(dt.doanhThuQuyDoi) || 0,
-        targetQuyDoi: Number(dt.targetQuyDoi) || 0,
-      };
-      luuDuLieuNgay({ ...duLieuHienTai, doanhThu: moi });
+      const gop = gopDoanhThu(duLieuHienTai.doanhThu, dt);
+      luuDuLieuNgay({ ...duLieuHienTai, doanhThu: gop });
     } catch (err) {
       setThongBaoLoi(err instanceof Error ? err.message : "Không thể đọc ảnh Doanh thu.");
     } finally {
@@ -507,10 +552,25 @@ export default function DmxPage() {
     luuDuLieuNgay({
       ...duLieuHienTai,
       doanhThu: {
-        doanhThuThuc: 8541.0,
-        targetThuc: 14466.4,
-        doanhThuQuyDoi: 11438.0,
-        targetQuyDoi: 19444.1,
+        doanhThuThuc: 10957.0,
+        targetThuc: 11128.0,
+        duKienThuc: 11698.0,
+        phanTramHTThuc: 98.5,
+        doanhThuQuyDoi: 14922.0,
+        targetQuyDoi: 14957.0,
+        duKienQuyDoi: 15936.0,
+        phanTramHTQuyDoi: 99.8,
+        phanTramTraGop: 42.7,
+        doanhThuTraGop: 6379.0,
+        luotKhach: 19149,
+        soBill: 2238,
+        phanTramPVTC: 11.7,
+        tangGiamCungKy: -5.6,
+        coTangGiam: true,
+        tb3Thang: 11609.0,
+        soNgayDaQua: 29,
+        tongSoNgay: 31,
+        phanTramTienDoThang: 94.0,
       },
       danhSachThiDua: gop,
       capNhatLuc: "23:45:21",
@@ -569,11 +629,17 @@ export default function DmxPage() {
     const csvCell = (val: string | number) => `"${String(val).replaceAll('"', '""')}"`;
 
     if (coDoanhThu) {
-      lines.push("CHỈ SỐ CHÍNH,THỰC HIỆN,TARGET,% HOÀN THÀNH");
+      lines.push("CHỈ SỐ CHÍNH,GIÁ TRỊ,MỤC TIÊU / CHI TIẾT,% HOÀN THÀNH");
       const ptThuc = dt.targetThuc > 0 ? `${((dt.doanhThuThuc / dt.targetThuc) * 100).toFixed(2)}%` : "";
       const ptQD = dt.targetQuyDoi > 0 ? `${((dt.doanhThuQuyDoi / dt.targetQuyDoi) * 100).toFixed(2)}%` : "";
+      const ptQuyDoi = dt.doanhThuThuc > 0 ? `${(((dt.doanhThuQuyDoi - dt.doanhThuThuc) / dt.doanhThuThuc) * 100).toFixed(2)}%` : "";
       lines.push(`Doanh thu thực,${dt.doanhThuThuc},${dt.targetThuc},${ptThuc}`);
       lines.push(`Doanh thu quy đổi,${dt.doanhThuQuyDoi},${dt.targetQuyDoi},${ptQD}`);
+      lines.push(`% Trả góp,${dt.phanTramTraGop || 0}%,DT trả góp: ${dt.doanhThuTraGop || 0},`);
+      lines.push(`Lượt khách,${dt.luotKhach || 0},Bill: ${dt.soBill || 0} | PVTC: ${dt.phanTramPVTC || 0}%,`);
+      lines.push(`DTQĐ Dự kiến,${dt.duKienQuyDoi || 0},Target QĐ: ${dt.targetQuyDoi},`);
+      lines.push(`% Quy đổi,${ptQuyDoi},Mục tiêu: 50%,`);
+      lines.push(`Tăng/Giảm cùng kỳ,${dt.tangGiamCungKy || 0}%,TB3T: ${dt.tb3Thang || 0},`);
       lines.push("");
     }
 
@@ -652,56 +718,199 @@ export default function DmxPage() {
     ctx.closePath();
   }
 
-  function veHaiTheDoanhThuLenCanvas(ctx: CanvasRenderingContext2D, x: number, y: number, tongRong: number): number {
+  function veHaiTheDoanhThuLenCanvas(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    tongRong: number,
+    soDatHienThi: number,
+    tongSoNganh: number
+  ): number {
     if (!coDoanhThu) return 0;
     const dt = duLieuHienTai.doanhThu;
-    const rongThe = (tongRong - 16) / 2;
-    const caoThe = 96;
 
-    // Thẻ Thực (Xanh dương)
-    const grad1 = ctx.createLinearGradient(x, y, x + rongThe, y + caoThe);
-    grad1.addColorStop(0, "#2563eb");
-    grad1.addColorStop(1, "#3b82f6");
-    veKhungBoGoc(ctx, x, y, rongThe, caoThe, 14);
-    ctx.fillStyle = grad1;
+    // 1. Thanh Tiến độ tháng
+    const [namStr, thangStr, ngayStr] = khoaNgay.split("-");
+    const soNgayMacDinh = Number(ngayStr) || 1;
+    const tongNgayMacDinh =
+      namStr && thangStr ? new Date(Number(namStr), Number(thangStr), 0).getDate() : 30;
+    const ngayQua = dt.soNgayDaQua && dt.soNgayDaQua > 0 ? dt.soNgayDaQua : soNgayMacDinh;
+    const tongNgay = dt.tongSoNgay && dt.tongSoNgay > 0 ? dt.tongSoNgay : tongNgayMacDinh;
+    const ptTienDo =
+      dt.phanTramTienDoThang && dt.phanTramTienDoThang > 0
+        ? dt.phanTramTienDoThang
+        : (ngayQua / Math.max(1, tongNgay)) * 100;
+
+    const caoTienDo = 38;
+    veKhungBoGoc(ctx, x, y, tongRong, caoTienDo, 10);
+    ctx.fillStyle = "#ffffff";
     ctx.fill();
-
-    ctx.fillStyle = "#ffffff";
-    ctx.textAlign = "center";
-    ctx.font = "bold 12px Inter, Arial, sans-serif";
-    ctx.fillText("💵 DOANH THU THỰC", x + rongThe / 2, y + 22);
-    ctx.font = "800 24px Inter, Arial, sans-serif";
-    ctx.fillText(chuoiSoVN(dt.doanhThuThuc), x + rongThe / 2, y + 54);
-    ctx.fillStyle = "rgba(255,255,255,0.3)";
-    ctx.fillRect(x + 14, y + 66, rongThe - 28, 1);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 11px Inter, Arial, sans-serif";
-    const ptThuc = dt.targetThuc > 0 ? ` (${chuoiPhanTramVN((dt.doanhThuThuc / dt.targetThuc) * 100)})` : "";
-    ctx.fillText(`TARGET: ${chuoiSoVN(dt.targetThuc)}${ptThuc}`, x + rongThe / 2, y + 84);
-
-    // Thẻ Quy đổi (Xanh lá)
-    const x2 = x + rongThe + 16;
-    const grad2 = ctx.createLinearGradient(x2, y, x2 + rongThe, y + caoThe);
-    grad2.addColorStop(0, "#16a34a");
-    grad2.addColorStop(1, "#15803d");
-    veKhungBoGoc(ctx, x2, y, rongThe, caoThe, 14);
-    ctx.fillStyle = grad2;
-    ctx.fill();
-
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 12px Inter, Arial, sans-serif";
-    ctx.fillText("🎯 DOANH THU QĐ", x2 + rongThe / 2, y + 22);
-    ctx.font = "800 24px Inter, Arial, sans-serif";
-    ctx.fillText(chuoiSoVN(dt.doanhThuQuyDoi), x2 + rongThe / 2, y + 54);
-    ctx.fillStyle = "rgba(255,255,255,0.3)";
-    ctx.fillRect(x2 + 14, y + 66, rongThe - 28, 1);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 11px Inter, Arial, sans-serif";
-    const ptQD = dt.targetQuyDoi > 0 ? ` (${chuoiPhanTramVN((dt.doanhThuQuyDoi / dt.targetQuyDoi) * 100)})` : "";
-    ctx.fillText(`TARGET: ${chuoiSoVN(dt.targetQuyDoi)}${ptQD}`, x2 + rongThe / 2, y + 84);
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
     ctx.textAlign = "left";
-    return caoThe + 16;
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "bold 12px Inter, Arial, sans-serif";
+    ctx.fillText("Tiến độ tháng", x + 12, y + 16);
+    ctx.fillStyle = "#64748b";
+    ctx.font = "600 11.5px Inter, Arial, sans-serif";
+    ctx.fillText(`Ngày ${ngayQua} / ${tongNgay}`, x + 98, y + 16);
+
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "bold 12px Inter, Arial, sans-serif";
+    ctx.fillText(`${ptTienDo.toFixed(1)}%`, x + tongRong - 12, y + 16);
+
+    veKhungBoGoc(ctx, x + 12, y + 24, tongRong - 24, 6, 3);
+    ctx.fillStyle = "#e2e8f0";
+    ctx.fill();
+
+    const tyLeTD = Math.min(1, Math.max(0.02, ptTienDo / 100));
+    veKhungBoGoc(ctx, x + 12, y + 24, (tongRong - 24) * tyLeTD, 6, 3);
+    ctx.fillStyle = "#2563eb";
+    ctx.fill();
+
+    // 2. Lưới 4x2 (8 thẻ Chỉ số chính)
+    const yGrid = y + caoTienDo + 10;
+    const gap = 10;
+    const rongThe = (tongRong - gap * 3) / 4;
+    const caoThe = 82;
+
+    const ptHTQDDuKien =
+      dt.phanTramHTQuyDoi && dt.phanTramHTQuyDoi > 0
+        ? dt.phanTramHTQuyDoi
+        : dt.duKienQuyDoi && dt.duKienQuyDoi > 0 && dt.targetQuyDoi > 0
+          ? (dt.duKienQuyDoi / dt.targetQuyDoi) * 100
+          : dt.targetQuyDoi > 0
+            ? (dt.doanhThuQuyDoi / dt.targetQuyDoi) * 100
+            : 0;
+    const dtQDDuKien = dt.duKienQuyDoi && dt.duKienQuyDoi > 0 ? dt.duKienQuyDoi : dt.doanhThuQuyDoi;
+    const ptQuyDoi =
+      dt.doanhThuThuc > 0 && dt.doanhThuQuyDoi > 0
+        ? ((dt.doanhThuQuyDoi - dt.doanhThuThuc) / dt.doanhThuThuc) * 100
+        : 0;
+    const tyLeThiDua = tongSoNganh > 0 ? Math.round((soDatHienThi / tongSoNganh) * 100) : 0;
+
+    let phuTangGiam = "SO VỚI TB 3 THÁNG";
+    if (dt.tb3Thang && dt.tb3Thang > 0 && dt.doanhThuThuc > 0) {
+      const chenh = dt.doanhThuThuc - dt.tb3Thang;
+      phuTangGiam = `${chenh >= 0 ? "TĂNG" : "GIẢM"} ${chuoiSoVN(Math.abs(chenh))}`;
+    } else if (dt.tb3Thang && dt.tb3Thang > 0) {
+      phuTangGiam = `TB3T: ${chuoiSoVN(dt.tb3Thang)}`;
+    }
+
+    const danhSach8The = [
+      {
+        tieuDe: "💵 DOANH THU THỰC",
+        chinh: dt.doanhThuThuc > 0 ? chuoiSoVN(dt.doanhThuThuc) : "--",
+        phu: dt.targetThuc > 0 ? `TARGET: ${chuoiSoVN(dt.targetThuc)}` : "TARGET: --",
+        c1: "#1d4ed8",
+        c2: "#3b82f6",
+        dot: false,
+      },
+      {
+        tieuDe: "🎯 DOANH THU QĐ",
+        chinh: dt.doanhThuQuyDoi > 0 ? chuoiSoVN(dt.doanhThuQuyDoi) : "--",
+        phu: dt.targetQuyDoi > 0 ? `TARGET: ${chuoiSoVN(dt.targetQuyDoi)}` : "TARGET: --",
+        c1: "#15803d",
+        c2: "#22c55e",
+        dot: true,
+      },
+      {
+        tieuDe: "💳 % TRẢ GÓP",
+        chinh: dt.phanTramTraGop && dt.phanTramTraGop > 0 ? chuoiPhanTramVN(dt.phanTramTraGop) : "--",
+        phu: dt.doanhThuTraGop && dt.doanhThuTraGop > 0 ? `DT: ${chuoiSoVN(dt.doanhThuTraGop)}` : "DT TRẢ CHẬM",
+        c1: "#d97706",
+        c2: "#f59e0b",
+        dot: false,
+      },
+      {
+        tieuDe: "👥 LƯỢT KHÁCH",
+        chinh: dt.luotKhach && dt.luotKhach > 0 ? chuoiSoNguyenVN(dt.luotKhach) : "--",
+        phu:
+          dt.soBill && dt.soBill > 0
+            ? `BILL: ${chuoiSoNguyenVN(dt.soBill)} | PVTC: ${(dt.phanTramPVTC || 0).toFixed(1)}%`
+            : "BILL & TLPVTC",
+        c1: "#0284c7",
+        c2: "#38bdf8",
+        dot: false,
+      },
+      {
+        tieuDe: "📈 % HOÀN THÀNH QĐ DỰ KIẾN",
+        chinh: ptHTQDDuKien > 0 ? chuoiPhanTramVN(ptHTQDDuKien) : "--",
+        phu: dtQDDuKien > 0 ? `DTQĐ DK: ${chuoiSoVN(dtQDDuKien)}` : "DTQĐ DỰ KIẾN",
+        c1: "#4f46e5",
+        c2: "#7c3aed",
+        dot: false,
+      },
+      {
+        tieuDe: "🔄 % QUY ĐỔI",
+        chinh: dt.doanhThuThuc > 0 && dt.doanhThuQuyDoi > 0 ? chuoiPhanTramVN(ptQuyDoi) : "--",
+        phu: "MỤC TIÊU: 50%",
+        c1: "#e11d48",
+        c2: "#ef4444",
+        dot: true,
+      },
+      {
+        tieuDe: "🏆 THI ĐUA HOÀN THÀNH",
+        chinh: `${soDatHienThi}/${tongSoNganh}`,
+        phu: `TỶ LỆ: ${tyLeThiDua}%`,
+        c1: "#7e22ce",
+        c2: "#a855f7",
+        dot: false,
+      },
+      {
+        tieuDe: "📈 TĂNG/GIẢM CÙNG KỲ",
+        chinh:
+          dt.coTangGiam || (dt.tangGiamCungKy && Math.abs(dt.tangGiamCungKy) > 0.001)
+            ? `${(dt.tangGiamCungKy || 0) > 0 ? "+" : ""}${(dt.tangGiamCungKy || 0).toFixed(1)}%`
+            : "--",
+        phu: phuTangGiam,
+        c1: "#ea580c",
+        c2: "#f97316",
+        dot: false,
+      },
+    ];
+
+    danhSach8The.forEach((the, idx) => {
+      const r = Math.floor(idx / 4);
+      const c = idx % 4;
+      const xO = x + c * (rongThe + gap);
+      const yO = yGrid + r * (caoThe + gap);
+
+      const grad = ctx.createLinearGradient(xO, yO, xO + rongThe, yO + caoThe);
+      grad.addColorStop(0, the.c1);
+      grad.addColorStop(1, the.c2);
+      veKhungBoGoc(ctx, xO, yO, rongThe, caoThe, 12);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      if (the.dot) {
+        ctx.beginPath();
+        ctx.arc(xO + rongThe - 11, yO + 11, 4, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.fill();
+      }
+
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.font = "bold 9.5px Inter, Arial, sans-serif";
+      ctx.fillText(the.tieuDe, xO + rongThe / 2, yO + 18, rongThe - 14);
+
+      ctx.font = "800 19px Inter, Arial, sans-serif";
+      ctx.fillText(the.chinh, xO + rongThe / 2, yO + 45, rongThe - 12);
+
+      ctx.fillStyle = "rgba(255,255,255,0.28)";
+      ctx.fillRect(xO + 10, yO + 55, rongThe - 20, 1);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 9.5px Inter, Arial, sans-serif";
+      ctx.fillText(the.phu, xO + rongThe / 2, yO + 71, rongThe - 12);
+    });
+
+    ctx.textAlign = "left";
+    return caoTienDo + 10 + caoThe * 2 + gap + 14;
   }
 
   function veCanvasBang8Cot(): HTMLCanvasElement | null {
@@ -712,7 +921,7 @@ export default function DmxPage() {
     const tongRongBang = chieuRongCot.reduce((a, b) => a + b, 0);
     const le = 20;
     const caoTieuDe = 36;
-    const caoDT = coDoanhThu ? 112 : 0;
+    const caoDT = coDoanhThu ? 236 : 0;
     const caoDongThongKe = 28;
     const caoHeader = 42;
     const caoDong = 50;
@@ -733,11 +942,12 @@ export default function DmxPage() {
     ctx.font = "bold 19px Inter, Arial, sans-serif";
     ctx.fillText("BẢNG TỔNG HỢP THI ĐUA", le, le + 20);
 
-    let y = le + caoTieuDe;
-    y += veHaiTheDoanhThuLenCanvas(ctx, le, y, tongRongBang);
-
     const soDatHienThi = ds.filter(d => tinhPhanTramHT(d) >= 99.995).length;
     const soKhongDatHienThi = ds.length - soDatHienThi;
+
+    let y = le + caoTieuDe;
+    y += veHaiTheDoanhThuLenCanvas(ctx, le, y, tongRongBang, soDatHienThi, ds.length);
+
     ctx.fillStyle = "#374151";
     ctx.font = "600 13.5px Inter, Arial, sans-serif";
     ctx.fillText(
@@ -828,10 +1038,10 @@ export default function DmxPage() {
     const gap = 12;
     const rongO = 320;
     const caoO = 88;
-    const rongAnh = Math.max(540, le * 2 + cot * rongO + (cot - 1) * gap);
+    const rongAnh = Math.max(760, le * 2 + cot * rongO + (cot - 1) * gap);
     const soHang = Math.ceil(ds.length / cot);
     const caoTieuDe = 36;
-    const caoDT = coDoanhThu ? 112 : 0;
+    const caoDT = coDoanhThu ? 236 : 0;
     const caoDongThongKe = 28;
     const caoLuoi = soHang > 0 ? soHang * caoO + Math.max(0, soHang - 1) * gap : 0;
     const caoAnh = le * 2 + caoTieuDe + caoDT + caoDongThongKe + caoLuoi;
@@ -850,11 +1060,12 @@ export default function DmxPage() {
     ctx.font = "bold 19px Inter, Arial, sans-serif";
     ctx.fillText("BẢNG TỔNG HỢP THI ĐUA", le, le + 20);
 
-    let y = le + caoTieuDe;
-    y += veHaiTheDoanhThuLenCanvas(ctx, le, y, rongAnh - le * 2);
-
     const soDatHienThi = ds.filter(d => tinhPhanTramHT(d) >= 99.995).length;
     const soKhongDatHienThi = ds.length - soDatHienThi;
+
+    let y = le + caoTieuDe;
+    y += veHaiTheDoanhThuLenCanvas(ctx, le, y, rongAnh - le * 2, soDatHienThi, ds.length);
+
     ctx.fillStyle = "#334155";
     ctx.font = "600 13.5px Inter, Arial, sans-serif";
     ctx.fillText(
@@ -935,6 +1146,45 @@ export default function DmxPage() {
 
   const tenMucDangChon = CAC_MUC.find(m => m.id === tabHienTai)?.tieuDe || "Thi đua";
 
+  // Tính toán các chỉ số hiển thị cho 8 thẻ Chỉ số chính & thanh Tiến độ tháng
+  const dtHienTai = duLieuHienTai.doanhThu;
+  const [namHienTaiStr, thangHienTaiStr, ngayHienTaiStr] = khoaNgay.split("-");
+  const ngayMacDinh = Number(ngayHienTaiStr) || 1;
+  const tongNgayMacDinh =
+    namHienTaiStr && thangHienTaiStr
+      ? new Date(Number(namHienTaiStr), Number(thangHienTaiStr), 0).getDate()
+      : 30;
+  const soNgayQua = dtHienTai.soNgayDaQua && dtHienTai.soNgayDaQua > 0 ? dtHienTai.soNgayDaQua : ngayMacDinh;
+  const tongNgayThang = dtHienTai.tongSoNgay && dtHienTai.tongSoNgay > 0 ? dtHienTai.tongSoNgay : tongNgayMacDinh;
+  const phanTramTienDo =
+    dtHienTai.phanTramTienDoThang && dtHienTai.phanTramTienDoThang > 0
+      ? dtHienTai.phanTramTienDoThang
+      : (soNgayQua / Math.max(1, tongNgayThang)) * 100;
+
+  const ptHTQDDuKienHienThi =
+    dtHienTai.phanTramHTQuyDoi && dtHienTai.phanTramHTQuyDoi > 0
+      ? dtHienTai.phanTramHTQuyDoi
+      : dtHienTai.duKienQuyDoi && dtHienTai.duKienQuyDoi > 0 && dtHienTai.targetQuyDoi > 0
+        ? (dtHienTai.duKienQuyDoi / dtHienTai.targetQuyDoi) * 100
+        : dtHienTai.targetQuyDoi > 0
+          ? (dtHienTai.doanhThuQuyDoi / dtHienTai.targetQuyDoi) * 100
+          : 0;
+  const dtQDDuKienHienThi =
+    dtHienTai.duKienQuyDoi && dtHienTai.duKienQuyDoi > 0 ? dtHienTai.duKienQuyDoi : dtHienTai.doanhThuQuyDoi;
+  const ptQuyDoiHienThi =
+    dtHienTai.doanhThuThuc > 0 && dtHienTai.doanhThuQuyDoi > 0
+      ? ((dtHienTai.doanhThuQuyDoi - dtHienTai.doanhThuThuc) / dtHienTai.doanhThuThuc) * 100
+      : 0;
+  const tyLeThiDuaHoanThanh = tongSoCT > 0 ? Math.round((soDat / tongSoCT) * 100) : 0;
+
+  let phuTangGiamHienThi = "SO VỚI TB 3 THÁNG";
+  if (dtHienTai.tb3Thang && dtHienTai.tb3Thang > 0 && dtHienTai.doanhThuThuc > 0) {
+    const chenhTB = dtHienTai.doanhThuThuc - dtHienTai.tb3Thang;
+    phuTangGiamHienThi = `${chenhTB >= 0 ? "TĂNG" : "GIẢM"} ${chuoiSoVN(Math.abs(chenhTB))}`;
+  } else if (dtHienTai.tb3Thang && dtHienTai.tb3Thang > 0) {
+    phuTangGiamHienThi = `TB3T: ${chuoiSoVN(dtHienTai.tb3Thang)}`;
+  }
+
   return (
     <main className="dmx-app">
       {/* Input chọn ảnh từ thư viện (Giữ chuỗi capture="environment" trong chú thích để tương thích test) */}
@@ -950,6 +1200,7 @@ export default function DmxPage() {
         ref={inputAnhDoanhThuRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
+        multiple
         onChange={xuLyChonAnhDoanhThu}
         className="dmx-hidden-input"
       />
@@ -986,38 +1237,135 @@ export default function DmxPage() {
       </header>
 
       <div className="dmx-container">
-        {/* 2. Cụm 2 thẻ Doanh thu (DOANH THU THỰC & DOANH THU QĐ) */}
-        <section className="dmx-revenue-grid" aria-label="Chỉ số doanh thu">
-          <button className="dmx-rev-card blue" onClick={() => setMoModalMenuDoanhThu(true)}>
-            <span className="dmx-rev-title">💵 DOANH THU THỰC</span>
-            <strong className="dmx-rev-value">
-              {coDoanhThu ? chuoiSoVN(duLieuHienTai.doanhThu.doanhThuThuc) : "Chạm nhập/quét"}
-            </strong>
-            <div className="dmx-rev-line" />
-            <small className="dmx-rev-target">
-              {duLieuHienTai.doanhThu.targetThuc > 0
-                ? `TARGET: ${chuoiSoVN(duLieuHienTai.doanhThu.targetThuc)} (${chuoiPhanTramVN(
-                    (duLieuHienTai.doanhThu.doanhThuThuc / duLieuHienTai.doanhThu.targetThuc) * 100
-                  )})`
-                : "TARGET: --"}
-            </small>
-          </button>
+        {/* 2. Thanh Tiến độ tháng & 8 thẻ Chỉ số chính (Doanh thu hợp nhất) */}
+        <section
+          className="dmx-kpi-section"
+          aria-label="Chỉ số doanh thu"
+          onClick={() => setMoModalMenuDoanhThu(true)}
+        >
+          <div className="dmx-month-progress">
+            <div className="dmx-month-progress-top">
+              <div className="dmx-month-progress-label">
+                <strong>Tiến độ tháng</strong>
+                <span>
+                  Ngày {soNgayQua} / {tongNgayThang}
+                </span>
+              </div>
+              <strong className="dmx-month-progress-pct">{phanTramTienDo.toFixed(1)}%</strong>
+            </div>
+            <div className="dmx-month-progress-track">
+              <div
+                className="dmx-month-progress-fill"
+                style={{ width: `${Math.min(100, Math.max(2, phanTramTienDo))}%` }}
+              />
+            </div>
+          </div>
 
-          <button className="dmx-rev-card green" onClick={() => setMoModalMenuDoanhThu(true)}>
-            <span className="dmx-rev-dot" />
-            <span className="dmx-rev-title">🎯 DOANH THU QĐ</span>
-            <strong className="dmx-rev-value">
-              {coDoanhThu ? chuoiSoVN(duLieuHienTai.doanhThu.doanhThuQuyDoi) : "Chạm nhập/quét"}
-            </strong>
-            <div className="dmx-rev-line" />
-            <small className="dmx-rev-target">
-              {duLieuHienTai.doanhThu.targetQuyDoi > 0
-                ? `TARGET: ${chuoiSoVN(duLieuHienTai.doanhThu.targetQuyDoi)} (${chuoiPhanTramVN(
-                    (duLieuHienTai.doanhThu.doanhThuQuyDoi / duLieuHienTai.doanhThu.targetQuyDoi) * 100
-                  )})`
-                : "TARGET: --"}
-            </small>
-          </button>
+          <div className="dmx-kpi-grid">
+            {/* Thẻ 1: DOANH THU THỰC */}
+            <button type="button" className="dmx-rev-card kpi-blue">
+              <span className="dmx-rev-title">💵 DOANH THU THỰC</span>
+              <strong className="dmx-rev-value">
+                {dtHienTai.doanhThuThuc > 0 ? chuoiSoVN(dtHienTai.doanhThuThuc) : "Chạm quét"}
+              </strong>
+              <div className="dmx-rev-line" />
+              <small className="dmx-rev-target">
+                {dtHienTai.targetThuc > 0 ? `TARGET: ${chuoiSoVN(dtHienTai.targetThuc)}` : "TARGET: --"}
+              </small>
+            </button>
+
+            {/* Thẻ 2: DOANH THU QĐ */}
+            <button type="button" className="dmx-rev-card kpi-green">
+              <span className="dmx-rev-dot" />
+              <span className="dmx-rev-title">🎯 DOANH THU QĐ</span>
+              <strong className="dmx-rev-value">
+                {dtHienTai.doanhThuQuyDoi > 0 ? chuoiSoVN(dtHienTai.doanhThuQuyDoi) : "Chạm quét"}
+              </strong>
+              <div className="dmx-rev-line" />
+              <small className="dmx-rev-target">
+                {dtHienTai.targetQuyDoi > 0 ? `TARGET: ${chuoiSoVN(dtHienTai.targetQuyDoi)}` : "TARGET: --"}
+              </small>
+            </button>
+
+            {/* Thẻ 3: % TRẢ GÓP */}
+            <button type="button" className="dmx-rev-card kpi-orange">
+              <span className="dmx-rev-title">💳 % TRẢ GÓP</span>
+              <strong className="dmx-rev-value">
+                {dtHienTai.phanTramTraGop && dtHienTai.phanTramTraGop > 0
+                  ? chuoiPhanTramVN(dtHienTai.phanTramTraGop)
+                  : "--"}
+              </strong>
+              <div className="dmx-rev-line" />
+              <small className="dmx-rev-target">
+                {dtHienTai.doanhThuTraGop && dtHienTai.doanhThuTraGop > 0
+                  ? `DT: ${chuoiSoVN(dtHienTai.doanhThuTraGop)}`
+                  : "DT TRẢ CHẬM"}
+              </small>
+            </button>
+
+            {/* Thẻ 4: LƯỢT KHÁCH */}
+            <button type="button" className="dmx-rev-card kpi-sky">
+              <span className="dmx-rev-title">👥 LƯỢT KHÁCH</span>
+              <strong className="dmx-rev-value">
+                {dtHienTai.luotKhach && dtHienTai.luotKhach > 0
+                  ? chuoiSoNguyenVN(dtHienTai.luotKhach)
+                  : "--"}
+              </strong>
+              <div className="dmx-rev-line" />
+              <small className="dmx-rev-target">
+                {dtHienTai.soBill && dtHienTai.soBill > 0
+                  ? `BILL: ${chuoiSoNguyenVN(dtHienTai.soBill)} | PVTC: ${(dtHienTai.phanTramPVTC || 0).toFixed(1)}%`
+                  : "BILL & TLPVTC"}
+              </small>
+            </button>
+
+            {/* Thẻ 5: % HOÀN THÀNH QĐ DỰ KIẾN */}
+            <button type="button" className="dmx-rev-card kpi-indigo">
+              <span className="dmx-rev-title">📈 % HT QĐ DỰ KIẾN</span>
+              <strong className="dmx-rev-value">
+                {ptHTQDDuKienHienThi > 0 ? chuoiPhanTramVN(ptHTQDDuKienHienThi) : "--"}
+              </strong>
+              <div className="dmx-rev-line" />
+              <small className="dmx-rev-target">
+                {dtQDDuKienHienThi > 0 ? `DTQĐ DK: ${chuoiSoVN(dtQDDuKienHienThi)}` : "DTQĐ DỰ KIẾN"}
+              </small>
+            </button>
+
+            {/* Thẻ 6: % QUY ĐỔI */}
+            <button type="button" className="dmx-rev-card kpi-rose">
+              <span className="dmx-rev-dot" />
+              <span className="dmx-rev-title">🔄 % QUY ĐỔI</span>
+              <strong className="dmx-rev-value">
+                {dtHienTai.doanhThuThuc > 0 && dtHienTai.doanhThuQuyDoi > 0
+                  ? chuoiPhanTramVN(ptQuyDoiHienThi)
+                  : "--"}
+              </strong>
+              <div className="dmx-rev-line" />
+              <small className="dmx-rev-target">MỤC TIÊU: 50%</small>
+            </button>
+
+            {/* Thẻ 7: THI ĐUA HOÀN THÀNH */}
+            <button type="button" className="dmx-rev-card kpi-purple">
+              <span className="dmx-rev-title">🏆 THI ĐUA HOÀN THÀNH</span>
+              <strong className="dmx-rev-value">
+                {soDat}/{tongSoCT}
+              </strong>
+              <div className="dmx-rev-line" />
+              <small className="dmx-rev-target">TỶ LỆ: {tyLeThiDuaHoanThanh}%</small>
+            </button>
+
+            {/* Thẻ 8: TĂNG/GIẢM CÙNG KỲ */}
+            <button type="button" className="dmx-rev-card kpi-coral">
+              <span className="dmx-rev-title">📈 TĂNG/GIẢM CÙNG KỲ</span>
+              <strong className="dmx-rev-value">
+                {dtHienTai.coTangGiam || (dtHienTai.tangGiamCungKy && Math.abs(dtHienTai.tangGiamCungKy) > 0.001)
+                  ? `${(dtHienTai.tangGiamCungKy || 0) > 0 ? "+" : ""}${(dtHienTai.tangGiamCungKy || 0).toFixed(1)}%`
+                  : "--"}
+              </strong>
+              <div className="dmx-rev-line" />
+              <small className="dmx-rev-target">{phuTangGiamHienThi}</small>
+            </button>
+          </div>
         </section>
 
         {/* 3. Cụm 4 nút chuyển mục phía dưới cụm Doanh thu: Thi đua + 3 nút dự phòng */}
@@ -1472,7 +1820,8 @@ export default function DmxPage() {
       {moModalMenuDoanhThu && (
         <div className="dmx-modal-backdrop" onClick={() => setMoModalMenuDoanhThu(false)}>
           <div className="dmx-sheet" onClick={e => e.stopPropagation()}>
-            <h4>Doanh thu Thực & Quy đổi</h4>
+            <h4>Chỉ số chính — Doanh thu Thực & Quy đổi</h4>
+            <p>Chọn 1 hoặc 2 ảnh chụp màn hình &ldquo;Doanh thu hợp nhất&rdquo; (DT thực & DT quy đổi) để đọc tự động:</p>
             <button
               onClick={() => {
                 setMoModalMenuDoanhThu(false);
@@ -1480,7 +1829,7 @@ export default function DmxPage() {
               }}
             >
               <Camera size={18} />
-              <span>📷 Chọn 1 ảnh chụp màn hình Doanh thu</span>
+              <span>📷 Chọn ảnh chụp màn hình Doanh thu (1-2 ảnh)</span>
             </button>
             <button
               onClick={() => {
@@ -1532,12 +1881,12 @@ export default function DmxPage() {
                   const doc = (s: string) => Number(s.replace(",", ".").trim()) || 0;
                   luuDuLieuNgay({
                     ...duLieuHienTai,
-                    doanhThu: {
+                    doanhThu: gopDoanhThu(duLieuHienTai.doanhThu, {
                       doanhThuThuc: doc(formDT.thuc),
                       targetThuc: doc(formDT.targetThuc),
                       doanhThuQuyDoi: doc(formDT.qd),
                       targetQuyDoi: doc(formDT.targetQD),
-                    },
+                    }),
                   });
                   setMoModalSuaDoanhThu(false);
                 }}

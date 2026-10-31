@@ -94,83 +94,199 @@
 }
 
 /* =========================================================================
-   2. CỤM DOANH THU (2 THẺ GRADIENT: DOANH THU THỰC & DOANH THU QĐ)
+   2. THANH TIẾN ĐỘ THÁNG & 8 THẺ CHỈ SỐ CHÍNH (DOANH THU HỢP NHẤT)
    ========================================================================= */
-.dmx-revenue-grid {
+.dmx-kpi-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  cursor: pointer;
+}
+
+.dmx-month-progress {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+  padding: 0.42rem 0.7rem 0.48rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.dmx-month-progress-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.28rem;
+  font-size: 0.76rem;
+}
+
+.dmx-month-progress-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.dmx-month-progress-label strong {
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.dmx-month-progress-label span {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.dmx-month-progress-pct {
+  color: #0f172a;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.dmx-month-progress-track {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.dmx-month-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%);
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.dmx-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.38rem;
+}
+
+@media (max-width: 560px) {
+  .dmx-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.3rem;
+  }
 }
 
 .dmx-rev-card {
   position: relative;
   border: none;
-  border-radius: 14px;
-  padding: 0.65rem 0.75rem;
+  border-radius: 11px;
+  padding: 0.42rem 0.32rem;
   color: #ffffff;
   cursor: pointer;
   user-select: none;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
   text-align: center;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: space-between;
 }
 
 .dmx-rev-card:active {
   transform: scale(0.985);
 }
 
-.dmx-rev-card.blue {
-  background: linear-gradient(135deg, #2176ff 0%, #3b41e3 100%);
+.dmx-rev-card.kpi-blue {
+  background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
 }
 
-.dmx-rev-card.green {
-  background: linear-gradient(135deg, #169c46 0%, #1a913f 100%);
+.dmx-rev-card.kpi-green {
+  background: linear-gradient(135deg, #15803d 0%, #22c55e 100%);
+}
+
+.dmx-rev-card.kpi-orange {
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+}
+
+.dmx-rev-card.kpi-sky {
+  background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+}
+
+.dmx-rev-card.kpi-indigo {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+}
+
+.dmx-rev-card.kpi-rose {
+  background: linear-gradient(135deg, #e11d48 0%, #ef4444 100%);
+}
+
+.dmx-rev-card.kpi-purple {
+  background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%);
+}
+
+.dmx-rev-card.kpi-coral {
+  background: linear-gradient(135deg, #ea580c 0%, #f97316 100%);
 }
 
 .dmx-rev-dot {
   position: absolute;
-  top: 9px;
-  right: 9px;
-  width: 8px;
-  height: 8px;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
 }
 
 .dmx-rev-title {
-  font-size: 0.68rem;
+  font-size: 0.54rem;
   font-weight: 800;
-  letter-spacing: 0.02em;
-  opacity: 0.95;
+  letter-spacing: 0.01em;
+  opacity: 0.96;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .dmx-rev-value {
-  font-size: 1.32rem;
+  font-size: 0.94rem;
   font-weight: 900;
-  line-height: 1.2;
-  margin: 0.22rem 0;
+  line-height: 1.18;
+  margin: 0.14rem 0;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .dmx-rev-line {
   width: 100%;
   height: 1px;
   background: rgba(255, 255, 255, 0.26);
-  margin: 0.25rem 0;
+  margin: 0.14rem 0;
 }
 
 .dmx-rev-target {
-  font-size: 0.66rem;
+  font-size: 0.5rem;
   font-weight: 700;
   opacity: 0.95;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+@media (min-width: 640px) {
+  .dmx-rev-card {
+    padding: 0.6rem 0.65rem;
+    border-radius: 13px;
+  }
+  .dmx-rev-title {
+    font-size: 0.66rem;
+  }
+  .dmx-rev-value {
+    font-size: 1.28rem;
+  }
+  .dmx-rev-target {
+    font-size: 0.62rem;
+  }
 }
 
 /* =========================================================================
