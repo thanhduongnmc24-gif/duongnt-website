@@ -95,10 +95,6 @@ export type CaiDatDMX = {
    * Record<khoaChuanHoaNganhHang, string[]> (mảng các maNV được tích chọn)
    */
   chiaTargetNganhHang: Record<string, string[]>;
-  /**
-   * Khóa Gemini API cá nhân (tùy chọn) để tránh chạm giới hạn lượt/phút của máy chủ chung
-   */
-  apiKeyCaNhan?: string;
 };
 
 export const DANH_SACH_NHAN_VIEN_MAU: NhanVienQuanLy[] = [

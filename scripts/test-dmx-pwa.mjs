@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("ĐMX PWA có đầy đủ chức năng: Đăng nhập Supabase, 5 chế độ quét ảnh, Nhân viên và Chia Target", async () => {
+test("ĐMX PWA có đầy đủ chức năng: Đăng nhập Supabase, Nhân viên và Chia Target", async () => {
   const [page, modals, settingsModal, types, supabaseDmx] = await Promise.all([
     readFile(new URL("../src/app/dmx/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../src/app/dmx/dmx-modals.tsx", import.meta.url), "utf8"),
@@ -11,48 +11,47 @@ test("ĐMX PWA có đầy đủ chức năng: Đăng nhập Supabase, 5 chế đ
     readFile(new URL("../src/lib/supabase/dmx.ts", import.meta.url), "utf8"),
   ]);
 
-  // 5 chế độ quét ảnh
-  assert.match(page, /doanh_thu_thuc/);
-  assert.match(page, /doanh_thu_quy_doi/);
-  assert.match(page, /thi_dua/);
-  assert.match(page, /thi_dua_nhan_vien/);
-  assert.match(page, /doanh_thu_nhan_vien/);
-
   // Đăng nhập / Tạo tài khoản & lưu trữ theo tài khoản trên Supabase
   assert.match(page, /dmx_ho_so/);
   assert.match(page, /dmx_du_lieu_ngay/);
   assert.match(page, /signInWithPassword/);
   assert.match(page, /\/api\/dmx\/dang-ky/);
+  assert.match(page, /\/api\/dmx\/dong-bo/);
   assert.match(supabaseDmx, /@dmx\.internal\.duongnt\.io\.vn/);
 
-  // Tab Nhân viên (thay thế Dự phòng 1), huy chương vàng bạc đồng
+  // Tab Nhân viên, huy chương vàng bạc đồng
   assert.match(page, /Nhân viên/);
   assert.match(types, /🥇/);
   assert.match(types, /🥈/);
   assert.match(types, /🥉/);
 
-  // Bấm vào ngành hàng mở ModalChiTietNganhHang, bấm vào nhân viên mở ModalChiTietNhanVien
+  // Bấm vào ngành hàng / nhân viên mở modal chi tiết
   assert.match(modals, /ModalChiTietNganhHang/);
   assert.match(modals, /ModalChiTietNhanVien/);
 
-  // Cài đặt chia target mặt hàng từ ngày 1 -> ngày hiện tại & danh sách nhân viên quản lý
+  // Cài đặt chia target & quản lý nhân viên
   assert.match(settingsModal, /CHIA TARGET MẶT HÀNG CHO NHÂN VIÊN/);
   assert.match(settingsModal, /DANH SÁCH NHÂN VIÊN QUẢN LÝ/);
 });
 
-test("Gemini nhận ảnh ở máy chủ và trả về bảng có cấu trúc cho cả 5 loại ảnh", async () => {
-  const route = await readFile(new URL("../src/app/api/dmx/doc-anh/route.ts", import.meta.url), "utf8");
-  assert.match(route, /GEMINI_API_KEY/);
-  assert.match(route, /generateContent/);
-  assert.match(route, /inlineData/);
-  assert.match(route, /responseSchema/);
-  assert.match(route, /KetQuaSchema/);
-  assert.match(route, /thi_dua_nhan_vien/);
-  assert.match(route, /doanh_thu_nhan_vien/);
-  assert.match(route, /maxOutputTokens: 32768/);
-  assert.match(route, /thinkingBudget: 0/);
-  assert.match(route, /docJsonGemini/);
-  assert.match(route, /safeParse/);
+test("Đọc ảnh bằng OCR trên thiết bị, không gọi Gemini hay máy chủ ngoài", async () => {
+  const [page, ocr, settingsModal] = await Promise.all([
+    readFile(new URL("../src/app/dmx/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/dmx/dmx-ocr.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/dmx/dmx-settings-modal.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /thucHienOCR/);
+  assert.match(page, /phanTichThiDuaOffline/);
+  assert.match(page, /phanTichThiDuaNhanVienOffline/);
+  assert.match(page, /phanTichDoanhThuOffline/);
+  assert.match(page, /phanTichDoanhThuNhanVienOffline/);
+  assert.match(ocr, /Tesseract/);
+
+  assert.doesNotMatch(page, /api\/dmx\/doc-anh/);
+  assert.doesNotMatch(page, /Gemini/i);
+  assert.doesNotMatch(settingsModal, /Gemini/i);
+  await assert.rejects(access(new URL("../src/app/api/dmx/doc-anh/route.ts", import.meta.url)));
 });
 
 test("PWA và subdomain ĐMX được cấu hình", async () => {

@@ -24,6 +24,13 @@ import {
 } from "lucide-react";
 import { taoEmailDmx, taoSupabaseDmx } from "@/lib/supabase/dmx";
 import {
+  phanTichDoanhThuNhanVienOffline,
+  phanTichDoanhThuOffline,
+  phanTichThiDuaNhanVienOffline,
+  phanTichThiDuaOffline,
+  thucHienOCR,
+} from "./dmx-ocr";
+import {
   BoLocThiDua,
   CaiDatDMX,
   chuanHoaKhoaSoSanh,
@@ -282,7 +289,6 @@ function chuanHoaCaiDat(raw: Partial<CaiDatDMX> | null | undefined): CaiDatDMX {
       raw.chiaTargetNganhHang && typeof raw.chiaTargetNganhHang === "object"
         ? raw.chiaTargetNganhHang
         : {},
-    apiKeyCaNhan: typeof raw.apiKeyCaNhan === "string" ? raw.apiKeyCaNhan.trim() : "",
   };
 }
 
@@ -875,57 +881,32 @@ export default function DmxPage() {
       };
       let capNhatLuc = "";
       let donVi = "";
+      let docDuoc = false;
 
-      const kichThuocLo = 3;
-      for (let i = 0; i < files.length; i += kichThuocLo) {
-        const loFiles = files.slice(i, i + kichThuocLo);
-        setTienTrinhQuet(`Đang đọc ảnh ${i + 1}–${Math.min(files.length, i + kichThuocLo)} / ${files.length}...`);
-        const anhNen = await Promise.all(loFiles.map(resizeImage));
+      for (let i = 0; i < files.length; i++) {
+        setTienTrinhQuet(`Đang quét chữ trên máy (ảnh ${i + 1}/${files.length})...`);
+        const phanTu = await thucHienOCR(files[i]);
+        const kq = phanTichThiDuaOffline(phanTu);
 
-        const loai: LoaiBaoCaoAPI = "thi_dua";
-        const res = await fetch("/api/dmx/doc-anh", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            loai,
-            apiKeyCaNhan: caiDat.apiKeyCaNhan || undefined,
-            anh: anhNen,
-          }),
-        });
-        const kq = await res.json();
-        if (!res.ok) throw new Error(kq.loi || "Chưa đọc được ảnh.");
+        if (kq.capNhatLuc && !capNhatLuc) capNhatLuc = kq.capNhatLuc;
+        if (kq.thongTinDonVi && !donVi) donVi = kq.thongTinDonVi;
 
-        if (kq.kyBaoCao && !capNhatLuc) capNhatLuc = kq.kyBaoCao;
-        if (kq.donVi && !donVi) donVi = kq.donVi;
-
-        const mang: DongThiDua[] = (kq.danhSachThiDua || []).map(
-          (item: {
-            tenNganhHang?: string;
-            loaiChiTieu?: string;
-            thucHien?: number;
-            target?: number;
-            phanTramHT?: number;
-            phanTramDuBao?: number;
-          }) => {
-            const tenGoc = String(item.tenNganhHang || "").trim();
-            const loaiCT = String(item.loaiChiTieu || "DT").toUpperCase().includes("SL") ? "SL" : "DT";
-            return {
-              id: crypto.randomUUID(),
-              tenNganhHangGoc: tenGoc,
-              tenNganhHang: apDungLocTuCaiDat(tenGoc, caiDat.danhSachCumTuLocBo),
-              loaiChiTieu: loaiCT,
-              thucHien: Number(item.thucHien) || 0,
-              target: Number(item.target) || 0,
-              phanTramHTGoc: Number(item.phanTramHT) || undefined,
-              phanTramDuBaoGoc: Number(item.phanTramDuBao) || undefined,
-            };
-          }
-        );
-
-        dsMoi = gopDanhSachThiDua(dsMoi, mang, caiDat.danhSachCumTuLocBo);
-        if (Array.isArray(kq.thiDuaNhanVien) && kq.thiDuaNhanVien.length > 0) {
+        const mang: DongThiDua[] = kq.danhSach.map(d => ({
+          ...d,
+          tenNganhHang: apDungLocTuCaiDat(d.tenNganhHangGoc, caiDat.danhSachCumTuLocBo),
+        }));
+        if (mang.length) {
+          docDuoc = true;
+          dsMoi = gopDanhSachThiDua(dsMoi, mang, caiDat.danhSachCumTuLocBo);
+        }
+        if (kq.thiDuaNhanVien.length) {
+          docDuoc = true;
           thiDuaNVMoi = gopKetQuaThiDuaNhanVienTuAPI(thiDuaNVMoi, kq.thiDuaNhanVien);
         }
+      }
+
+      if (!docDuoc) {
+        throw new Error("Chưa đọc được dòng thi đua nào. Hãy chụp rõ, đủ khung bảng rồi thử lại.");
       }
 
       const gopChung = gopDanhSachThiDua(duLieuHienTai.danhSachThiDua, dsMoi, caiDat.danhSachCumTuLocBo);
@@ -952,26 +933,21 @@ export default function DmxPage() {
     const khoaNganhDangMo = chuanHoaKhoaSoSanh(nganhDangXemNV.tenNganhHang);
     setDangQuet(true);
     setThongBaoLoi("");
-    setTienTrinhQuet(`Đang đọc ảnh thực hiện nhân viên (${nganhDangXemNV.tenNganhHang})...`);
     try {
-      const anhNen = await Promise.all(files.map(resizeImage));
-      const loai: LoaiBaoCaoAPI = "thi_dua_nhan_vien";
-      const res = await fetch("/api/dmx/doc-anh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          loai,
-          tenNganhHangGoiY: nganhDangXemNV.tenNganhHang,
-          apiKeyCaNhan: caiDat.apiKeyCaNhan || undefined,
-          anh: anhNen,
-        }),
-      });
-      const kq = await res.json();
-      if (!res.ok) throw new Error(kq.loi || "Chưa đọc được ảnh thực hiện nhân viên.");
+      const cacKhoi: { tenNganhHang: string; danhSach: { maNV: string; hoTen: string; thucHien: number }[] }[] = [];
+      for (let i = 0; i < files.length; i++) {
+        setTienTrinhQuet(`Đang quét chữ trên máy (ảnh ${i + 1}/${files.length}, ${nganhDangXemNV.tenNganhHang})...`);
+        const phanTu = await thucHienOCR(files[i]);
+        const khoi = phanTichThiDuaNhanVienOffline(phanTu, nganhDangXemNV.tenNganhHang);
+        if (khoi && khoi.danhSach.length) cacKhoi.push(khoi);
+      }
+      if (!cacKhoi.length) {
+        throw new Error("Chưa đọc được dòng nhân viên nào (cần thấy rõ cột mã - tên và số thực hiện).");
+      }
 
       const thiDuaNVMoi = gopKetQuaThiDuaNhanVienTuAPI(
         duLieuHienTai.thiDuaNhanVien || {},
-        kq.thiDuaNhanVien || [],
+        cacKhoi,
         khoaNganhDangMo
       );
       luuDuLieuNgay({
@@ -993,25 +969,16 @@ export default function DmxPage() {
 
     setDangQuet(true);
     setThongBaoLoi("");
-    setTienTrinhQuet(`Đang đọc ${files.length} ảnh Doanh thu hợp nhất Nhân viên...`);
     try {
-      const anhNen = await Promise.all(files.map(resizeImage));
-      const loai: LoaiBaoCaoAPI = "doanh_thu_nhan_vien";
-      const res = await fetch("/api/dmx/doc-anh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          loai,
-          apiKeyCaNhan: caiDat.apiKeyCaNhan || undefined,
-          anh: anhNen,
-        }),
-      });
-      const kq = await res.json();
-      if (!res.ok) throw new Error(kq.loi || "Chưa đọc được ảnh Doanh thu Nhân viên.");
-
-      const dsQuet: DoanhThuNhanVienItem[] = Array.isArray(kq.doanhThuNhanVien)
-        ? kq.doanhThuNhanVien
-        : [];
+      const dsQuet: DoanhThuNhanVienItem[] = [];
+      for (let i = 0; i < files.length; i++) {
+        setTienTrinhQuet(`Đang quét chữ trên máy (ảnh ${i + 1}/${files.length})...`);
+        const phanTu = await thucHienOCR(files[i]);
+        dsQuet.push(...phanTichDoanhThuNhanVienOffline(phanTu));
+      }
+      if (!dsQuet.length) {
+        throw new Error("Chưa đọc được dòng nhân viên nào trong ảnh Doanh thu hợp nhất.");
+      }
 
       // Gộp với danh sách doanh thu nhân viên hiện có trong ngày
       const mapDTNV = new Map<string, DoanhThuNhanVienItem>();
@@ -1020,11 +987,7 @@ export default function DmxPage() {
         if (ma) mapDTNV.set(ma, item);
       }
       for (const item of dsQuet) {
-        const nvKhop = khopNhanVienQuetVoiQuanLy(
-          item.maNV,
-          item.hoTen,
-          caiDat.danhSachNhanVien
-        );
+        const nvKhop = khopNhanVienQuetVoiQuanLy(item.maNV, item.hoTen, caiDat.danhSachNhanVien);
         const ma = nvKhop ? nvKhop.maNV : chuanHoaMaNV(item.maNV);
         const ten = nvKhop ? nvKhop.hoTen : item.hoTen;
         if (!ma) continue;
@@ -1050,24 +1013,16 @@ export default function DmxPage() {
 
     setDangQuet(true);
     setThongBaoLoi("");
-    setTienTrinhQuet(`Đang đọc ${files.length} ảnh Doanh thu...`);
     try {
-      const anhNen = await Promise.all(files.map(resizeImage));
-      const loai: LoaiBaoCaoAPI = "doanh_thu_thuc";
-      const res = await fetch("/api/dmx/doc-anh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          loai,
-          apiKeyCaNhan: caiDat.apiKeyCaNhan || undefined,
-          anh: anhNen,
-        }),
-      });
-      const kq = await res.json();
-      if (!res.ok) throw new Error(kq.loi || "Chưa đọc được ảnh Doanh thu.");
-
-      const dt = kq.doanhThu || {};
-      const gop = gopDoanhThu(duLieuHienTai.doanhThu, dt);
+      let gop = duLieuHienTai.doanhThu;
+      for (let i = 0; i < files.length; i++) {
+        setTienTrinhQuet(`Đang quét chữ trên máy (ảnh ${i + 1}/${files.length})...`);
+        const phanTu = await thucHienOCR(files[i]);
+        gop = gopDoanhThu(gop, phanTichDoanhThuOffline(phanTu));
+      }
+      if (gop.doanhThuThuc <= 0 && gop.doanhThuQuyDoi <= 0) {
+        throw new Error("Chưa đọc được số Doanh thu. Hãy chụp đủ vùng thẻ chỉ số (DT thực / DT quy đổi).");
+      }
       luuDuLieuNgay({ ...duLieuHienTai, doanhThu: gop });
     } catch (err) {
       setThongBaoLoi(err instanceof Error ? err.message : "Không thể đọc ảnh Doanh thu.");

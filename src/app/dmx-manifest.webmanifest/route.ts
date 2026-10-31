@@ -5,7 +5,7 @@ export const dynamic = "force-static";
 export function GET() {
   const manifest: MetadataRoute.Manifest = {
     id: "/dmx", name: "Tổng hợp số liệu ĐMX", short_name: "Số liệu ĐMX",
-    description: "Đọc ảnh báo cáo ĐMX bằng Gemini và tạo bảng số liệu.", lang: "vi-VN",
+    description: "Đọc ảnh báo cáo ĐMX ngay trên thiết bị và tạo bảng số liệu.", lang: "vi-VN",
     start_url: "/dmx?source=pwa", scope: "/dmx", display: "standalone", orientation: "any",
     background_color: "#f3f7ff", theme_color: "#3159ea", categories: ["business", "productivity"],
     icons: [

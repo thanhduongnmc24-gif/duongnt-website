@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
   title: { absolute: "Tổng hợp số liệu ĐMX" },
-  description: "Đọc ảnh báo cáo ĐMX bằng Gemini và chuyển thành bảng số liệu có thể kiểm tra, chỉnh sửa, xuất CSV.",
+  description: "Đọc ảnh báo cáo ĐMX ngay trên thiết bị và chuyển thành bảng số liệu có thể kiểm tra, chỉnh sửa, xuất CSV.",
   applicationName: "Số liệu ĐMX",
   manifest: "/dmx-manifest.webmanifest",
   icons: {

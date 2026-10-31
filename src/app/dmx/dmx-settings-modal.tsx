@@ -512,27 +512,6 @@ export function ModalCaiDatDMX({
               )}
             </div>
           </div>
-
-          {/* 5. KHÓA GEMINI API CÁ NHÂN (TÙY CHỌN) */}
-          <label className="dmx-group-label">5. KHÓA GEMINI API CÁ NHÂN (TÙY CHỌN)</label>
-          <div className="dmx-setting-box">
-            <p>
-              Mặc định ứng dụng tự động xoay vòng 6 mô hình Gemini trên máy chủ. Nếu muốn dùng hạn mức riêng biệt cho tài khoản của bạn, có thể dán khóa API từ Google AI Studio (`AIza...`) vào đây:
-            </p>
-            <div className="dmx-phrase-input-row">
-              <input
-                type="password"
-                placeholder="Để trống để dùng khóa mặc định của máy chủ..."
-                value={tamCaiDat.apiKeyCaNhan || ""}
-                onChange={e =>
-                  setTamCaiDat(prev => ({
-                    ...prev,
-                    apiKeyCaNhan: e.target.value.trim(),
-                  }))
-                }
-              />
-            </div>
-          </div>
         </div>
       </div>
     </div>
