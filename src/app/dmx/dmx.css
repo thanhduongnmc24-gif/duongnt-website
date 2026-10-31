@@ -1148,9 +1148,807 @@
 }
 
 /* =========================================================================
-   RESPONSIVE CHO MÀN HÌNH NHỎ (< 420px)
+   8. ĐĂNG NHẬP / TẠO TÀI KHOẢN SUPABASE (.dmx-auth-screen)
    ========================================================================= */
-@media (max-width: 420px) {
+.dmx-auth-screen {
+  min-height: 100dvh;
+  background: linear-gradient(155deg, #0c4a6e 0%, #0284c7 50%, #38bdf8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.dmx-auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border-radius: 22px;
+  padding: 1.75rem 1.5rem 1.4rem;
+  box-shadow: 0 24px 55px rgba(15, 23, 42, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dmx-auth-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.45rem;
+}
+
+.dmx-auth-logo-badge {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.3);
+}
+
+.dmx-auth-logo h1 {
+  margin: 0.2rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 850;
+  color: #0f172a;
+}
+
+.dmx-auth-logo p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.dmx-auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  background: #f1f5f9;
+  padding: 0.28rem;
+  border-radius: 12px;
+  gap: 0.3rem;
+}
+
+.dmx-auth-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-size: 0.84rem;
+  font-weight: 800;
+  padding: 0.55rem 0.5rem;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dmx-auth-tabs button.active {
+  background: #ffffff;
+  color: #0284c7;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
+.dmx-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dmx-auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.dmx-auth-form label span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.dmx-auth-form input {
+  border: 1.5px solid #cbd5e1;
+  border-radius: 11px;
+  padding: 0.62rem 0.8rem;
+  font-size: 0.92rem;
+  color: #0f172a;
+  background: #f8fafc;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dmx-auth-form input:focus {
+  border-color: #0284c7;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.dmx-auth-error {
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.dmx-auth-submit {
+  margin-top: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: none;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.28);
+}
+
+.dmx-auth-submit:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.dmx-auth-footer {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 0.7rem;
+  text-align: center;
+}
+
+.dmx-auth-footer small {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+/* Chip tài khoản trên thanh công cụ */
+.dmx-user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.32rem 0.6rem;
+  border-radius: 999px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 800;
+  max-width: 140px;
+}
+
+.dmx-user-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =========================================================================
+   9. MODAL RỘNG, BẢNG XẾP HẠNG NHÂN VIÊN THEO MẶT HÀNG & CÁ NHÂN
+   ========================================================================= */
+.dmx-modal-wide {
+  max-width: 720px;
+}
+
+.dmx-modal-xl {
+  max-width: 960px;
+}
+
+.dmx-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dmx-btn-outline-blue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.38rem 0.72rem;
+  border-radius: 8px;
+  border: 1.5px solid #0284c7;
+  background: #f0f9ff;
+  color: #0369a1;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dmx-btn-outline-blue:hover {
+  background: #e0f2fe;
+}
+
+.dmx-icon-close {
+  border: none;
+  background: #f1f5f9;
+  color: #475569;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* Bảng xếp hạng nhân viên theo mặt hàng (giống ảnh mẫu T10 - BẢO HIỂM THỢ ĐMX_CE) */
+.dmx-emp-rank-board {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+}
+
+.dmx-emp-rank-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dmx-emp-rank-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.dmx-emp-trophy-box {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #fefce8;
+  border: 1px solid #fef08a;
+  color: #ca8a04;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dmx-emp-rank-store {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dmx-emp-rank-cat {
+  margin: 0.1rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.dmx-emp-rank-time {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.dmx-emp-rank-cols {
+  display: grid;
+  grid-template-columns: 32px minmax(120px, 1.5fr) 105px 86px 68px;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.dmx-emp-rank-cols .r {
+  text-align: right;
+}
+
+.dmx-emp-rank-cols .c {
+  text-align: center;
+}
+
+.dmx-emp-rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.dmx-emp-rank-row {
+  position: relative;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.dmx-emp-rank-row.pass {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.dmx-emp-rank-row.near {
+  border-color: #bfdbfe;
+  background: #f8fafc;
+}
+
+.dmx-emp-rank-row.warn {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.dmx-emp-rank-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 0;
+  pointer-events: none;
+  transition: width 0.25s ease;
+}
+
+.dmx-emp-rank-row.pass .dmx-emp-rank-bar {
+  background: rgba(34, 197, 94, 0.16);
+}
+
+.dmx-emp-rank-row.near .dmx-emp-rank-bar {
+  background: rgba(59, 130, 246, 0.13);
+}
+
+.dmx-emp-rank-row.warn .dmx-emp-rank-bar {
+  background: rgba(250, 204, 21, 0.2);
+}
+
+.dmx-emp-rank-row-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 32px minmax(120px, 1.5fr) 105px 86px 68px;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.48rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+.dmx-emp-medal {
+  font-weight: 800;
+  color: #64748b;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.dmx-emp-medal.top {
+  font-size: 1.05rem;
+}
+
+.dmx-emp-name {
+  font-weight: 800;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dmx-emp-actual {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.dmx-emp-actual strong {
+  color: #0f172a;
+  font-weight: 850;
+}
+
+.dmx-emp-diff {
+  text-align: right;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+}
+
+.dmx-emp-diff.vuot {
+  color: #16a34a;
+  font-weight: 800;
+}
+
+.dmx-emp-pct-pill {
+  text-align: center;
+  padding: 0.2rem 0.35rem;
+  border-radius: 7px;
+  font-size: 0.76rem;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.dmx-emp-pct-pill.pass {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.dmx-emp-pct-pill.near {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.dmx-emp-pct-pill.warn {
+  background: #fef9c3;
+  border-color: #fde047;
+  color: #a16207;
+}
+
+.dmx-emp-rank-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.65rem;
+  border-top: 1px solid #e2e8f0;
+  font-size: 0.84rem;
+  color: #334155;
+}
+
+.dmx-emp-rank-footer-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+/* Hồ sơ chi tiết cá nhân nhân viên */
+.dmx-emp-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 0.6rem;
+}
+
+.dmx-emp-kpi-card {
+  border-radius: 14px;
+  padding: 0.85rem 0.95rem;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
+}
+
+.dmx-emp-kpi-card.blue {
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+}
+
+.dmx-emp-kpi-card.orange {
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+}
+
+.dmx-emp-kpi-card.green {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+}
+
+.dmx-emp-kpi-card.purple {
+  background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+}
+
+.dmx-emp-kpi-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  opacity: 0.9;
+  letter-spacing: 0.03em;
+}
+
+.dmx-emp-kpi-val {
+  font-size: 1.35rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.dmx-emp-kpi-sub {
+  font-size: 0.72rem;
+  opacity: 0.9;
+}
+
+.dmx-emp-detail-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.6rem 0.8rem;
+}
+
+.dmx-emp-detail-table-wrap {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow-x: auto;
+}
+
+.dmx-emp-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.dmx-emp-detail-table th,
+.dmx-emp-detail-table td {
+  padding: 0.52rem 0.6rem;
+  border-bottom: 1px solid #f1f5f9;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.dmx-emp-detail-table th {
+  background: #f8fafc;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.dmx-emp-detail-table .r {
+  text-align: right;
+}
+
+.dmx-emp-detail-table tr.pass td {
+  background: #f0fdf4;
+}
+
+.dmx-emp-mini-bar {
+  width: 72px;
+  height: 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.dmx-emp-mini-bar > div {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.dmx-emp-mini-bar > div.ok {
+  background: #16a34a;
+}
+
+.dmx-emp-mini-bar > div.warn {
+  background: #f59e0b;
+}
+
+.dmx-emp-mini-bar > div.low {
+  background: #ef4444;
+}
+
+/* =========================================================================
+   10. CÀI ĐẶT CHIA TARGET & QUẢN LÝ DANH SÁCH NHÂN VIÊN
+   ========================================================================= */
+.dmx-select-full {
+  width: 100%;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: #f8fafc;
+  outline: none;
+}
+
+.dmx-select-full:focus {
+  border-color: #0284c7;
+  background: #ffffff;
+}
+
+.dmx-target-split-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.dmx-target-split-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.79rem;
+  color: #334155;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px dashed #cbd5e1;
+}
+
+.dmx-target-split-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.dmx-btn-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.32rem 0.6rem;
+  border-radius: 7px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dmx-btn-mini:hover {
+  background: #f1f5f9;
+}
+
+.dmx-emp-check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 0.38rem;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.dmx-emp-check-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.42rem 0.55rem;
+  border-radius: 9px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  font-size: 0.78rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dmx-emp-check-item.checked {
+  border-color: #7dd3fc;
+  background: #f0f9ff;
+}
+
+.dmx-emp-check-name {
+  flex: 1;
+  font-weight: 700;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dmx-emp-check-target {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #0284c7;
+  background: #e0f2fe;
+  padding: 0.12rem 0.38rem;
+  border-radius: 6px;
+}
+
+.dmx-emp-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.dmx-bulk-paste-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: #f8fafc;
+  padding: 0.55rem;
+  border-radius: 9px;
+  border: 1px solid #cbd5e1;
+}
+
+.dmx-bulk-paste-box textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+}
+
+.dmx-emp-manage-table-wrap {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+}
+
+.dmx-emp-manage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.dmx-emp-manage-table th,
+.dmx-emp-manage-table td {
+  padding: 0.42rem 0.55rem;
+  border-bottom: 1px solid #f1f5f9;
+  text-align: left;
+}
+
+.dmx-emp-manage-table th {
+  background: #f8fafc;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #64748b;
+  position: sticky;
+  top: 0;
+}
+
+.dmx-emp-inline-input {
+  width: 100%;
+  border: 1px solid #0284c7;
+  border-radius: 6px;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.78rem;
+}
+
+.dmx-icon-action {
+  border: none;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  padding: 0.2rem 0.3rem;
+  border-radius: 6px;
+}
+
+.dmx-icon-action:hover {
+  background: #f1f5f9;
+}
+
+.dmx-icon-action.ok {
+  color: #16a34a;
+}
+
+.dmx-icon-action.danger {
+  color: #dc2626;
+}
+
+/* =========================================================================
+   RESPONSIVE CHO MÀN HÌNH NHỎ (< 480px)
+   ========================================================================= */
+@media (max-width: 480px) {
+  .dmx-emp-rank-cols,
+  .dmx-emp-rank-row-content {
+    grid-template-columns: 26px minmax(95px, 1.4fr) 82px 68px 54px;
+    font-size: 0.73rem;
+    padding: 0.4rem 0.38rem;
+  }
+
   .dmx-rev-value {
     font-size: 1.15rem;
   }
