@@ -227,7 +227,7 @@ function resizeImage(file: File): Promise<{ mimeType: "image/jpeg"; data: string
       const image = new Image();
       image.onerror = () => reject(new Error("Ảnh không hợp lệ."));
       image.onload = () => {
-        const max = 1600;
+        const max = 1400;
         const scale = Math.min(1, max / Math.max(image.width, image.height));
         const canvas = document.createElement("canvas");
         canvas.width = Math.round(image.width * scale);
@@ -235,7 +235,7 @@ function resizeImage(file: File): Promise<{ mimeType: "image/jpeg"; data: string
         const ctx = canvas.getContext("2d");
         if (!ctx) return reject(new Error("Không xử lý được ảnh."));
         ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-        const src = canvas.toDataURL("image/jpeg", 0.82);
+        const src = canvas.toDataURL("image/jpeg", 0.8);
         resolve({ mimeType: "image/jpeg", data: src.split(",")[1] });
       };
       image.src = String(reader.result);
@@ -282,6 +282,7 @@ function chuanHoaCaiDat(raw: Partial<CaiDatDMX> | null | undefined): CaiDatDMX {
       raw.chiaTargetNganhHang && typeof raw.chiaTargetNganhHang === "object"
         ? raw.chiaTargetNganhHang
         : {},
+    apiKeyCaNhan: typeof raw.apiKeyCaNhan === "string" ? raw.apiKeyCaNhan.trim() : "",
   };
 }
 
@@ -391,6 +392,50 @@ export default function DmxPage() {
         setCacNgay({});
       }
 
+      // Đồng bộ hai chiều qua API máy chủ Supabase (/api/dmx/dong-bo - hoạt động ngay cả khi chưa chạy migration SQL)
+      try {
+        const syncRes = await fetch("/api/dmx/dong-bo", { cache: "no-store" });
+        if (syncRes.ok) {
+          const cloudData = (await syncRes.json()) as {
+            caiDat?: Partial<CaiDatDMX> | null;
+            cacNgay?: Record<string, Partial<DuLieuNgayDMX>>;
+          };
+          if (cloudData.caiDat && typeof cloudData.caiDat === "object") {
+            const chuan = chuanHoaCaiDat(cloudData.caiDat);
+            setCaiDat(chuan);
+            try {
+              localStorage.setItem(storageSettingsKey, JSON.stringify(chuan));
+            } catch {
+              // ignore
+            }
+          }
+          if (cloudData.cacNgay && typeof cloudData.cacNgay === "object") {
+            const mapCloud: Record<string, DuLieuNgayDMX> = {};
+            for (const [k, dl] of Object.entries(cloudData.cacNgay)) {
+              if (!dl || typeof dl !== "object") continue;
+              mapCloud[k] = {
+                ...taoDuLieuRong(k),
+                ...dl,
+                khoaNgay: k,
+              };
+            }
+            if (Object.keys(mapCloud).length > 0) {
+              setCacNgay(prev => {
+                const merged = { ...prev, ...mapCloud };
+                try {
+                  localStorage.setItem(storageDataKey, JSON.stringify(merged));
+                } catch {
+                  // ignore
+                }
+                return merged;
+              });
+            }
+          }
+        }
+      } catch {
+        // Fallback xuống truy vấn trực tiếp bên dưới
+      }
+
       // Đồng bộ cài đặt từ bảng Supabase dmx_ho_so
       const { data: hoSoData, error: hoSoErr } = await supabase
         .from("dmx_ho_so")
@@ -447,6 +492,18 @@ export default function DmxPage() {
       return;
     }
     void taiDuLieuTaiKhoan(user);
+
+    const onFocus = () => {
+      if (document.visibilityState === "visible") {
+        void taiDuLieuTaiKhoan(user);
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
   }, [user, taiDuLieuTaiKhoan]);
 
   // 3. Xử lý Đăng nhập / Tạo tài khoản
@@ -516,6 +573,12 @@ export default function DmxPage() {
     });
 
     if (user) {
+      void fetch("/api/dmx/dong-bo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ngay: capNhat.khoaNgay, duLieuNgay: capNhat }),
+      }).catch(() => {});
+
       void supabase.from("dmx_du_lieu_ngay").upsert(
         {
           nguoi_dung_id: user.id,
@@ -536,6 +599,12 @@ export default function DmxPage() {
       } catch {
         // Bỏ qua
       }
+      void fetch("/api/dmx/dong-bo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caiDat: moi }),
+      }).catch(() => {});
+
       const tenDangNhap = String(user.user_metadata?.ten_dang_nhap || user.email?.split("@")[0] || "user");
       void supabase.from("dmx_ho_so").upsert(
         {
@@ -807,7 +876,7 @@ export default function DmxPage() {
       let capNhatLuc = "";
       let donVi = "";
 
-      const kichThuocLo = 5;
+      const kichThuocLo = 3;
       for (let i = 0; i < files.length; i += kichThuocLo) {
         const loFiles = files.slice(i, i + kichThuocLo);
         setTienTrinhQuet(`Đang đọc ảnh ${i + 1}–${Math.min(files.length, i + kichThuocLo)} / ${files.length}...`);
@@ -817,7 +886,11 @@ export default function DmxPage() {
         const res = await fetch("/api/dmx/doc-anh", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ loai, anh: anhNen }),
+          body: JSON.stringify({
+            loai,
+            apiKeyCaNhan: caiDat.apiKeyCaNhan || undefined,
+            anh: anhNen,
+          }),
         });
         const kq = await res.json();
         if (!res.ok) throw new Error(kq.loi || "Chưa đọc được ảnh.");
@@ -889,6 +962,7 @@ export default function DmxPage() {
         body: JSON.stringify({
           loai,
           tenNganhHangGoiY: nganhDangXemNV.tenNganhHang,
+          apiKeyCaNhan: caiDat.apiKeyCaNhan || undefined,
           anh: anhNen,
         }),
       });
@@ -926,7 +1000,11 @@ export default function DmxPage() {
       const res = await fetch("/api/dmx/doc-anh", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ loai, anh: anhNen }),
+        body: JSON.stringify({
+          loai,
+          apiKeyCaNhan: caiDat.apiKeyCaNhan || undefined,
+          anh: anhNen,
+        }),
       });
       const kq = await res.json();
       if (!res.ok) throw new Error(kq.loi || "Chưa đọc được ảnh Doanh thu Nhân viên.");
@@ -979,7 +1057,11 @@ export default function DmxPage() {
       const res = await fetch("/api/dmx/doc-anh", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ loai, anh: anhNen }),
+        body: JSON.stringify({
+          loai,
+          apiKeyCaNhan: caiDat.apiKeyCaNhan || undefined,
+          anh: anhNen,
+        }),
       });
       const kq = await res.json();
       if (!res.ok) throw new Error(kq.loi || "Chưa đọc được ảnh Doanh thu.");

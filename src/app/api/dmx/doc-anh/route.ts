@@ -17,6 +17,7 @@ const BodySchema = z.object({
     "doanh_thu_nhan_vien",
   ]),
   tenNganhHangGoiY: z.string().max(200).optional(),
+  apiKeyCaNhan: z.string().max(200).optional(),
   anh: z.array(AnhSchema).min(1).max(10),
 });
 
@@ -113,13 +114,50 @@ function docJsonGemini(text: string) {
 const luotDoc = new Map<string, number[]>();
 
 function vuotGioiHan(request: Request) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip =
+    request.headers.get("cf-connecting-ip")?.trim() ||
+    request.headers.get("x-real-ip")?.trim() ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown";
   const now = Date.now();
   const ganDay = (luotDoc.get(ip) || []).filter(time => now - time < 10 * 60_000);
-  if (ganDay.length >= 40) return true;
+  if (ganDay.length >= 300) return true;
   ganDay.push(now);
   luotDoc.set(ip, ganDay);
   return false;
+}
+
+function layDanhSachApiKey(apiKeyCaNhan?: string): string[] {
+  const nguon = [
+    apiKeyCaNhan,
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY_3,
+    process.env.GOOGLE_AI_API_KEY,
+    process.env.GOOGLE_API_KEY,
+  ];
+  const tapHop = new Set<string>();
+  for (const chuoi of nguon) {
+    if (!chuoi) continue;
+    for (const phan of chuoi.split(/[,;\s]+/)) {
+      const k = phan.trim();
+      if (k.length >= 15) tapHop.add(k);
+    }
+  }
+  return Array.from(tapHop);
+}
+
+function layDanhSachModel(): string[] {
+  const uuTien = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const macDinh = [
+    uuTien,
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
+  ];
+  return Array.from(new Set(macDinh));
 }
 
 export async function POST(request: Request) {
@@ -134,8 +172,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ loi: "Ảnh hoặc loại báo cáo không hợp lệ." }, { status: 400 });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!apiKey) {
+  const danhSachKey = layDanhSachApiKey(body.apiKeyCaNhan);
+  if (danhSachKey.length === 0) {
     return NextResponse.json({ loi: "Máy chủ chưa có khóa Gemini API." }, { status: 503 });
   }
 
@@ -317,78 +355,123 @@ Lưu ý định dạng số: Dấu phẩy trong "10,957", "14,922", "19,149" là
     required: ["tieuDe", "kyBaoCao", "donVi", "danhSachThiDua"],
   };
 
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
+  const danhSachModel = layDanhSachModel();
+  let lastStatus = 502;
+  let lastErrorMsg = "";
+
+  // Thử lần lượt các cặp (apiKey, model). Nếu model chính bị 429 (chạm giới hạn RPM/RPD),
+  // tự động chuyển ngay sang các model dự phòng (gemini-2.5-flash-lite, gemini-2.0-flash, gemini-2.0-flash-lite...)
+  for (let vong = 0; vong < 2; vong++) {
+    if (vong === 1) {
+      await new Promise(resolve => setTimeout(resolve, 1600));
+    }
+
+    for (const apiKey of danhSachKey) {
+      for (const model of danhSachModel) {
+        const hoTroThinking = model.includes("2.5");
+        const generationConfig = hoTroThinking
+          ? {
+              temperature: 0,
+              maxOutputTokens: 32768,
+              thinkingConfig: { thinkingBudget: 0 },
+              responseMimeType: "application/json",
+              responseSchema,
+            }
+          : {
+              temperature: 0,
+              maxOutputTokens: 8192,
+              responseMimeType: "application/json",
+              responseSchema,
+            };
+
+        try {
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
             {
-              role: "user",
-              parts: [
-                { text: prompt },
-                ...body.anh.map(anh => ({ inlineData: { mimeType: anh.mimeType, data: anh.data } })),
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 32768,
-            thinkingConfig: { thinkingBudget: 0 },
-            responseMimeType: "application/json",
-            responseSchema,
-          },
-        }),
-        signal: AbortSignal.timeout(80_000),
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    role: "user",
+                    parts: [
+                      { text: prompt },
+                      ...body.anh.map(anh => ({
+                        inlineData: { mimeType: anh.mimeType, data: anh.data },
+                      })),
+                    ],
+                  },
+                ],
+                generationConfig,
+              }),
+              signal: AbortSignal.timeout(65_000),
+            }
+          );
+
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            lastStatus = response.status;
+            lastErrorMsg = String(payload?.error?.message || "").slice(0, 300);
+            console.warn(`Gemini DMX [${model}] status ${response.status}: ${lastErrorMsg}`);
+
+            // Nếu bị 429 (quá tải / hết hạn mức model đó), 404, hoặc 503 -> chuyển ngay sang model tiếp theo
+            if (
+              response.status === 429 ||
+              response.status === 503 ||
+              response.status === 404 ||
+              response.status === 500
+            ) {
+              continue;
+            }
+            // Nếu khóa API sai hoặc bị từ chối -> thử khóa tiếp theo (nếu có)
+            break;
+          }
+
+          const candidate = payload?.candidates?.[0];
+          const text =
+            candidate?.content?.parts
+              ?.filter((part: { text?: string }) => typeof part.text === "string")
+              .map((part: { text: string }) => part.text)
+              .join("") || "";
+
+          if (!text) {
+            continue;
+          }
+
+          let raw: unknown;
+          try {
+            raw = docJsonGemini(text);
+          } catch {
+            continue;
+          }
+
+          const checked = KetQuaSchema.safeParse(raw);
+          if (!checked.success) {
+            continue;
+          }
+
+          return NextResponse.json(checked.data);
+        } catch (error) {
+          console.warn(
+            `Gemini DMX [${model}] exception:`,
+            error instanceof Error ? error.message : error
+          );
+          continue;
+        }
       }
-    );
-
-    const payload = await response.json();
-    if (!response.ok) {
-      console.error("Gemini DMX failed", response.status, String(payload?.error?.message || "").slice(0, 300));
-      const invalidKey = response.status === 400 || response.status === 401 || response.status === 403;
-      return NextResponse.json(
-        {
-          loi:
-            response.status === 429
-              ? "Hệ thống đang bận. Hãy thử lại sau ít giây."
-              : invalidKey
-                ? "Khóa Gemini API trên máy chủ chưa hợp lệ."
-                : "Chưa đọc được ảnh này.",
-        },
-        { status: response.status === 429 ? 429 : invalidKey ? 503 : 502 }
-      );
     }
-
-    const candidate = payload?.candidates?.[0];
-    const text =
-      candidate?.content?.parts
-        ?.filter((part: { text?: string }) => typeof part.text === "string")
-        .map((part: { text: string }) => part.text)
-        .join("") || "";
-
-    if (!text) {
-      return NextResponse.json({ loi: "Không nhận diện được số liệu trong ảnh." }, { status: 502 });
-    }
-
-    let raw: unknown;
-    try {
-      raw = docJsonGemini(text);
-    } catch {
-      return NextResponse.json({ loi: "Dữ liệu trả về chưa đúng cấu trúc. Hãy thử lại." }, { status: 502 });
-    }
-
-    const checked = KetQuaSchema.safeParse(raw);
-    if (!checked.success) {
-      return NextResponse.json({ loi: "Bảng số liệu chưa đầy đủ cấu trúc. Hãy thử lại." }, { status: 502 });
-    }
-
-    return NextResponse.json(checked.data);
-  } catch (error) {
-    console.error("Unable to read DMX images", error instanceof Error ? error.message : error);
-    return NextResponse.json({ loi: "Không thể kết nối đọc ảnh. Hãy thử lại." }, { status: 502 });
   }
+
+  const invalidKey = lastStatus === 400 || lastStatus === 401 || lastStatus === 403;
+  return NextResponse.json(
+    {
+      loi:
+        lastStatus === 429
+          ? "Tất cả các mô hình đọc ảnh miễn phí trên máy chủ đều đang chạm giới hạn lượt/phút của Google. Hãy chờ khoảng 20 giây rồi bấm thử lại (hoặc nhập Gemini API Key riêng trong Cài đặt ⚙️)."
+          : invalidKey
+            ? "Khóa Gemini API trên máy chủ chưa hợp lệ."
+            : "Chưa đọc được ảnh này. Hãy thử lại.",
+    },
+    { status: lastStatus === 429 ? 429 : invalidKey ? 503 : 502 }
+  );
 }
