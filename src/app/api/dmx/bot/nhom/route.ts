@@ -35,11 +35,26 @@ function gioHopLe(value: unknown): value is string {
 
 function layGioVietNam() {
   const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Ho_Chi_Minh", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    timeZone: "Asia/Ho_Chi_Minh", weekday: "short", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   }).formatToParts(new Date());
   const get = (type: Intl.DateTimeFormatPartTypes) => parts.find(p => p.type === type)?.value || "";
   const thuMap: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
-  return { thu: thuMap[get("weekday")] || 1, gio: `${get("hour")}:${get("minute")}` };
+  const gio = `${get("hour")}:${get("minute")}`;
+  return { thu: thuMap[get("weekday")] || 1, gio, ngay: `${get("year")}-${get("month")}-${get("day")}` };
+}
+
+function ngayVietNam(value: string | Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date(value));
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find(p => p.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+function soPhut(gio: string) {
+  const [h, m] = gio.slice(0, 5).split(":").map(Number);
+  return h * 60 + m;
 }
 
 export async function POST(request: Request) {
@@ -71,14 +86,19 @@ export async function POST(request: Request) {
       }
 
       if (hanhDong === "lich_den_han") {
-        const { thu, gio } = layGioVietNam();
-        const dauPhut = new Date(Date.now() - 55_000).toISOString();
+        const { thu, gio, ngay } = layGioVietNam();
         const { data, error } = await admin.from("dmx_line_lich_gui")
-          .select("id,line_group_id,nguoi_dung_id,cac_noi_dung,lan_gui_cuoi,dmx_line_nhom!inner(dang_hoat_dong)")
+          .select("id,line_group_id,nguoi_dung_id,gio,cac_thu,cac_noi_dung,lan_gui_cuoi,dmx_line_nhom!inner(dang_hoat_dong)")
           .eq("dang_hoat_dong", true).eq("dmx_line_nhom.dang_hoat_dong", true)
-          .eq("gio", `${gio}:00`).contains("cac_thu", [thu]);
+          .contains("cac_thu", [thu]);
         if (error) throw error;
-        const denHan = (data || []).filter(item => !item.lan_gui_cuoi || String(item.lan_gui_cuoi) < dauPhut);
+        // Cloudflare có thể kích hoạt Cron trễ vài phút. Không bắt buộc khớp đúng phút:
+        // mọi lịch đã đến giờ và chưa gửi trong ngày sẽ được gửi bù ở nhịp kế tiếp.
+        const phutHienTai = soPhut(gio);
+        const denHan = (data || []).filter(item => {
+          if (soPhut(String(item.gio || "00:00")) > phutHienTai) return false;
+          return !item.lan_gui_cuoi || ngayVietNam(String(item.lan_gui_cuoi)) !== ngay;
+        });
         return NextResponse.json({ lich: denHan });
       }
 
