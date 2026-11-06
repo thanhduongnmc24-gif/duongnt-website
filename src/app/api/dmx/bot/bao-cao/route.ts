@@ -50,6 +50,7 @@ export async function GET(request: Request) {
         updatedAt: anhDaTao?.ngayCapNhat || baoCao.capNhatLuc,
         date: anhDaTao?.ngay || baoCao.ngay,
         reportType: loai,
+        cachedSupabase: anhDaTao?.nhaCungCap === "supabase",
       },
       { headers: { "Cache-Control": "private, no-store" } }
     );

@@ -48,6 +48,7 @@ export type AnhBaoCaoDaTaoSan = {
   url: string;
   ngay: string;
   ngayCapNhat: string;
+  nhaCungCap: "supabase" | "google_drive";
 };
 
 type BanGhiNgay = {
@@ -219,7 +220,7 @@ export async function layAnhBaoCaoDaTaoSan(
     try {
       const url = new URL(data.url_ben_ngoai);
       if (url.protocol === "https:") {
-        return { url: url.toString(), ngay: String(data.ngay), ngayCapNhat: String(data.ngay_cap_nhat || "") };
+        return { url: url.toString(), ngay: String(data.ngay), ngayCapNhat: String(data.ngay_cap_nhat || ""), nhaCungCap: "google_drive" };
       }
     } catch { /* URL Drive không còn hợp lệ: dùng ảnh dựng động bên dưới. */ }
   }
@@ -229,7 +230,7 @@ export async function layAnhBaoCaoDaTaoSan(
     .from("dmx-du-lieu")
     .createSignedUrl(data.duong_dan_luu_tru, 30 * 60);
   if (signedError || !signed?.signedUrl) return null;
-  return { url: signed.signedUrl, ngay: String(data.ngay), ngayCapNhat: String(data.ngay_cap_nhat || "") };
+  return { url: signed.signedUrl, ngay: String(data.ngay), ngayCapNhat: String(data.ngay_cap_nhat || ""), nhaCungCap: "supabase" };
 }
 
 async function docTuStorage(userId: string, ngayYeuCau?: string): Promise<BanGhiNgay | null> {

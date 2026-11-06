@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     const hanhDong = String(body.hanhDong || "").trim().toLowerCase();
     const admin = taoSupabaseQuanTri();
 
-    if (["gan_nhom", "lich_den_han", "da_gui"].includes(hanhDong)) {
+    if (["gan_nhom", "lich_den_han", "da_gui", "anh_da_gui"].includes(hanhDong)) {
       if (!kiemTraBearer(request)) return NextResponse.json({ loi: "Không có quyền quản lý bot." }, { status: 401 });
 
       if (hanhDong === "gan_nhom") {
@@ -122,14 +122,31 @@ export async function POST(request: Request) {
         return NextResponse.json({ lich: denHan });
       }
 
+      if (hanhDong === "anh_da_gui") {
+        const lineUserId = String(body.lineUserId || "").trim();
+        const loai = String(body.loai || "").trim().toLowerCase();
+        if (!(CAC_LOAI_LICH as readonly string[]).includes(loai) || !/^U[0-9a-f]{20,64}$/i.test(lineUserId)) {
+          return NextResponse.json({ loi: "Thông tin ảnh vừa gửi không hợp lệ." }, { status: 400 });
+        }
+        const { data: lienKet } = await admin.from("dmx_line_lien_ket")
+          .select("nguoi_dung_id").eq("line_user_id", lineUserId).maybeSingle();
+        if (lienKet?.nguoi_dung_id) {
+          await admin.from("dmx_line_anh_bao_cao")
+            .update({ xoa_sau: new Date(Date.now() + 5 * 60_000).toISOString() })
+            .eq("nguoi_dung_id", lienKet.nguoi_dung_id)
+            .eq("loai", loai)
+            .eq("nha_cung_cap", "supabase");
+        }
+        return NextResponse.json({ ok: true });
+      }
+
       const id = String(body.id || "");
       const { data: lichDaGui } = await admin.from("dmx_line_lich_gui")
         .select("nguoi_dung_id,cac_noi_dung").eq("id", id).maybeSingle();
       await admin.from("dmx_line_lich_gui").update({ lan_gui_cuoi: new Date().toISOString() }).eq("id", id);
       if (lichDaGui?.nguoi_dung_id && Array.isArray(lichDaGui.cac_noi_dung)) {
-        // Không xóa ngay: LINE nhận URL trước rồi mới tải nội dung ảnh. Khoảng đệm
-        // 15 phút cũng bảo vệ nhiều nhóm gửi cùng một ảnh trong cùng thời điểm.
-        const xoaSau = new Date(Date.now() + 15 * 60_000).toISOString();
+        // LINE nhận URL trước rồi mới tải ảnh, nên giữ đệm 5 phút để tránh ảnh lỗi.
+        const xoaSau = new Date(Date.now() + 5 * 60_000).toISOString();
         await admin.from("dmx_line_anh_bao_cao").update({ xoa_sau: xoaSau })
           .eq("nguoi_dung_id", lichDaGui.nguoi_dung_id)
           .eq("nha_cung_cap", "supabase")
@@ -185,7 +202,23 @@ export async function POST(request: Request) {
     }
 
     if (hanhDong === "xoa_lich") {
-      await admin.from("dmx_line_lich_gui").delete().eq("id", String(body.id || "")).eq("nguoi_dung_id", user.id);
+      const id = String(body.id || "");
+      const { data: lichBiXoa } = await admin.from("dmx_line_lich_gui")
+        .select("cac_noi_dung").eq("id", id).eq("nguoi_dung_id", user.id).maybeSingle();
+      await admin.from("dmx_line_lich_gui").delete().eq("id", id).eq("nguoi_dung_id", user.id);
+      if (Array.isArray(lichBiXoa?.cac_noi_dung)) {
+        for (const loai of lichBiXoa.cac_noi_dung) {
+          const { count } = await admin.from("dmx_line_lich_gui")
+            .select("id", { count: "exact", head: true })
+            .eq("nguoi_dung_id", user.id).eq("dang_hoat_dong", true)
+            .contains("cac_noi_dung", [loai]);
+          if ((count || 0) === 0) {
+            await admin.from("dmx_line_anh_bao_cao")
+              .update({ xoa_sau: new Date(Date.now() + 5 * 60_000).toISOString() })
+              .eq("nguoi_dung_id", user.id).eq("loai", loai).eq("nha_cung_cap", "supabase");
+          }
+        }
+      }
       return NextResponse.json({ ok: true });
     }
 

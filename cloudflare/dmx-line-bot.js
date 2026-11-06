@@ -56,14 +56,16 @@ async function handleLineEvent(event, env) {
   const rawCommand = event.message.text.trim();
   const command = rawCommand.toLowerCase();
 
-  // Trong nhóm chỉ cho phép lệnh gắn nhóm dùng một lần. Các lệnh đọc dữ liệu cá nhân bị bỏ qua.
+  // /gannhom được xử lý ngay trong nhóm. Các lệnh báo cáo tiếp tục đi xuống
+  // và kết quả riêng tư sẽ được push cho đúng người gửi lệnh.
   if (sourceType === "group" || sourceType === "room") {
     const match = /^\/gannhom\s+(\d{6})$/i.exec(rawCommand);
-    if (!match || !groupId) return;
-    const tenNhom = await getGroupName(env.LINE_CHANNEL_ACCESS_TOKEN, groupId);
-    const report = await bindGroup(env, groupId, match[1], tenNhom);
-    await replyReport(env.LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, report);
-    return;
+    if (match && groupId) {
+      const tenNhom = await getGroupName(env.LINE_CHANNEL_ACCESS_TOKEN, groupId);
+      const report = await bindGroup(env, groupId, match[1], tenNhom);
+      await replyReport(env.LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, report);
+      return;
+    }
   }
   let report = null;
 
@@ -107,13 +109,16 @@ async function handleLineEvent(event, env) {
     "/lienket", "/taikhoan", "/huyketnoi",
     "/tongquan", "/doanhthu", "/realtime", "/luyke", "/nhanvien", "/thidua", "/suckhoe",
   ].includes(command) || command.startsWith("/msnv ");
+  const baoCaoGoc = report;
   if (groupId && lineUserId && laLenhRieng) {
     const daGuiRieng = await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lineUserId, report);
+    if (daGuiRieng) await markCachedImageSent(env, baoCaoGoc, lineUserId);
     report = daGuiRieng
       ? { text: "Bot đã gửi kết quả riêng cho bạn để bảo vệ dữ liệu tài khoản." }
       : { text: "Chưa gửi riêng được. Hãy kết bạn với bot, mở chat riêng rồi gõ lại lệnh." };
   }
-  await replyReport(env.LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, report);
+  const daPhanHoi = await replyReport(env.LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, report);
+  if (!groupId && daPhanHoi) await markCachedImageSent(env, baoCaoGoc, lineUserId);
 }
 
 async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", maNV = "") {
@@ -144,10 +149,25 @@ async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", m
       text: data.text || data.noiDung || data.message || "Báo cáo không có nội dung.",
       imageUrl: isHttpsUrl(data.imageUrl) ? data.imageUrl : "",
       previewImageUrl: isHttpsUrl(data.previewImageUrl) ? data.previewImageUrl : data.imageUrl,
+      reportType: data.reportType || reportType,
+      cacheSupabase: data.cachedSupabase === true,
     };
   } catch (error) {
     console.error("DMX report error", error);
     return { text: "Không đọc được dữ liệu DMX. Vui lòng thử lại sau." };
+  }
+}
+
+async function markCachedImageSent(env, report, lineUserId) {
+  if (!report?.cacheSupabase || !report?.reportType || !lineUserId || !groupApiUrl(env)) return;
+  try {
+    await fetch(groupApiUrl(env), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ hanhDong: "anh_da_gui", lineUserId, loai: report.reportType }),
+    });
+  } catch (error) {
+    console.error("Mark cached image sent error", error);
   }
 }
 
@@ -283,7 +303,11 @@ async function replyReport(accessToken, replyToken, report) {
     },
     body: JSON.stringify({ replyToken, messages: createMessages(report) }),
   });
-  if (!response.ok) console.error("LINE reply failed", response.status, await response.text());
+  if (!response.ok) {
+    console.error("LINE reply failed", response.status, await response.text());
+    return false;
+  }
+  return true;
 }
 
 async function pushReport(accessToken, to, report) {

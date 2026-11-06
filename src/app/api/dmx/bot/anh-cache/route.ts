@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 const CAC_LOAI_ANH = CAC_LOAI_BAO_CAO_BOT.filter(loai => loai !== "msnv");
 // Giới hạn cứng để không một ảnh báo cáo nào chiếm quá nhiều dung lượng.
 const GIOI_HAN_ANH = 3 * 1024 * 1024;
+const GIOI_HAN_ANH_MOI_TAI_KHOAN = 10;
 
 async function layNguoiDung(request: Request) {
   const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
@@ -39,6 +40,15 @@ export async function POST(request: Request) {
     }
 
     const admin = taoSupabaseQuanTri();
+    const { data: anhCungLoai } = await admin.from("dmx_line_anh_bao_cao")
+      .select("loai").eq("nguoi_dung_id", user.id).eq("loai", loai).maybeSingle();
+    if (!anhCungLoai) {
+      const { count } = await admin.from("dmx_line_anh_bao_cao")
+        .select("loai", { count: "exact", head: true }).eq("nguoi_dung_id", user.id);
+      if ((count || 0) >= GIOI_HAN_ANH_MOI_TAI_KHOAN) {
+        return NextResponse.json({ loi: "Mỗi tài khoản chỉ được lưu tối đa 10 ảnh báo cáo mới nhất." }, { status: 409 });
+      }
+    }
     let duongDanLuuTru: string | null = null;
     let urlBenNgoai: string | null = null;
 
