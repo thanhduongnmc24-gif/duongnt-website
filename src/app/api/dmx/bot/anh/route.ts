@@ -50,7 +50,7 @@ function taoDanhSach(baoCao: BaoCaoBot) {
         overflow: "hidden",
       },
     },
-    ...baoCao.cacDong.slice(0, 12).map((item, index) => h(
+    ...baoCao.cacDong.slice(0, 24).map((item, index) => h(
       "div",
       {
         key: `${item.ten}-${index}`,
@@ -61,7 +61,7 @@ function taoDanhSach(baoCao: BaoCaoBot) {
           minHeight: 68,
           padding: "11px 20px",
           backgroundColor: index % 2 === 0 ? "#ffffff" : "#f8fafc",
-          borderBottom: index < Math.min(baoCao.cacDong.length, 12) - 1 ? "1px solid #e2e8f0" : "none",
+          borderBottom: index < Math.min(baoCao.cacDong.length, 24) - 1 ? "1px solid #e2e8f0" : "none",
         },
       },
       h(
@@ -82,14 +82,16 @@ export async function GET(request: Request) {
   const userId = url.searchParams.get("uid")?.trim() || "";
   const hetHan = Number(url.searchParams.get("exp"));
   const chuKy = url.searchParams.get("sig") || "";
+  const maNV = url.searchParams.get("maNV")?.trim() || "";
 
-  if (!ngay || !kiemTraChuKyAnh(loai, ngay, userId, hetHan, chuKy)) {
+  if (!ngay || !kiemTraChuKyAnh(loai, ngay, userId, hetHan, chuKy, maNV)) {
     return new Response("Liên kết ảnh không hợp lệ hoặc đã hết hạn.", { status: 401 });
   }
 
   try {
-    const baoCao = await taoBaoCaoBot(loai, ngay, userId);
-    const chieuCao = Math.max(820, Math.min(1600, 470 + Math.min(baoCao.cacDong.length, 12) * 84));
+    const baoCao = await taoBaoCaoBot(loai, ngay, userId, maNV);
+    const gioiHanDong = 24;
+    const chieuCao = Math.max(820, Math.min(2400, 470 + Math.min(baoCao.cacDong.length, gioiHanDong) * 84));
     const element = h(
       "div",
       {

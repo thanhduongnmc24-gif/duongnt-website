@@ -1,0 +1,10 @@
+name = "dmx-line-bot"
+main = "dmx-line-bot.js"
+compatibility_date = "2026-11-01"
+
+[triggers]
+crons = ["* * * * *"]
+
+# Secrets/variables are configured in Cloudflare Dashboard:
+# LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, DMX_API_TOKEN,
+# DMX_REPORT_API_URL=https://www.duongnt.io.vn/api/dmx/bot/bao-cao

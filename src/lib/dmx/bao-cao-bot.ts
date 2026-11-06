@@ -10,6 +10,8 @@ export const CAC_LOAI_BAO_CAO_BOT = [
   "luyke",
   "thidua",
   "nhanvien",
+  "suckhoe",
+  "msnv",
 ] as const;
 
 export type LoaiBaoCaoBot = (typeof CAC_LOAI_BAO_CAO_BOT)[number];
@@ -45,6 +47,7 @@ export type BaoCaoBot = {
 type BanGhiNgay = {
   ngay: string;
   duLieu: DuLieuNgayBot;
+  ngayCapNhat?: string;
 };
 
 function chuoi(value: unknown, macDinh = ""): string {
@@ -108,6 +111,8 @@ export function docLoaiBaoCaoBot(value: string | null): LoaiBaoCaoBot {
   if (chuanHoa === "luyke") return "luyke";
   if (chuanHoa === "thidua") return "thidua";
   if (chuanHoa === "nhanvien") return "nhanvien";
+  if (chuanHoa === "suckhoe") return "suckhoe";
+  if (chuanHoa === "msnv") return "msnv";
   return laLoaiBaoCao(chuanHoa) ? chuanHoa : "tongquan";
 }
 
@@ -128,13 +133,13 @@ function khoaKyAnh(): string {
   return secret;
 }
 
-function noiDungKy(loai: LoaiBaoCaoBot, ngay: string, userId: string, hetHan: number): string {
-  return `${loai}\n${ngay}\n${userId}\n${hetHan}`;
+function noiDungKy(loai: LoaiBaoCaoBot, ngay: string, userId: string, hetHan: number, maNV = ""): string {
+  return `${loai}\n${ngay}\n${userId}\n${hetHan}\n${maNV}`;
 }
 
-export function taoChuKyAnh(loai: LoaiBaoCaoBot, ngay: string, userId: string, hetHan: number): string {
+export function taoChuKyAnh(loai: LoaiBaoCaoBot, ngay: string, userId: string, hetHan: number, maNV = ""): string {
   return createHmac("sha256", khoaKyAnh())
-    .update(noiDungKy(loai, ngay, userId, hetHan))
+    .update(noiDungKy(loai, ngay, userId, hetHan, maNV))
     .digest("hex");
 }
 
@@ -143,12 +148,13 @@ export function kiemTraChuKyAnh(
   ngay: string,
   userId: string,
   hetHan: number,
-  chuKy: string
+  chuKy: string,
+  maNV = ""
 ): boolean {
   if (!chuKy || !Number.isFinite(hetHan) || hetHan < Math.floor(Date.now() / 1000)) return false;
   if (hetHan > Math.floor(Date.now() / 1000) + 60 * 60) return false;
   if (!userId) return false;
-  const expected = taoChuKyAnh(loai, ngay, userId, hetHan);
+  const expected = taoChuKyAnh(loai, ngay, userId, hetHan, maNV);
   const left = Buffer.from(chuKy);
   const right = Buffer.from(expected);
   return left.length === right.length && timingSafeEqual(left, right);
@@ -202,15 +208,17 @@ async function docDuLieuNgay(ngayYeuCau?: string, userIdYeuCau?: string): Promis
   const admin = taoSupabaseQuanTri();
   let query = admin
     .from("dmx_du_lieu_ngay")
-    .select("ngay,du_lieu")
+    .select("ngay,du_lieu,ngay_cap_nhat")
     .eq("nguoi_dung_id", userId);
   query = ngayYeuCau
     ? query.eq("ngay", ngayYeuCau)
-    : query.order("ngay", { ascending: false }).limit(1);
+    : query.order("ngay_cap_nhat", { ascending: false }).limit(1);
 
   const { data, error } = await query.maybeSingle();
   if (!error && data?.ngay && data.du_lieu && typeof data.du_lieu === "object") {
-    return { ngay: String(data.ngay), duLieu: data.du_lieu as DuLieuNgayBot };
+    const duLieu = data.du_lieu as DuLieuNgayBot;
+    if (!chuoi(duLieu.capNhatLuc) && data.ngay_cap_nhat) duLieu.capNhatLuc = String(data.ngay_cap_nhat);
+    return { ngay: String(data.ngay), duLieu, ngayCapNhat: String(data.ngay_cap_nhat || "") };
   }
 
   const storage = await docTuStorage(userId, ngayYeuCau);
@@ -261,6 +269,47 @@ function taoDongNhanVien(items: Record<string, unknown>[], gioiHan = 16): DongBa
     .map(({ sapXep: _sapXep, ...item }) => item);
 }
 
+function thongKeSucKhoe(duLieu: DuLieuNgayBot, caiDat: Record<string, unknown>) {
+  const luyKe = danhSach(duLieu.doanhThuNhanVien);
+  const realtime = danhSach(duLieu.doanhThuNhanVienRealtime);
+  const bangThiDua = doiTuong(duLieu.thiDuaNhanVien);
+  const dsQuanLy = danhSach(caiDat.danhSachNhanVien);
+  const chiaTarget = doiTuong(caiDat.chiaTargetNganhHang);
+  const cacMon = danhSach(duLieu.danhSachThiDua);
+  const maNVs = new Set<string>([
+    ...dsQuanLy.map(item => chuoi(item.maNV)).filter(Boolean),
+    ...luyKe.map(item => chuoi(item.maNV)).filter(Boolean),
+    ...realtime.map(item => chuoi(item.maNV)).filter(Boolean),
+    ...Object.keys(bangThiDua),
+  ]);
+  const tongDT = luyKe.reduce((sum, item) => sum + Math.max(0, so(item.doanhThuQD)), 0);
+  return [...maNVs].map(maNV => {
+    const nvQuanLy = dsQuanLy.find(item => chuoi(item.maNV) === maNV) || {};
+    const nv = luyKe.find(item => chuoi(item.maNV) === maNV) || realtime.find(item => chuoi(item.maNV) === maNV) || nvQuanLy;
+    const soBanTheoMon = doiTuong(bangThiDua[maNV]);
+    const mon: Record<string, number> = {};
+    for (const item of cacMon) {
+      const ten = chuoi(item.tenNganhHang) || chuoi(item.tenNganhHangGoc);
+      const tenGoc = chuoi(item.tenNganhHangGoc) || ten;
+      const nguoiDuocGiao = Array.isArray(chiaTarget[tenGoc]) ? (chiaTarget[tenGoc] as unknown[]).map(String) : [];
+      if (nguoiDuocGiao.length && !nguoiDuocGiao.includes(maNV)) continue;
+      const soNguoi = Math.max(1, nguoiDuocGiao.length);
+      const targetCaNhan = so(item.target) / soNguoi;
+      const thucHien = so(soBanTheoMon[tenGoc] ?? soBanTheoMon[ten]);
+      mon[ten] = targetCaNhan > 0 ? thucHien / targetCaNhan * 100 : 0;
+    }
+    const cacTyLe = Object.values(mon);
+    const soMonDat = cacTyLe.filter(v => v >= 100).length;
+    const tbThiDua = cacTyLe.length ? cacTyLe.reduce((a, b) => a + Math.min(100, Math.max(0, b)), 0) / cacTyLe.length : 0;
+    const dt = so(nv.doanhThuQD);
+    const tiTrong = tongDT > 0 ? Math.max(0, dt) / tongDT * 100 : 0;
+    const diemDoanhThu = Math.min(100, Math.max(0, so(nv.phanTramHT) || tiTrong * 4));
+    const diem = cacTyLe.length ? 0.65 * tbThiDua + 0.35 * diemDoanhThu : diemDoanhThu;
+    const muc = diem >= 70 ? "KHỎE" : diem >= 45 ? "TRUNG BÌNH" : "YẾU";
+    return { maNV, hoTen: chuoi(nv.hoTen) || `NV ${maNV}`, diem, muc, soMonDat, tongMon: cacTyLe.length, dt, tiTrong, nv, mon };
+  }).sort((a, b) => b.diem - a.diem);
+}
+
 function taoBaoCaoDoanhThu(
   loai: LoaiBaoCaoBot,
   ngay: string,
@@ -278,6 +327,9 @@ function taoBaoCaoDoanhThu(
   const qdRealtime = so(realtime.doanhThuQuyDoi);
   const phanTramLuyKe = tinhPhanTram(dtLuyKe, so(luyKe.targetThuc), luyKe.phanTramHTThuc);
   const phanTramRealtime = tinhPhanTram(dtRealtime, so(realtime.targetThuc), realtime.phanTramHTThuc);
+  const duKienLuyKe = so(luyKe.duKienQuyDoi) || so(luyKe.duKienThuc);
+  const targetDuKien = so(luyKe.targetQuyDoi) || so(luyKe.targetThuc);
+  const phanTramDuKien = tinhPhanTram(duKienLuyKe, targetDuKien, luyKe.phanTramHTQuyDoi);
 
   const chiSo: ChiSoBaoCaoBot[] = [
     { nhan: "DT lũy kế", giaTri: dinhDangSo(dtLuyKe), mau: "#2563eb" },
@@ -301,8 +353,8 @@ function taoBaoCaoDoanhThu(
     },
     {
       ten: "Dự kiến cuối tháng",
-      giaTri: dinhDangSo(so(luyKe.duKienQuyDoi || luyKe.duKienThuc)),
-      chiTiet: `QĐ dự kiến ${dinhDangPhanTram(so(luyKe.phanTramHTQuyDoi))}`,
+      giaTri: dinhDangSo(duKienLuyKe),
+      chiTiet: `Target ${dinhDangSo(targetDuKien)} • Dự kiến hoàn thành ${dinhDangPhanTram(phanTramDuKien)}`,
       mau: "#7c3aed",
     },
     {
@@ -316,8 +368,9 @@ function taoBaoCaoDoanhThu(
   const noiDung = [
     `BÁO CÁO DOANH THU ${ngayHienThi}`,
     donVi,
-    `• Lũy kế: DT ${dinhDangSo(dtLuyKe)} | QĐ ${dinhDangSo(qdLuyKe)} | HT ${dinhDangPhanTram(phanTramLuyKe)}`,
-    `• Realtime: DT ${dinhDangSo(dtRealtime)} | QĐ ${dinhDangSo(qdRealtime)} | HT ${dinhDangPhanTram(phanTramRealtime)}`,
+    `• Lũy kế: DT ${dinhDangSo(dtLuyKe)}/${dinhDangSo(so(luyKe.targetThuc))} | QĐ ${dinhDangSo(qdLuyKe)}/${dinhDangSo(so(luyKe.targetQuyDoi))} | HT ${dinhDangPhanTram(phanTramLuyKe)}`,
+    `• Dự kiến: ${dinhDangSo(duKienLuyKe)}/${dinhDangSo(targetDuKien)} | ${dinhDangPhanTram(phanTramDuKien)}`,
+    `• Realtime: DT ${dinhDangSo(dtRealtime)}/${dinhDangSo(so(realtime.targetThuc))} | QĐ ${dinhDangSo(qdRealtime)}/${dinhDangSo(so(realtime.targetQuyDoi))} | HT ${dinhDangPhanTram(phanTramRealtime)}`,
     `• Khách/Bill: ${dinhDangSo(so(realtime.luotKhach), 0)}/${dinhDangSo(so(realtime.soBill), 0)}`,
     `Cập nhật: ${capNhatLuc}`,
   ].join("\n");
@@ -339,9 +392,11 @@ function taoBaoCaoDoanhThu(
 export async function taoBaoCaoBot(
   loai: LoaiBaoCaoBot,
   ngayYeuCau?: string,
-  userId?: string
+  userId?: string,
+  maNV = ""
 ): Promise<BaoCaoBot> {
-  const { ngay, duLieu } = await docDuLieuNgay(ngayYeuCau, userId);
+  const userIdThuc = userId || await layNguoiDungBot();
+  const { ngay, duLieu } = await docDuLieuNgay(ngayYeuCau, userIdThuc);
   if (["tongquan", "doanhthu", "realtime", "luyke"].includes(loai)) {
     return taoBaoCaoDoanhThu(loai, ngay, duLieu);
   }
@@ -349,6 +404,43 @@ export async function taoBaoCaoBot(
   const ngayHienThi = hienThiNgay(ngay);
   const capNhatLuc = chuoi(duLieu.capNhatLuc, new Date().toISOString());
   const donVi = chuoi(duLieu.thongTinDonVi).trim() || "ĐIỆN MÁY XANH";
+
+  if (loai === "suckhoe" || loai === "msnv") {
+    const admin = taoSupabaseQuanTri();
+    const { data: hoSo } = await admin.from("dmx_ho_so").select("cai_dat").eq("nguoi_dung_id", userIdThuc).maybeSingle();
+    const ds = thongKeSucKhoe(duLieu, doiTuong(hoSo?.cai_dat));
+    if (loai === "msnv") {
+      const item = ds.find(x => x.maNV.toLowerCase() === maNV.trim().toLowerCase());
+      if (!maNV || !item) throw new Error(`Không tìm thấy nhân viên có mã ${maNV || "đã nhập"}.`);
+      const nv = item.nv;
+      const mon = Object.entries(item.mon).sort((a, b) => so(b[1]) - so(a[1]));
+      const cacDong: DongBaoCaoBot[] = [
+        { ten: "Doanh thu quy đổi", giaTri: dinhDangSo(item.dt), chiTiet: `Tỉ trọng ${dinhDangPhanTram(item.tiTrong)}`, mau: item.dt < 0 ? "#dc2626" : "#047857" },
+        { ten: "Số lượng", giaTri: dinhDangSo(so(nv.soLuong)), chiTiet: `Target ${dinhDangSo(so(nv.target))}` },
+        { ten: "Khoản vay / Trả tháng", giaTri: `${dinhDangSo(so(nv.dtQDKhoanVay))} / ${dinhDangSo(so(nv.dtTraThangQD))}` },
+        ...mon.map(([ten, pt]) => ({ ten, giaTri: dinhDangPhanTram(so(pt)), chiTiet: so(pt) >= 100 ? "Đã đạt" : "Chưa đạt", mau: mauTheoPhanTram(so(pt)) })),
+      ];
+      return { loai, ngay, ngayHienThi, capNhatLuc, donVi, tieuDe: `SỨC KHỎE ${item.hoTen.toUpperCase()}`,
+        phuDe: `Mã NV ${item.maNV} • Ngày ${ngayHienThi}`,
+        noiDung: [`SỨC KHỎE NHÂN VIÊN ${item.hoTen} (${item.maNV})`, `• Điểm: ${dinhDangPhanTram(item.diem)} • ${item.muc}`,
+          `• Thi đua: ${item.soMonDat}/${item.tongMon} môn đạt`, `• DT QĐ: ${dinhDangSo(item.dt)} • Tỉ trọng ${dinhDangPhanTram(item.tiTrong)}`,
+          ...cacDong.slice(3).map(x => `• ${x.ten}: ${x.giaTri}`), `Cập nhật: ${capNhatLuc}`].join("\n"),
+        chiSo: [{ nhan: "Điểm sức khỏe", giaTri: dinhDangPhanTram(item.diem), mau: mauTheoPhanTram(item.diem) },
+          { nhan: "Xếp loại", giaTri: item.muc }, { nhan: "Môn đạt", giaTri: `${item.soMonDat}/${item.tongMon}` },
+          { nhan: "DT QĐ", giaTri: dinhDangSo(item.dt), mau: item.dt < 0 ? "#dc2626" : "#059669" }], cacDong };
+    }
+    const khoe = ds.filter(x => x.muc === "KHỎE").length;
+    const tb = ds.filter(x => x.muc === "TRUNG BÌNH").length;
+    const yeu = ds.filter(x => x.muc === "YẾU").length;
+    const cacDong = ds.map(x => ({ ten: `${x.maNV} - ${x.hoTen}`, giaTri: dinhDangPhanTram(x.diem),
+      chiTiet: `${x.muc} • ${x.soMonDat}/${x.tongMon} môn • DT QĐ ${dinhDangSo(x.dt)}`,
+      mau: x.muc === "KHỎE" ? "#059669" : x.muc === "TRUNG BÌNH" ? "#d97706" : "#dc2626" }));
+    return { loai, ngay, ngayHienThi, capNhatLuc, donVi, tieuDe: "SỨC KHỎE ĐỘI NGŨ", phuDe: `${donVi} • Ngày ${ngayHienThi}`,
+      noiDung: [`SỨC KHỎE ĐỘI NGŨ ${ngayHienThi}`, `• Khỏe ${khoe} • Trung bình ${tb} • Yếu ${yeu}`,
+        ...cacDong.map((x, i) => `${i + 1}. ${x.ten}: ${x.giaTri} • ${x.chiTiet}`), `Cập nhật: ${capNhatLuc}`].join("\n"),
+      chiSo: [{ nhan: "Nhân viên", giaTri: String(ds.length) }, { nhan: "Khỏe", giaTri: String(khoe), mau: "#059669" },
+        { nhan: "Trung bình", giaTri: String(tb), mau: "#d97706" }, { nhan: "Yếu", giaTri: String(yeu), mau: "#dc2626" }], cacDong };
+  }
 
   if (loai === "nhanvien") {
     const items = danhSach(duLieu.doanhThuNhanVien);
@@ -378,9 +470,12 @@ export async function taoBaoCaoBot(
 
   const luyKe = danhSach(duLieu.danhSachThiDua);
   const realtime = danhSach(duLieu.danhSachThiDuaRealtime);
-  const nguon = realtime.length ? realtime : luyKe;
-  const cacDong = taoDongThiDua(nguon);
-  const daDat = nguon.filter(item => tinhPhanTram(so(item.thucHien), so(item.target), item.phanTramHTGoc) >= 100).length;
+  const cacDongLuyKe = taoDongThiDua(luyKe, 12).map(item => ({ ...item, ten: `Lũy kế • ${item.ten}` }));
+  const cacDongRealtime = taoDongThiDua(realtime, 12).map(item => ({ ...item, ten: `Realtime • ${item.ten}` }));
+  const cacDong = [...cacDongLuyKe, ...cacDongRealtime];
+  const daDatLuyKe = luyKe.filter(item => tinhPhanTram(so(item.thucHien), so(item.target), item.phanTramHTGoc) >= 100).length;
+  const daDatRealtime = realtime.filter(item => tinhPhanTram(so(item.thucHien), so(item.target), item.phanTramHTGoc) >= 100).length;
+  const tongMon = Math.max(luyKe.length, realtime.length);
   return {
     loai,
     ngay,
@@ -388,17 +483,18 @@ export async function taoBaoCaoBot(
     capNhatLuc,
     donVi,
     tieuDe: "BẢNG THI ĐUA NGÀNH HÀNG",
-    phuDe: `${donVi} • Ngày ${ngayHienThi} • ${realtime.length ? "Realtime" : "Lũy kế"}`,
+    phuDe: `${donVi} • Ngày ${ngayHienThi} • Lũy kế và Realtime`,
     noiDung: [
       `THI ĐUA NGÀNH HÀNG ${ngayHienThi}`,
-      `Đã đạt: ${daDat}/${nguon.length} môn`,
-      ...cacDong.slice(0, 10).map((item, index) => `${index + 1}. ${item.ten}: ${item.giaTri} • ${item.chiTiet}`),
+      `Lũy kế đạt: ${daDatLuyKe}/${luyKe.length} • Realtime đạt: ${daDatRealtime}/${realtime.length}`,
+      ...cacDong.map((item, index) => `${index + 1}. ${item.ten}: ${item.giaTri} • ${item.chiTiet}`),
       `Cập nhật: ${capNhatLuc}`,
     ].join("\n"),
     chiSo: [
-      { nhan: "Tổng số môn", giaTri: dinhDangSo(nguon.length, 0), mau: "#2563eb" },
-      { nhan: "Đã đạt", giaTri: dinhDangSo(daDat, 0), mau: "#059669" },
-      { nhan: "Chưa đạt", giaTri: dinhDangSo(Math.max(0, nguon.length - daDat), 0), mau: "#dc2626" },
+      { nhan: "Tổng số môn", giaTri: dinhDangSo(tongMon, 0), mau: "#2563eb" },
+      { nhan: "Đạt lũy kế", giaTri: dinhDangSo(daDatLuyKe, 0), mau: "#059669" },
+      { nhan: "Đạt realtime", giaTri: dinhDangSo(daDatRealtime, 0), mau: "#059669" },
+      { nhan: "Chưa đạt lũy kế", giaTri: dinhDangSo(Math.max(0, luyKe.length - daDatLuyKe), 0), mau: "#dc2626" },
     ],
     cacDong,
   };

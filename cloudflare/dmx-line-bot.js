@@ -43,7 +43,6 @@ export default {
   },
 
   async scheduled(controller, env, ctx) {
-    if (env.DAILY_REPORT_ENABLED !== "true" || !env.LINE_GROUP_ID) return;
     ctx.waitUntil(sendScheduledReport(env));
   },
 };
@@ -51,11 +50,21 @@ export default {
 async function handleLineEvent(event, env) {
   if (event.type !== "message" || event.message?.type !== "text" || !event.replyToken) return;
 
+  const sourceType = event.source?.type || "";
   const groupId = event.source?.groupId || "";
   const lineUserId = event.source?.userId || "";
-  if (event.source?.type === "group" && env.LINE_GROUP_ID && groupId !== env.LINE_GROUP_ID) return;
+  const rawCommand = event.message.text.trim();
+  const command = rawCommand.toLowerCase();
 
-  const command = event.message.text.trim().toLowerCase();
+  // Trong nhóm chỉ cho phép lệnh gắn nhóm dùng một lần. Các lệnh đọc dữ liệu cá nhân bị bỏ qua.
+  if (sourceType === "group" || sourceType === "room") {
+    const match = /^\/gannhom\s+(\d{6})$/i.exec(rawCommand);
+    if (!match || !groupId) return;
+    const tenNhom = await getGroupName(env.LINE_CHANNEL_ACCESS_TOKEN, groupId);
+    const report = await bindGroup(env, groupId, match[1], tenNhom);
+    await replyReport(env.LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, report);
+    return;
+  }
   let report = null;
 
   if (command === "/ping") {
@@ -77,12 +86,18 @@ async function handleLineEvent(event, env) {
         "/luyke - Số liệu lũy kế",
         "/nhanvien - Xếp hạng nhân viên",
         "/thidua - Báo cáo thi đua",
-        "/lienket - Lấy mã kết nối tài khoản DMX",
+        "/suckhoe - Sức khỏe toàn bộ nhân viên",
+        "/msnv 123456 - Sức khỏe chi tiết một nhân viên",
+        "/tongquan - Tổng quan kinh doanh",
+        "/lienket - Lấy mã kết nối tài khoản DMX (chỉ chat riêng)",
         "/taikhoan - Xem tài khoản DMX đã kết nối",
         "/huyketnoi - Ngắt kết nối tài khoản DMX",
       ].join("\n"),
     };
-  } else if (["/doanhthu", "/realtime", "/luyke", "/nhanvien", "/thidua"].includes(command)) {
+  } else if (/^\/msnv\s+\S+$/i.test(rawCommand)) {
+    const maNV = rawCommand.split(/\s+/)[1] || "";
+    report = await loadDmxReport(env, "msnv", lineUserId, "", maNV);
+  } else if (["/tongquan", "/doanhthu", "/realtime", "/luyke", "/nhanvien", "/thidua", "/suckhoe"].includes(command)) {
     report = await loadDmxReport(env, command.slice(1), lineUserId);
   } else {
     return;
@@ -90,8 +105,8 @@ async function handleLineEvent(event, env) {
 
   const laLenhRieng = [
     "/lienket", "/taikhoan", "/huyketnoi",
-    "/doanhthu", "/realtime", "/luyke", "/nhanvien", "/thidua",
-  ].includes(command);
+    "/tongquan", "/doanhthu", "/realtime", "/luyke", "/nhanvien", "/thidua", "/suckhoe",
+  ].includes(command) || command.startsWith("/msnv ");
   if (groupId && lineUserId && laLenhRieng) {
     const daGuiRieng = await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lineUserId, report);
     report = daGuiRieng
@@ -101,7 +116,7 @@ async function handleLineEvent(event, env) {
   await replyReport(env.LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, report);
 }
 
-async function loadDmxReport(env, reportType, lineUserId = "") {
+async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", maNV = "") {
   if (!env.DMX_REPORT_API_URL || !env.DMX_API_TOKEN) {
     return { text: "Bot đã kết nối LINE nhưng chưa cấu hình nguồn dữ liệu DMX." };
   }
@@ -109,12 +124,14 @@ async function loadDmxReport(env, reportType, lineUserId = "") {
   try {
     const url = new URL(env.DMX_REPORT_API_URL);
     url.searchParams.set("loai", reportType);
+    if (maNV) url.searchParams.set("maNV", maNV);
 
     const response = await fetch(url, {
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${env.DMX_API_TOKEN}`,
         ...(lineUserId ? { "X-Line-User-ID": lineUserId } : {}),
+        ...(dmxUserId ? { "X-DMX-User-ID": dmxUserId } : {}),
       },
     });
     if (!response.ok) {
@@ -137,6 +154,36 @@ async function loadDmxReport(env, reportType, lineUserId = "") {
 function linkApiUrl(env) {
   if (env.DMX_LINK_API_URL) return env.DMX_LINK_API_URL;
   return String(env.DMX_REPORT_API_URL || "").replace(/\/bao-cao\/?$/, "/lien-ket");
+}
+
+function groupApiUrl(env) {
+  if (env.DMX_GROUP_API_URL) return env.DMX_GROUP_API_URL;
+  return String(env.DMX_REPORT_API_URL || "").replace(/\/bao-cao\/?$/, "/nhom");
+}
+
+async function bindGroup(env, groupId, ma, tenNhom) {
+  try {
+    const response = await fetch(groupApiUrl(env), {
+      method: "POST",
+      headers: { Accept: "application/json", Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ hanhDong: "gan_nhom", lineGroupId: groupId, ma, tenNhom }),
+    });
+    const data = await response.json().catch(() => ({}));
+    return { text: response.ok ? `Đã gắn “${tenNhom}” với tài khoản DMX. Lịch gửi sẽ được quản lý trong app DMX.` : (data.loi || "Chưa gắn được nhóm.") };
+  } catch (error) {
+    console.error("Bind group error", error);
+    return { text: "Không kết nối được dịch vụ gắn nhóm. Vui lòng thử lại." };
+  }
+}
+
+async function getGroupName(accessToken, groupId) {
+  try {
+    const response = await fetch(`https://api.line.me/v2/bot/group/${encodeURIComponent(groupId)}/summary`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = await response.json();
+    return response.ok && data.groupName ? String(data.groupName) : "Nhóm LINE";
+  } catch { return "Nhóm LINE"; }
 }
 
 async function handleAccountCommand(env, command, lineUserId) {
@@ -183,8 +230,32 @@ async function handleAccountCommand(env, command, lineUserId) {
 }
 
 async function sendScheduledReport(env) {
-  const report = await loadDmxReport(env, "tongquan");
-  await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, env.LINE_GROUP_ID, report);
+  if (!env.LINE_CHANNEL_ACCESS_TOKEN || !env.DMX_API_TOKEN || !groupApiUrl(env)) return;
+  try {
+    const response = await fetch(groupApiUrl(env), {
+      method: "POST",
+      headers: { Accept: "application/json", Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ hanhDong: "lich_den_han" }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.loi || `HTTP ${response.status}`);
+    for (const lich of (data.lich || [])) {
+      let thanhCong = true;
+      for (const loai of (lich.cac_noi_dung || ["doanhthu"])) {
+        const report = await loadDmxReport(env, loai, "", lich.nguoi_dung_id);
+        if (!await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lich.line_group_id, report)) thanhCong = false;
+      }
+      if (thanhCong) {
+        await fetch(groupApiUrl(env), {
+          method: "POST",
+          headers: { Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ hanhDong: "da_gui", id: lich.id }),
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Scheduled report error", error);
+  }
 }
 
 function createMessages(report) {
