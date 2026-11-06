@@ -128,31 +128,33 @@ function khoaKyAnh(): string {
   return secret;
 }
 
-function noiDungKy(loai: LoaiBaoCaoBot, ngay: string, hetHan: number): string {
-  return `${loai}\n${ngay}\n${hetHan}`;
+function noiDungKy(loai: LoaiBaoCaoBot, ngay: string, userId: string, hetHan: number): string {
+  return `${loai}\n${ngay}\n${userId}\n${hetHan}`;
 }
 
-export function taoChuKyAnh(loai: LoaiBaoCaoBot, ngay: string, hetHan: number): string {
+export function taoChuKyAnh(loai: LoaiBaoCaoBot, ngay: string, userId: string, hetHan: number): string {
   return createHmac("sha256", khoaKyAnh())
-    .update(noiDungKy(loai, ngay, hetHan))
+    .update(noiDungKy(loai, ngay, userId, hetHan))
     .digest("hex");
 }
 
 export function kiemTraChuKyAnh(
   loai: LoaiBaoCaoBot,
   ngay: string,
+  userId: string,
   hetHan: number,
   chuKy: string
 ): boolean {
   if (!chuKy || !Number.isFinite(hetHan) || hetHan < Math.floor(Date.now() / 1000)) return false;
   if (hetHan > Math.floor(Date.now() / 1000) + 60 * 60) return false;
-  const expected = taoChuKyAnh(loai, ngay, hetHan);
+  if (!userId) return false;
+  const expected = taoChuKyAnh(loai, ngay, userId, hetHan);
   const left = Buffer.from(chuKy);
   const right = Buffer.from(expected);
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-async function layNguoiDungBot(): Promise<string> {
+export async function layNguoiDungBot(): Promise<string> {
   const userId = process.env.DMX_BOT_USER_ID?.trim();
   if (userId) return userId;
 
@@ -169,6 +171,20 @@ async function layNguoiDungBot(): Promise<string> {
   return String(data.nguoi_dung_id);
 }
 
+export async function layNguoiDungTheoLine(lineUserId: string): Promise<string> {
+  const admin = taoSupabaseQuanTri();
+  const { data, error } = await admin
+    .from("dmx_line_lien_ket")
+    .select("nguoi_dung_id")
+    .eq("line_user_id", lineUserId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.nguoi_dung_id) {
+    throw new Error("Tài khoản LINE chưa liên kết DMX. Gõ /lienket để lấy mã liên kết.");
+  }
+  return String(data.nguoi_dung_id);
+}
+
 async function docTuStorage(userId: string, ngayYeuCau?: string): Promise<BanGhiNgay | null> {
   const admin = taoSupabaseQuanTri();
   const { data, error } = await admin.storage.from("dmx-du-lieu").download(`${userId}.json`);
@@ -181,8 +197,8 @@ async function docTuStorage(userId: string, ngayYeuCau?: string): Promise<BanGhi
   return ngay && cacNgay[ngay] ? { ngay, duLieu: cacNgay[ngay] } : null;
 }
 
-async function docDuLieuNgay(ngayYeuCau?: string): Promise<BanGhiNgay> {
-  const userId = await layNguoiDungBot();
+async function docDuLieuNgay(ngayYeuCau?: string, userIdYeuCau?: string): Promise<BanGhiNgay> {
+  const userId = userIdYeuCau || await layNguoiDungBot();
   const admin = taoSupabaseQuanTri();
   let query = admin
     .from("dmx_du_lieu_ngay")
@@ -322,9 +338,10 @@ function taoBaoCaoDoanhThu(
 
 export async function taoBaoCaoBot(
   loai: LoaiBaoCaoBot,
-  ngayYeuCau?: string
+  ngayYeuCau?: string,
+  userId?: string
 ): Promise<BaoCaoBot> {
-  const { ngay, duLieu } = await docDuLieuNgay(ngayYeuCau);
+  const { ngay, duLieu } = await docDuLieuNgay(ngayYeuCau, userId);
   if (["tongquan", "doanhthu", "realtime", "luyke"].includes(loai)) {
     return taoBaoCaoDoanhThu(loai, ngay, duLieu);
   }

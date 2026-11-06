@@ -79,15 +79,16 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const loai = docLoaiBaoCaoBot(url.searchParams.get("loai"));
   const ngay = url.searchParams.get("ngay")?.trim() || "";
+  const userId = url.searchParams.get("uid")?.trim() || "";
   const hetHan = Number(url.searchParams.get("exp"));
   const chuKy = url.searchParams.get("sig") || "";
 
-  if (!ngay || !kiemTraChuKyAnh(loai, ngay, hetHan, chuKy)) {
+  if (!ngay || !kiemTraChuKyAnh(loai, ngay, userId, hetHan, chuKy)) {
     return new Response("Liên kết ảnh không hợp lệ hoặc đã hết hạn.", { status: 401 });
   }
 
   try {
-    const baoCao = await taoBaoCaoBot(loai, ngay);
+    const baoCao = await taoBaoCaoBot(loai, ngay, userId);
     const chieuCao = Math.max(820, Math.min(1600, 470 + Math.min(baoCao.cacDong.length, 12) * 84));
     const element = h(
       "div",

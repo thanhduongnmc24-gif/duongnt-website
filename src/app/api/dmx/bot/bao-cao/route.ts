@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import {
   docLoaiBaoCaoBot,
   kiemTraBearer,
+  layNguoiDungBot,
+  layNguoiDungTheoLine,
   taoBaoCaoBot,
   taoChuKyAnh,
 } from "@/lib/dmx/bao-cao-bot";
@@ -19,12 +21,15 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const loai = docLoaiBaoCaoBot(url.searchParams.get("loai"));
     const ngay = url.searchParams.get("ngay")?.trim() || undefined;
-    const baoCao = await taoBaoCaoBot(loai, ngay);
+    const lineUserId = request.headers.get("x-line-user-id")?.trim() || "";
+    const userId = lineUserId ? await layNguoiDungTheoLine(lineUserId) : await layNguoiDungBot();
+    const baoCao = await taoBaoCaoBot(loai, ngay, userId);
     const hetHan = Math.floor(Date.now() / 1000) + 15 * 60;
-    const chuKy = taoChuKyAnh(loai, baoCao.ngay, hetHan);
+    const chuKy = taoChuKyAnh(loai, baoCao.ngay, userId, hetHan);
     const imageUrl = taoUrlWebsite("/api/dmx/bot/anh", request);
     imageUrl.searchParams.set("loai", loai);
     imageUrl.searchParams.set("ngay", baoCao.ngay);
+    imageUrl.searchParams.set("uid", userId);
     imageUrl.searchParams.set("exp", String(hetHan));
     imageUrl.searchParams.set("sig", chuKy);
 

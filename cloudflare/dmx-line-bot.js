@@ -52,7 +52,8 @@ async function handleLineEvent(event, env) {
   if (event.type !== "message" || event.message?.type !== "text" || !event.replyToken) return;
 
   const groupId = event.source?.groupId || "";
-  if (env.LINE_GROUP_ID && groupId !== env.LINE_GROUP_ID) return;
+  const lineUserId = event.source?.userId || "";
+  if (event.source?.type === "group" && env.LINE_GROUP_ID && groupId !== env.LINE_GROUP_ID) return;
 
   const command = event.message.text.trim().toLowerCase();
   let report = null;
@@ -61,8 +62,10 @@ async function handleLineEvent(event, env) {
     report = { text: "DMX Bot đang hoạt động." };
   } else if (command === "/id" || command === "/groupid") {
     report = {
-      text: groupId ? `LINE_GROUP_ID: ${groupId}` : "Lệnh này cần được gửi trong nhóm LINE.",
+      text: groupId ? `LINE_GROUP_ID: ${groupId}` : `LINE_USER_ID: ${lineUserId || "Không đọc được"}`,
     };
+  } else if (["/lienket", "/taikhoan", "/huyketnoi"].includes(command)) {
+    report = await handleAccountCommand(env, command, lineUserId);
   } else if (command === "/help") {
     report = {
       text: [
@@ -74,18 +77,31 @@ async function handleLineEvent(event, env) {
         "/luyke - Số liệu lũy kế",
         "/nhanvien - Xếp hạng nhân viên",
         "/thidua - Báo cáo thi đua",
+        "/lienket - Lấy mã kết nối tài khoản DMX",
+        "/taikhoan - Xem tài khoản DMX đã kết nối",
+        "/huyketnoi - Ngắt kết nối tài khoản DMX",
       ].join("\n"),
     };
   } else if (["/doanhthu", "/realtime", "/luyke", "/nhanvien", "/thidua"].includes(command)) {
-    report = await loadDmxReport(env, command.slice(1));
+    report = await loadDmxReport(env, command.slice(1), lineUserId);
   } else {
     return;
   }
 
+  const laLenhRieng = [
+    "/lienket", "/taikhoan", "/huyketnoi",
+    "/doanhthu", "/realtime", "/luyke", "/nhanvien", "/thidua",
+  ].includes(command);
+  if (groupId && lineUserId && laLenhRieng) {
+    const daGuiRieng = await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lineUserId, report);
+    report = daGuiRieng
+      ? { text: "Bot đã gửi kết quả riêng cho bạn để bảo vệ dữ liệu tài khoản." }
+      : { text: "Chưa gửi riêng được. Hãy kết bạn với bot, mở chat riêng rồi gõ lại lệnh." };
+  }
   await replyReport(env.LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, report);
 }
 
-async function loadDmxReport(env, reportType) {
+async function loadDmxReport(env, reportType, lineUserId = "") {
   if (!env.DMX_REPORT_API_URL || !env.DMX_API_TOKEN) {
     return { text: "Bot đã kết nối LINE nhưng chưa cấu hình nguồn dữ liệu DMX." };
   }
@@ -98,9 +114,13 @@ async function loadDmxReport(env, reportType) {
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${env.DMX_API_TOKEN}`,
+        ...(lineUserId ? { "X-Line-User-ID": lineUserId } : {}),
       },
     });
-    if (!response.ok) throw new Error(`DMX API returned ${response.status}`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return { text: errorData.loi || `Dữ liệu DMX đang lỗi (${response.status}). Vui lòng thử lại.` };
+    }
 
     const data = await response.json();
     return {
@@ -111,6 +131,54 @@ async function loadDmxReport(env, reportType) {
   } catch (error) {
     console.error("DMX report error", error);
     return { text: "Không đọc được dữ liệu DMX. Vui lòng thử lại sau." };
+  }
+}
+
+function linkApiUrl(env) {
+  if (env.DMX_LINK_API_URL) return env.DMX_LINK_API_URL;
+  return String(env.DMX_REPORT_API_URL || "").replace(/\/bao-cao\/?$/, "/lien-ket");
+}
+
+async function handleAccountCommand(env, command, lineUserId) {
+  if (!lineUserId) return { text: "LINE chưa cung cấp mã người gửi. Hãy kết bạn với bot rồi thử lại trong chat riêng." };
+  if (!env.DMX_API_TOKEN || !linkApiUrl(env)) {
+    return { text: "Bot chưa được cấu hình dịch vụ liên kết tài khoản DMX." };
+  }
+
+  const hanhDong = command === "/lienket" ? "tao_ma" : command === "/taikhoan" ? "trang_thai" : "huy";
+  try {
+    const response = await fetch(linkApiUrl(env), {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${env.DMX_API_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ hanhDong, lineUserId }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { text: data.loi || "Chưa xử lý được tài khoản LINE." };
+
+    if (hanhDong === "tao_ma") {
+      return {
+        text: [
+          "MÃ LIÊN KẾT DMX",
+          String(data.ma || ""),
+          `Mã có hiệu lực ${data.soPhut || 10} phút.`,
+          "Mở ứng dụng DMX → Quản trị/Cài đặt → Kết nối LINE, rồi nhập mã trên.",
+          "Không gửi mã này cho người khác.",
+        ].join("\n"),
+      };
+    }
+    if (hanhDong === "trang_thai") {
+      return data.daLienKet
+        ? { text: `LINE đang kết nối với tài khoản DMX: ${data.tenDangNhap || "đã xác nhận"}.` }
+        : { text: "LINE chưa kết nối tài khoản DMX. Gõ /lienket để bắt đầu." };
+    }
+    return { text: "Đã ngắt kết nối tài khoản DMX khỏi LINE." };
+  } catch (error) {
+    console.error("DMX link error", error);
+    return { text: "Không kết nối được dịch vụ tài khoản DMX. Vui lòng thử lại sau." };
   }
 }
 
@@ -154,7 +222,11 @@ async function pushReport(accessToken, to, report) {
     },
     body: JSON.stringify({ to, messages: createMessages(report) }),
   });
-  if (!response.ok) console.error("LINE push failed", response.status, await response.text());
+  if (!response.ok) {
+    console.error("LINE push failed", response.status, await response.text());
+    return false;
+  }
+  return true;
 }
 
 function isHttpsUrl(value) {
