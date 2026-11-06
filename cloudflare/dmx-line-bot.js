@@ -260,7 +260,7 @@ async function sendScheduledReport(env) {
 
 function createMessages(report) {
   /** @type {Array<Record<string, string>>} */
-  const messages = [{ type: "text", text: String(report.text || "").slice(0, 5000) }];
+  const messages = [];
   if (isHttpsUrl(report.imageUrl)) {
     messages.push({
       type: "image",
@@ -268,6 +268,9 @@ function createMessages(report) {
       previewImageUrl: isHttpsUrl(report.previewImageUrl) ? report.previewImageUrl : report.imageUrl,
     });
   }
+  const tieuDe = String(report.text || "").trim();
+  if (tieuDe) messages.push({ type: "text", text: tieuDe.slice(0, 5000) });
+  if (!messages.length) messages.push({ type: "text", text: "Báo cáo hiện chưa có nội dung." });
   return messages;
 }
 

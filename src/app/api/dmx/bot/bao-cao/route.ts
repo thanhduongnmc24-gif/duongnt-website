@@ -40,7 +40,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json(
       {
-        text: baoCao.noiDung,
+        // LINE chỉ gửi một tiêu đề ngắn; toàn bộ số liệu nằm trong ảnh báo cáo.
+        text: `${baoCao.tieuDe} ngày ${baoCao.ngayHienThi}`,
         imageUrl: imageUrl.toString(),
         previewImageUrl: imageUrl.toString(),
         updatedAt: baoCao.capNhatLuc,
