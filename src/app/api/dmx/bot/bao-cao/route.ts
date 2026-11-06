@@ -45,10 +45,12 @@ export async function GET(request: Request) {
       { headers: { "Cache-Control": "private, no-store" } }
     );
   } catch (error) {
-    console.error("GET /api/dmx/bot/bao-cao error", error);
+    const message = error instanceof Error ? error.message : "Chưa tạo được báo cáo DMX.";
+    const chuaLienKet = message.includes("chưa liên kết DMX");
+    if (!chuaLienKet) console.error("GET /api/dmx/bot/bao-cao error", error);
     return NextResponse.json(
-      { loi: error instanceof Error ? error.message : "Chưa tạo được báo cáo DMX." },
-      { status: 500 }
+      { loi: message },
+      { status: chuaLienKet ? 403 : 500 }
     );
   }
 }
