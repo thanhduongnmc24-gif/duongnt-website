@@ -44,6 +44,12 @@ export type BaoCaoBot = {
   cacDong: DongBaoCaoBot[];
 };
 
+export type AnhBaoCaoDaTaoSan = {
+  url: string;
+  ngay: string;
+  ngayCapNhat: string;
+};
+
 type BanGhiNgay = {
   ngay: string;
   duLieu: DuLieuNgayBot;
@@ -189,6 +195,41 @@ export async function layNguoiDungTheoLine(lineUserId: string): Promise<string> 
     throw new Error("Tài khoản LINE chưa liên kết DMX. Gõ /lienket để lấy mã liên kết.");
   }
   return String(data.nguoi_dung_id);
+}
+
+/**
+ * Ảnh do chính app iOS vẽ và tải lên ngay sau khi nhập số. Worker chỉ lấy URL
+ * này để LINE gửi tức thì, không phải chờ máy chủ dựng lại ảnh.
+ */
+export async function layAnhBaoCaoDaTaoSan(
+  userId: string,
+  loai: LoaiBaoCaoBot
+): Promise<AnhBaoCaoDaTaoSan | null> {
+  if (loai === "msnv") return null;
+  const admin = taoSupabaseQuanTri();
+  const { data, error } = await admin
+    .from("dmx_line_anh_bao_cao")
+    .select("ngay,nha_cung_cap,duong_dan_luu_tru,url_ben_ngoai,ngay_cap_nhat")
+    .eq("nguoi_dung_id", userId)
+    .eq("loai", loai)
+    .maybeSingle();
+  if (error || !data) return null;
+
+  if (data.nha_cung_cap === "google_drive" && typeof data.url_ben_ngoai === "string") {
+    try {
+      const url = new URL(data.url_ben_ngoai);
+      if (url.protocol === "https:") {
+        return { url: url.toString(), ngay: String(data.ngay), ngayCapNhat: String(data.ngay_cap_nhat || "") };
+      }
+    } catch { /* URL Drive không còn hợp lệ: dùng ảnh dựng động bên dưới. */ }
+  }
+
+  if (typeof data.duong_dan_luu_tru !== "string" || !data.duong_dan_luu_tru) return null;
+  const { data: signed, error: signedError } = await admin.storage
+    .from("dmx-du-lieu")
+    .createSignedUrl(data.duong_dan_luu_tru, 30 * 60);
+  if (signedError || !signed?.signedUrl) return null;
+  return { url: signed.signedUrl, ngay: String(data.ngay), ngayCapNhat: String(data.ngay_cap_nhat || "") };
 }
 
 async function docTuStorage(userId: string, ngayYeuCau?: string): Promise<BanGhiNgay | null> {

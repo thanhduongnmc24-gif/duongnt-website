@@ -79,7 +79,7 @@ export async function POST(request: Request) {
           line_group_id: groupId, nguoi_dung_id: maGan.nguoi_dung_id,
           ten_nhom: String(body.tenNhom || "Nhóm LINE").slice(0, 120), dang_hoat_dong: true,
           ngay_cap_nhat: new Date().toISOString(),
-        }, { onConflict: "line_group_id" });
+        }, { onConflict: "line_group_id,nguoi_dung_id" });
         if (error) throw error;
         await admin.from("dmx_line_ma_gan_nhom").delete().eq("ma_hash", bamMa(ma));
         return NextResponse.json({ ok: true, thongBao: "Đã gắn nhóm với tài khoản DMX." });
