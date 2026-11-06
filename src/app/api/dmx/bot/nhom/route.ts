@@ -108,7 +108,7 @@ export async function POST(request: Request) {
         await donAnhSupabaseDaGui(admin);
         const { thu, gio, ngay } = layGioVietNam();
         const { data, error } = await admin.from("dmx_line_lich_gui")
-          .select("id,line_group_id,nguoi_dung_id,gio,cac_thu,cac_noi_dung,lan_gui_cuoi,dmx_line_nhom!inner(dang_hoat_dong)")
+          .select("id,line_group_id,nguoi_dung_id,gio,cac_thu,cac_noi_dung,kieu_gui,lan_gui_cuoi,dmx_line_nhom!inner(dang_hoat_dong)")
           .eq("dang_hoat_dong", true).eq("dmx_line_nhom.dang_hoat_dong", true)
           .contains("cac_thu", [thu]);
         if (error) throw error;
@@ -142,9 +142,9 @@ export async function POST(request: Request) {
 
       const id = String(body.id || "");
       const { data: lichDaGui } = await admin.from("dmx_line_lich_gui")
-        .select("nguoi_dung_id,cac_noi_dung").eq("id", id).maybeSingle();
+        .select("nguoi_dung_id,cac_noi_dung,kieu_gui").eq("id", id).maybeSingle();
       await admin.from("dmx_line_lich_gui").update({ lan_gui_cuoi: new Date().toISOString() }).eq("id", id);
-      if (lichDaGui?.nguoi_dung_id && Array.isArray(lichDaGui.cac_noi_dung)) {
+      if (lichDaGui?.kieu_gui === "anh" && lichDaGui?.nguoi_dung_id && Array.isArray(lichDaGui.cac_noi_dung)) {
         // LINE nhận URL trước rồi mới tải ảnh, nên giữ đệm 5 phút để tránh ảnh lỗi.
         const xoaSau = new Date(Date.now() + 5 * 60_000).toISOString();
         await admin.from("dmx_line_anh_bao_cao").update({ xoa_sau: xoaSau })
@@ -174,7 +174,7 @@ export async function POST(request: Request) {
     if (hanhDong === "danh_sach") {
       const [{ data: nhom }, { data: lich }] = await Promise.all([
         admin.from("dmx_line_nhom").select("line_group_id,ten_nhom,dang_hoat_dong").eq("nguoi_dung_id", user.id).order("ngay_tao"),
-        admin.from("dmx_line_lich_gui").select("id,line_group_id,gio,cac_thu,cac_noi_dung,dang_hoat_dong").eq("nguoi_dung_id", user.id).order("gio"),
+        admin.from("dmx_line_lich_gui").select("id,line_group_id,gio,cac_thu,cac_noi_dung,kieu_gui,dang_hoat_dong").eq("nguoi_dung_id", user.id).order("gio"),
       ]);
       return NextResponse.json({ nhom: nhom || [], lich: lich || [] });
     }
@@ -185,6 +185,7 @@ export async function POST(request: Request) {
       const cacThu = Array.isArray(body.cacThu) ? body.cacThu.map(Number).filter(v => v >= 1 && v <= 7) : [];
       const cacNoiDung = Array.isArray(body.cacNoiDung)
         ? body.cacNoiDung.map(String).filter(v => (CAC_LOAI_LICH as readonly string[]).includes(v)) : [];
+      const kieuGui = body.kieuGui === "text" ? "text" : "anh";
       if (!gioHopLe(gio) || !cacThu.length || !cacNoiDung.length) {
         return NextResponse.json({ loi: "Hãy chọn giờ, ngày gửi và ít nhất một nội dung." }, { status: 400 });
       }
@@ -193,7 +194,7 @@ export async function POST(request: Request) {
       if (!nhom) return NextResponse.json({ loi: "Nhóm LINE không thuộc tài khoản này." }, { status: 403 });
       const id = String(body.id || "");
       const payload = { line_group_id: groupId, nguoi_dung_id: user.id, gio: `${gio}:00`, cac_thu: cacThu,
-        cac_noi_dung: cacNoiDung, dang_hoat_dong: body.dangHoatDong !== false, ngay_cap_nhat: new Date().toISOString() };
+        cac_noi_dung: cacNoiDung, kieu_gui: kieuGui, dang_hoat_dong: body.dangHoatDong !== false, ngay_cap_nhat: new Date().toISOString() };
       const query = id ? admin.from("dmx_line_lich_gui").update(payload).eq("id", id).eq("nguoi_dung_id", user.id)
         : admin.from("dmx_line_lich_gui").insert(payload);
       const { error } = await query;
@@ -211,6 +212,7 @@ export async function POST(request: Request) {
           const { count } = await admin.from("dmx_line_lich_gui")
             .select("id", { count: "exact", head: true })
             .eq("nguoi_dung_id", user.id).eq("dang_hoat_dong", true)
+            .eq("kieu_gui", "anh")
             .contains("cac_noi_dung", [loai]);
           if ((count || 0) === 0) {
             await admin.from("dmx_line_anh_bao_cao")

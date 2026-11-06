@@ -263,7 +263,10 @@ async function sendScheduledReport(env) {
       let thanhCong = true;
       for (const loai of (lich.cac_noi_dung || ["doanhthu"])) {
         const report = await loadDmxReport(env, loai, "", lich.nguoi_dung_id);
-        if (!await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lich.line_group_id, report)) thanhCong = false;
+        const reportCanGui = lich.kieu_gui === "text"
+          ? { ...report, imageUrl: "", previewImageUrl: "" }
+          : report;
+        if (!await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lich.line_group_id, reportCanGui)) thanhCong = false;
       }
       if (thanhCong) {
         await fetch(groupApiUrl(env), {

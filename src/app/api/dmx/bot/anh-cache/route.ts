@@ -10,6 +10,7 @@ const CAC_LOAI_ANH = CAC_LOAI_BAO_CAO_BOT.filter(loai => loai !== "msnv");
 // Giới hạn cứng để không một ảnh báo cáo nào chiếm quá nhiều dung lượng.
 const GIOI_HAN_ANH = 3 * 1024 * 1024;
 const GIOI_HAN_ANH_MOI_TAI_KHOAN = 10;
+const CAC_LOAI_ANH_CU = ["tongquan", "doanhthu", "realtime", "luyke", "thidua", "nhanvien", "suckhoe"];
 
 async function layNguoiDung(request: Request) {
   const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
@@ -40,6 +41,14 @@ export async function POST(request: Request) {
     }
 
     const admin = taoSupabaseQuanTri();
+    // Dọn ảnh theo bộ mã cũ bằng Storage API để không để lại tệp mồ côi.
+    const { data: anhCu } = await admin.from("dmx_line_anh_bao_cao")
+      .select("duong_dan_luu_tru").eq("nguoi_dung_id", user.id).in("loai", CAC_LOAI_ANH_CU);
+    const tepCu = (anhCu || []).map(item => String(item.duong_dan_luu_tru || "")).filter(Boolean);
+    if (tepCu.length) await admin.storage.from("dmx-du-lieu").remove(tepCu);
+    if (anhCu?.length) await admin.from("dmx_line_anh_bao_cao")
+      .delete().eq("nguoi_dung_id", user.id).in("loai", CAC_LOAI_ANH_CU);
+
     const { data: anhCungLoai } = await admin.from("dmx_line_anh_bao_cao")
       .select("loai").eq("nguoi_dung_id", user.id).eq("loai", loai).maybeSingle();
     if (!anhCungLoai) {

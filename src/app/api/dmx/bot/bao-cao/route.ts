@@ -49,7 +49,7 @@ export async function GET(request: Request) {
         previewImageUrl: urlAnhCuoi,
         updatedAt: anhDaTao?.ngayCapNhat || baoCao.capNhatLuc,
         date: anhDaTao?.ngay || baoCao.ngay,
-        reportType: loai,
+        reportType: anhDaTao?.loai || loai,
         cachedSupabase: anhDaTao?.nhaCungCap === "supabase",
       },
       { headers: { "Cache-Control": "private, no-store" } }
