@@ -45,6 +45,7 @@ export async function GET(request: Request) {
       {
         // LINE chỉ gửi một tiêu đề ngắn; toàn bộ số liệu nằm trong ảnh báo cáo.
         text: `${baoCao.tieuDe} ngày ${baoCao.ngayHienThi}`,
+        fullText: baoCao.noiDung,
         imageUrl: urlAnhCuoi,
         previewImageUrl: urlAnhCuoi,
         updatedAt: anhDaTao?.ngayCapNhat || baoCao.capNhatLuc,

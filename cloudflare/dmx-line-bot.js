@@ -147,6 +147,7 @@ async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", m
     const data = await response.json();
     return {
       text: data.text || data.noiDung || data.message || "Báo cáo không có nội dung.",
+      fullText: data.fullText || data.noiDung || data.text || "Báo cáo không có nội dung.",
       imageUrl: isHttpsUrl(data.imageUrl) ? data.imageUrl : "",
       previewImageUrl: isHttpsUrl(data.previewImageUrl) ? data.previewImageUrl : data.imageUrl,
       reportType: data.reportType || reportType,
@@ -264,7 +265,7 @@ async function sendScheduledReport(env) {
       for (const loai of (lich.cac_noi_dung || ["doanhthu"])) {
         const report = await loadDmxReport(env, loai, "", lich.nguoi_dung_id);
         const reportCanGui = lich.kieu_gui === "text"
-          ? { ...report, imageUrl: "", previewImageUrl: "" }
+          ? { ...report, text: report.fullText || report.text, imageUrl: "", previewImageUrl: "" }
           : report;
         if (!await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lich.line_group_id, reportCanGui)) thanhCong = false;
       }
