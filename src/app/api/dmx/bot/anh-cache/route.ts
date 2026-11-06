@@ -7,7 +7,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CAC_LOAI_ANH = CAC_LOAI_BAO_CAO_BOT.filter(loai => loai !== "msnv");
-const GIOI_HAN_ANH = 9 * 1024 * 1024;
+// Giới hạn cứng để không một ảnh báo cáo nào chiếm quá nhiều dung lượng.
+const GIOI_HAN_ANH = 3 * 1024 * 1024;
 
 async function layNguoiDung(request: Request) {
   const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
       if (!base64) return NextResponse.json({ loi: "Thiếu dữ liệu ảnh." }, { status: 400 });
       const buffer = Buffer.from(base64, "base64");
       if (!buffer.length || buffer.length > GIOI_HAN_ANH) {
-        return NextResponse.json({ loi: "Ảnh vượt quá giới hạn 9 MB." }, { status: 413 });
+        return NextResponse.json({ loi: "Ảnh vượt quá giới hạn 3 MB." }, { status: 413 });
       }
       duongDanLuuTru = `bot-anh/${user.id}/${loai}.jpg`;
       const { error: loiTai } = await admin.storage.from("dmx-du-lieu").upload(duongDanLuuTru, buffer, {
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
       duong_dan_luu_tru: duongDanLuuTru,
       url_ben_ngoai: urlBenNgoai,
       ngay_cap_nhat: new Date().toISOString(),
+      xoa_sau: null,
     }, { onConflict: "nguoi_dung_id,loai" });
     if (error) throw error;
 

@@ -57,6 +57,25 @@ function soPhut(gio: string) {
   return h * 60 + m;
 }
 
+async function donAnhSupabaseDaGui(admin: ReturnType<typeof taoSupabaseQuanTri>) {
+  const { data, error } = await admin.from("dmx_line_anh_bao_cao")
+    .select("nguoi_dung_id,loai,duong_dan_luu_tru")
+    .eq("nha_cung_cap", "supabase")
+    .not("xoa_sau", "is", null)
+    .lte("xoa_sau", new Date().toISOString())
+    .limit(100);
+  if (error || !data?.length) return;
+
+  const duongDan = data.map(item => String(item.duong_dan_luu_tru || "")).filter(Boolean);
+  if (duongDan.length) await admin.storage.from("dmx-du-lieu").remove(duongDan);
+  for (const item of data) {
+    await admin.from("dmx_line_anh_bao_cao").delete()
+      .eq("nguoi_dung_id", item.nguoi_dung_id)
+      .eq("loai", item.loai)
+      .eq("nha_cung_cap", "supabase");
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
@@ -86,6 +105,7 @@ export async function POST(request: Request) {
       }
 
       if (hanhDong === "lich_den_han") {
+        await donAnhSupabaseDaGui(admin);
         const { thu, gio, ngay } = layGioVietNam();
         const { data, error } = await admin.from("dmx_line_lich_gui")
           .select("id,line_group_id,nguoi_dung_id,gio,cac_thu,cac_noi_dung,lan_gui_cuoi,dmx_line_nhom!inner(dang_hoat_dong)")
@@ -103,7 +123,18 @@ export async function POST(request: Request) {
       }
 
       const id = String(body.id || "");
+      const { data: lichDaGui } = await admin.from("dmx_line_lich_gui")
+        .select("nguoi_dung_id,cac_noi_dung").eq("id", id).maybeSingle();
       await admin.from("dmx_line_lich_gui").update({ lan_gui_cuoi: new Date().toISOString() }).eq("id", id);
+      if (lichDaGui?.nguoi_dung_id && Array.isArray(lichDaGui.cac_noi_dung)) {
+        // Không xóa ngay: LINE nhận URL trước rồi mới tải nội dung ảnh. Khoảng đệm
+        // 15 phút cũng bảo vệ nhiều nhóm gửi cùng một ảnh trong cùng thời điểm.
+        const xoaSau = new Date(Date.now() + 15 * 60_000).toISOString();
+        await admin.from("dmx_line_anh_bao_cao").update({ xoa_sau: xoaSau })
+          .eq("nguoi_dung_id", lichDaGui.nguoi_dung_id)
+          .eq("nha_cung_cap", "supabase")
+          .in("loai", lichDaGui.cac_noi_dung);
+      }
       return NextResponse.json({ ok: true });
     }
 
