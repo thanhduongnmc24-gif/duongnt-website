@@ -35,15 +35,28 @@ async function damBaoBucket(admin: ReturnType<typeof taoSupabaseQuanTri>) {
 async function docFileCloud(
   admin: ReturnType<typeof taoSupabaseQuanTri>,
   userId: string,
-  sieuThiId: string
+  sieuThiId: string,
+  choPhepKhoiPhucBanCu = false
 ): Promise<CloudPayload> {
   await damBaoBucket(admin);
-  try {
-    const { data, error } = await admin.storage.from(BUCKET_NAME).download(`${userId}/${sieuThiId}.json`);
+  const docPayload = async (duongDan: string): Promise<CloudPayload> => {
+    const { data, error } = await admin.storage.from(BUCKET_NAME).download(duongDan);
     if (error || !data) return {};
     const text = await data.text();
     const parsed = JSON.parse(text);
     return parsed && typeof parsed === "object" ? (parsed as CloudPayload) : {};
+  };
+  const coDuLieu = (payload: CloudPayload) => Object.keys(payload.cacNgay || {}).length > 0;
+  try {
+    const moi = await docPayload(`${userId}/${sieuThiId}.json`);
+    if (coDuLieu(moi) || !choPhepKhoiPhucBanCu) return moi;
+
+    // Trước khi có nhiều siêu thị, dữ liệu nằm tại <userId>.json. Chỉ siêu thị
+    // MAC_DINH được phép nhận bản này và luôn giữ nguyên file cũ để có thể cứu hộ.
+    const cu = await docPayload(`${userId}.json`);
+    if (!coDuLieu(cu)) return moi;
+    await ghiFileCloud(admin, userId, sieuThiId, cu);
+    return cu;
   } catch {
     return {};
   }
@@ -76,6 +89,19 @@ async function laySieuThi(admin: ReturnType<typeof taoSupabaseQuanTri>, userId: 
   return String(first.id);
 }
 
+async function laSieuThiMacDinh(
+  admin: ReturnType<typeof taoSupabaseQuanTri>,
+  userId: string,
+  sieuThiId: string
+) {
+  const { data } = await admin.from("dmx_sieu_thi")
+    .select("ma_sieu_thi")
+    .eq("id", sieuThiId)
+    .eq("nguoi_dung_id", userId)
+    .maybeSingle();
+  return String(data?.ma_sieu_thi || "").toUpperCase() === "MAC_DINH";
+}
+
 async function layNguoiDung(request: Request): Promise<User | null> {
   const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (bearer) {
@@ -104,28 +130,29 @@ export async function GET(request: Request) {
 
     const admin = taoSupabaseQuanTri();
     const sieuThiId = await laySieuThi(admin, user.id, request);
-    const cloud = await docFileCloud(admin, user.id, sieuThiId);
+    const laMacDinh = await laSieuThiMacDinh(admin, user.id, sieuThiId);
+    // Storage, cài đặt và các ngày độc lập nên tải song song. Trước đây ba lượt
+    // nối tiếp làm thời gian đổi siêu thị tăng theo tổng độ trễ mạng.
+    const [cloud, hoSoResult, ngayResult] = await Promise.all([
+      docFileCloud(admin, user.id, sieuThiId, laMacDinh),
+      admin.from("dmx_sieu_thi").select("cai_dat")
+        .eq("id", sieuThiId).eq("nguoi_dung_id", user.id).maybeSingle(),
+      admin.from("dmx_du_lieu_ngay").select("ngay,du_lieu")
+        .eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId)
+        .order("ngay", { ascending: false }).limit(62),
+    ]);
 
     let caiDat = cloud.caiDat || null;
     const cacNgay: Record<string, Record<string, unknown>> = { ...(cloud.cacNgay || {}) };
 
     // Kết hợp thêm dữ liệu từ bảng SQL dmx_ho_so & dmx_du_lieu_ngay (nếu bảng đã được tạo)
     try {
-      const { data: hoSo } = await admin
-        .from("dmx_sieu_thi")
-        .select("cai_dat")
-        .eq("id", sieuThiId).eq("nguoi_dung_id", user.id)
-        .maybeSingle();
+      const hoSo = hoSoResult.data;
       if (hoSo?.cai_dat && typeof hoSo.cai_dat === "object") {
         caiDat = hoSo.cai_dat as Record<string, unknown>;
       }
 
-      const { data: ngayRows } = await admin
-        .from("dmx_du_lieu_ngay")
-        .select("ngay,du_lieu")
-        .eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId)
-        .order("ngay", { ascending: false })
-        .limit(62);
+      const ngayRows = ngayResult.data;
       if (Array.isArray(ngayRows)) {
         for (const r of ngayRows) {
           if (r.ngay && r.du_lieu && typeof r.du_lieu === "object") {
@@ -165,7 +192,10 @@ export async function POST(request: Request) {
 
     const admin = taoSupabaseQuanTri();
     const sieuThiId = await laySieuThi(admin, user.id, request);
-    const hienTai = await docFileCloud(admin, user.id, sieuThiId);
+    const hienTai = await docFileCloud(
+      admin, user.id, sieuThiId,
+      await laSieuThiMacDinh(admin, user.id, sieuThiId)
+    );
 
     const tiepTheo: CloudPayload = {
       caiDat: body.caiDat !== undefined ? body.caiDat : hienTai.caiDat,
