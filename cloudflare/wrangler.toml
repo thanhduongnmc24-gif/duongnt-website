@@ -2,6 +2,9 @@ name = "dmx-line-bot"
 main = "dmx-line-bot.js"
 compatibility_date = "2026-11-01"
 
+[vars]
+DMX_REPORT_API_URL = "https://www.duongnt.io.vn/api/dmx/bot/bao-cao"
+
 [triggers]
 crons = ["* * * * *"]
 

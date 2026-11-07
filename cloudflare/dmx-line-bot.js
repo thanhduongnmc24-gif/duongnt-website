@@ -173,8 +173,17 @@ async function markCachedImageSent(env, report, lineUserId) {
 }
 
 function linkApiUrl(env) {
-  if (env.DMX_LINK_API_URL) return env.DMX_LINK_API_URL;
-  return String(env.DMX_REPORT_API_URL || "").replace(/\/bao-cao\/?$/, "/lien-ket");
+  const explicit = String(env.DMX_LINK_API_URL || "").trim();
+  if (explicit) return explicit;
+  const reportUrl = String(env.DMX_REPORT_API_URL || "").trim();
+  if (reportUrl) {
+    try {
+      const url = new URL(reportUrl);
+      url.pathname = url.pathname.replace(/\/bao-cao\/?$/, "/lien-ket");
+      return url.toString();
+    } catch { /* Dùng URL cố định an toàn bên dưới. */ }
+  }
+  return "https://www.duongnt.io.vn/api/dmx/bot/lien-ket";
 }
 
 function groupApiUrl(env) {
@@ -209,7 +218,7 @@ async function getGroupName(accessToken, groupId) {
 
 async function handleAccountCommand(env, command, lineUserId) {
   if (!lineUserId) return { text: "LINE chưa cung cấp mã người gửi. Hãy kết bạn với bot rồi thử lại trong chat riêng." };
-  if (!env.DMX_API_TOKEN || !linkApiUrl(env)) {
+  if (!env.DMX_API_TOKEN) {
     return { text: "Bot chưa được cấu hình dịch vụ liên kết tài khoản DMX." };
   }
 
