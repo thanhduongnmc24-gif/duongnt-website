@@ -146,9 +146,12 @@ async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", m
     }
 
     const data = await response.json();
+    const fullText = data.fullText || data.noiDung || data.text || "Báo cáo không có nội dung.";
     return {
-      text: data.text || data.noiDung || data.message || "Báo cáo không có nội dung.",
-      fullText: data.fullText || data.noiDung || data.text || "Báo cáo không có nội dung.",
+      // Chi tiết một nhân viên luôn kèm toàn bộ số liệu dạng chữ để người dùng
+      // vẫn tra cứu được ngay cả khi LINE tải ảnh chậm hoặc lỗi.
+      text: reportType === "msnv" ? fullText : (data.text || data.noiDung || data.message || "Báo cáo không có nội dung."),
+      fullText,
       imageUrl: isHttpsUrl(data.imageUrl) ? data.imageUrl : "",
       previewImageUrl: isHttpsUrl(data.previewImageUrl) ? data.previewImageUrl : data.imageUrl,
       reportType: data.reportType || reportType,

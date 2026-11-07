@@ -172,13 +172,13 @@ function khoaKyAnh(): string {
   return secret;
 }
 
-function noiDungKy(loai: LoaiBaoCaoBot, ngay: string, userId: string, hetHan: number, maNV = ""): string {
-  return `${loai}\n${ngay}\n${userId}\n${hetHan}\n${maNV}`;
+function noiDungKy(loai: LoaiBaoCaoBot, ngay: string, userId: string, hetHan: number, maNV = "", sieuThiId = ""): string {
+  return `${loai}\n${ngay}\n${userId}\n${hetHan}\n${maNV}\n${sieuThiId}`;
 }
 
-export function taoChuKyAnh(loai: LoaiBaoCaoBot, ngay: string, userId: string, hetHan: number, maNV = ""): string {
+export function taoChuKyAnh(loai: LoaiBaoCaoBot, ngay: string, userId: string, hetHan: number, maNV = "", sieuThiId = ""): string {
   return createHmac("sha256", khoaKyAnh())
-    .update(noiDungKy(loai, ngay, userId, hetHan, maNV))
+    .update(noiDungKy(loai, ngay, userId, hetHan, maNV, sieuThiId))
     .digest("hex");
 }
 
@@ -188,12 +188,13 @@ export function kiemTraChuKyAnh(
   userId: string,
   hetHan: number,
   chuKy: string,
-  maNV = ""
+  maNV = "",
+  sieuThiId = ""
 ): boolean {
   if (!chuKy || !Number.isFinite(hetHan) || hetHan < Math.floor(Date.now() / 1000)) return false;
   if (hetHan > Math.floor(Date.now() / 1000) + 60 * 60) return false;
   if (!userId) return false;
-  const expected = taoChuKyAnh(loai, ngay, userId, hetHan, maNV);
+  const expected = taoChuKyAnh(loai, ngay, userId, hetHan, maNV, sieuThiId);
   const left = Buffer.from(chuKy);
   const right = Buffer.from(expected);
   return left.length === right.length && timingSafeEqual(left, right);
@@ -436,11 +437,24 @@ function taoBaoCaoDoanhThu(
   const targetDuKien = targetLuyKeQD || targetLuyKeThuc;
   const phanTramDuKien = tinhPhanTram(duKienLuyKe, targetDuKien);
 
+  const laRealtime = ["realtime", "doanhthu_thidua_realtime", "bieu_do_realtime_thang"].includes(loai);
+  const dtDangXem = laRealtime ? realtime : luyKe;
+  const dsThiDuaDangXem = danhSach(laRealtime ? duLieu.danhSachThiDuaRealtime : duLieu.danhSachThiDua);
+  const soMonDat = dsThiDuaDangXem.filter(item =>
+    tinhPhanTram(so(item.thucHien), so(item.target), item.phanTramHTGoc) >= 100
+  ).length;
+  const phanTramHTQD = laRealtime
+    ? tinhPhanTram(qdRealtime, targetRealtimeQD)
+    : phanTramDuKien;
   const chiSo: ChiSoBaoCaoBot[] = [
-    { nhan: "DT lũy kế", giaTri: dinhDangSo(dtLuyKe), mau: "#2563eb" },
-    { nhan: "QĐ lũy kế", giaTri: dinhDangSo(qdLuyKe), mau: "#059669" },
-    { nhan: "DT realtime", giaTri: dinhDangSo(dtRealtime), mau: "#2563eb" },
-    { nhan: "QĐ realtime", giaTri: dinhDangSo(qdRealtime), mau: "#059669" },
+    { nhan: "DT thực", giaTri: dinhDangSo(laRealtime ? dtRealtime : dtLuyKe), mau: "#ffffff" },
+    { nhan: "DT quy đổi", giaTri: dinhDangSo(laRealtime ? qdRealtime : qdLuyKe), mau: "#ffffff" },
+    { nhan: "% trả góp", giaTri: dinhDangPhanTram(so(dtDangXem.phanTramTraGop)), mau: "#a16207" },
+    { nhan: "Lượt khách", giaTri: dinhDangSo(so(dtDangXem.luotKhach), 0), mau: "#0369a1" },
+    { nhan: laRealtime ? "% HT target ngày" : "% HT QĐ dự kiến", giaTri: dinhDangPhanTram(phanTramHTQD), mau: mauTheoPhanTram(phanTramHTQD) },
+    { nhan: "% quy đổi", giaTri: dinhDangPhanTram(so(dtDangXem.phanTramQuyDoi)), mau: "#a16207" },
+    { nhan: "Thi đua hoàn thành", giaTri: `${soMonDat}/${dsThiDuaDangXem.length}`, mau: "#047857" },
+    { nhan: "Tăng/giảm cùng kỳ", giaTri: dinhDangPhanTram(so(dtDangXem.tangGiamCungKy)), mau: so(dtDangXem.tangGiamCungKy) < 0 ? "#dc2626" : "#047857" },
   ];
 
   const cacDong: DongBaoCaoBot[] = [
@@ -491,7 +505,7 @@ function taoBaoCaoDoanhThu(
       : ["luyke", "doanhthu_thidua_luyke", "luyke_du_kien"].includes(loai)
         ? "DOANH THU LŨY KẾ"
         : "TỔNG QUAN DOANH THU",
-    phuDe: `${donVi} • Ngày ${ngayHienThi}`,
+    phuDe: `Ngày ${ngayHienThi}`,
     noiDung,
     chiSo,
     cacDong,
@@ -547,7 +561,7 @@ export async function taoBaoCaoBot(
     const cacDong = ds.map(x => ({ ten: `${x.maNV} - ${x.hoTen}`, giaTri: dinhDangPhanTram(x.diem),
       chiTiet: `${x.muc} • ${x.soMonDat}/${x.tongMon} môn • DT QĐ ${dinhDangSo(x.dt)}`,
       mau: x.muc === "KHỎE" ? "#059669" : x.muc === "TRUNG BÌNH" ? "#d97706" : "#dc2626" }));
-    return { loai, ngay, ngayHienThi, capNhatLuc, donVi, tieuDe: "SỨC KHỎE ĐỘI NGŨ", phuDe: `${donVi} • Ngày ${ngayHienThi}`,
+    return { loai, ngay, ngayHienThi, capNhatLuc, donVi, tieuDe: "SỨC KHỎE ĐỘI NGŨ", phuDe: `Ngày ${ngayHienThi}`,
       noiDung: [`SỨC KHỎE ĐỘI NGŨ ${ngayHienThi}`, `• Khỏe ${khoe} • Trung bình ${tb} • Yếu ${yeu}`,
         ...cacDong.map((x, i) => `${i + 1}. ${x.ten}: ${x.giaTri} • ${x.chiTiet}`), `Cập nhật: ${capNhatLuc}`].join("\n"),
       chiSo: [{ nhan: "Nhân viên", giaTri: String(ds.length) }, { nhan: "Khỏe", giaTri: String(khoe), mau: "#059669" },
@@ -566,7 +580,7 @@ export async function taoBaoCaoBot(
       capNhatLuc,
       donVi,
       tieuDe: `XẾP HẠNG NHÂN VIÊN ${laRealtime ? "REALTIME" : "LŨY KẾ"}`,
-      phuDe: `${donVi} • Ngày ${ngayHienThi}`,
+      phuDe: `Ngày ${ngayHienThi}`,
       noiDung: [
         `XẾP HẠNG NHÂN VIÊN ${laRealtime ? "REALTIME" : "LŨY KẾ"} ${ngayHienThi}`,
         `Tổng doanh thu quy đổi: ${dinhDangSo(tong)}`,
@@ -598,7 +612,7 @@ export async function taoBaoCaoBot(
     capNhatLuc,
     donVi,
     tieuDe: chiLuyKe ? "DOANH THU & THI ĐUA LŨY KẾ" : chiRealtime ? "DOANH THU & THI ĐUA REALTIME" : "BẢNG THI ĐUA NGÀNH HÀNG",
-    phuDe: `${donVi} • Ngày ${ngayHienThi} • ${chiLuyKe ? "Lũy kế" : chiRealtime ? "Realtime" : "Lũy kế và Realtime"}`,
+    phuDe: `Ngày ${ngayHienThi} • ${chiLuyKe ? "Lũy kế" : chiRealtime ? "Realtime" : "Lũy kế và Realtime"}`,
     noiDung: [
       `THI ĐUA NGÀNH HÀNG ${ngayHienThi}`,
       `Lũy kế đạt: ${daDatLuyKe}/${luyKe.length} • Realtime đạt: ${daDatRealtime}/${realtime.length}`,

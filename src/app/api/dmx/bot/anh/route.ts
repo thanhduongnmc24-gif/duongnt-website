@@ -38,23 +38,31 @@ function doDaiThanh(giaTri: string): string {
 function taoTheChiSo(baoCao: BaoCaoBot) {
   return h(
     "div",
-    { style: { display: "flex", gap: 12, width: "100%", marginTop: 15 } },
-    ...baoCao.chiSo.slice(0, 4).map((item, index) => h(
+    { style: { display: "flex", flexWrap: "wrap", gap: 12, width: "100%", marginTop: 15 } },
+    ...baoCao.chiSo.slice(0, 8).map((item, index) => h(
       "div",
       {
         key: `${item.nhan}-${index}`,
         style: {
           display: "flex",
-          flex: 1,
+          width: "23%",
+          flexGrow: 1,
           flexDirection: "column",
-          backgroundColor: index % 2 === 0 ? "#f5f9ff" : "#f1fbf6",
-          border: `2px solid ${index % 2 === 0 ? "#d7e6fb" : "#ccebdc"}`,
+          ...(index < 2 ? {
+            backgroundImage: index === 0
+              ? "linear-gradient(135deg, #1687ef 0%, #075fc8 100%)"
+              : "linear-gradient(135deg, #1dbf73 0%, #07834c 100%)",
+          } : {}),
+          backgroundColor: index === 0
+            ? "#1687ef"
+            : index === 1 ? "#1dbf73" : (index % 2 === 0 ? "#edf5ff" : "#eaf8f0"),
+          border: `2px solid ${index === 0 ? "#64b5f6" : index === 1 ? "#6ee7a8" : index % 2 === 0 ? "#c7dcf7" : "#bfe6d2"}`,
           borderRadius: 12,
           padding: "14px 16px",
         },
       },
-      h("div", { style: { color: MAU.chuPhu, fontSize: 18, fontWeight: 750, textTransform: "uppercase" } }, item.nhan),
-      h("div", { style: { color: item.mau || MAU.chu, fontSize: 32, fontWeight: 850, marginTop: 7 } }, item.giaTri),
+      h("div", { style: { color: index < 2 ? "#eff8ff" : MAU.chuPhu, fontSize: 18, fontWeight: 750, textTransform: "uppercase" } }, item.nhan),
+      h("div", { style: { color: index < 2 ? "#ffffff" : item.mau || MAU.chu, fontSize: 32, fontWeight: 850, marginTop: 7 } }, item.giaTri),
     ))
   );
 }
@@ -149,13 +157,14 @@ export async function GET(request: Request) {
   const hetHan = Number(url.searchParams.get("exp"));
   const chuKy = url.searchParams.get("sig") || "";
   const maNV = url.searchParams.get("maNV")?.trim() || "";
+  const sieuThiId = url.searchParams.get("sid")?.trim() || "";
 
-  if (!ngay || !kiemTraChuKyAnh(loai, ngay, userId, hetHan, chuKy, maNV)) {
+  if (!ngay || !kiemTraChuKyAnh(loai, ngay, userId, hetHan, chuKy, maNV, sieuThiId)) {
     return new Response("Liên kết ảnh không hợp lệ hoặc đã hết hạn.", { status: 401 });
   }
 
   try {
-    const baoCao = await taoBaoCaoBot(loai, ngay, userId, maNV);
+    const baoCao = await taoBaoCaoBot(loai, ngay, userId, maNV, sieuThiId);
     const gioiHanDong = 24;
     const laBang = ["nhanvien", "suckhoe", "msnv"].includes(loai);
     const soDong = Math.min(baoCao.cacDong.length, gioiHanDong);
@@ -190,7 +199,7 @@ export async function GET(request: Request) {
             padding: 22,
           },
         },
-        h("div", { style: { color: "#606b7a", fontSize: 16, fontWeight: 750 } }, `ĐIỆN MÁY XANH  •  ${nhanCheDo}  •  Ngày ${baoCao.ngayHienThi}  •  Cập nhật: ${baoCao.capNhatLuc}`),
+        h("div", { style: { color: "#eaf3ff", fontSize: 16, fontWeight: 750, backgroundImage: "linear-gradient(90deg, #1769e8 0%, #0b87cf 55%, #08a86b 100%)", borderRadius: 10, padding: "10px 14px" } }, `${nhanCheDo}  •  Ngày ${baoCao.ngayHienThi}  •  Cập nhật: ${baoCao.capNhatLuc}`),
         h("div", { style: { fontSize: 31, fontWeight: 900, marginTop: 8 } }, `${bieuTuong} ${baoCao.tieuDe}`),
         h("div", { style: { display: "flex", width: "100%", minHeight: 44, alignItems: "center", backgroundColor: MAU.nenXanh, color: MAU.xanh, borderRadius: 9, padding: "8px 14px", fontSize: 17, fontWeight: 800, marginTop: 10 } }, baoCao.phuDe),
         taoTheChiSo(baoCao),
@@ -199,7 +208,7 @@ export async function GET(request: Request) {
           "div",
           { style: { display: "flex", justifyContent: "space-between", color: MAU.chuPhu, fontSize: 14, marginTop: 12 } },
           h("span", null, "Đơn vị: triệu đồng"),
-          h("span", null, baoCao.donVi),
+          h("span", null, `Ngày ${baoCao.ngayHienThi}`),
         ),
       )
     );

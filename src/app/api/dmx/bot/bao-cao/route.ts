@@ -36,29 +36,31 @@ export async function GET(request: Request) {
       request.headers.get("x-dmx-store-id")?.trim() || sieuThiTrongLoai
     );
     const baoCao = await taoBaoCaoBot(loai, ngay, userId, maNV, sieuThiId);
-    const anhDaTao = maNV ? null : await layAnhBaoCaoDaTaoSan(userId, loai, sieuThiId);
+    // Lệnh tương tác phải dùng mẫu web mới ngay lập tức, không tái dùng ảnh cũ
+    // còn lưu từ phiên bản app trước. Lịch tự động vẫn ưu tiên ảnh app đã tạo sẵn.
+    const laLenhTrucTiep = Boolean(lineUserId);
+    const anhDaTao = maNV || laLenhTrucTiep ? null : await layAnhBaoCaoDaTaoSan(userId, loai, sieuThiId);
     let urlAnhCuoi = anhDaTao?.url || "";
     // Ảnh báo cáo thường phải là ảnh do app iOS xuất và lưu đúng loại trong Supabase/Drive.
     // Chỉ báo cáo chi tiết một nhân viên mới cần máy chủ dựng động vì không thể lưu sẵn cho mọi mã NV.
-    if (!urlAnhCuoi && maNV) {
+    if (!urlAnhCuoi) {
       const hetHan = Math.floor(Date.now() / 1000) + 15 * 60;
-      const chuKy = taoChuKyAnh(loai, baoCao.ngay, userId, hetHan, maNV);
+      const chuKy = taoChuKyAnh(loai, baoCao.ngay, userId, hetHan, maNV, sieuThiId);
       const imageUrl = taoUrlWebsite("/api/dmx/bot/anh", request);
       imageUrl.searchParams.set("loai", loai);
       imageUrl.searchParams.set("ngay", baoCao.ngay);
       imageUrl.searchParams.set("uid", userId);
       imageUrl.searchParams.set("exp", String(hetHan));
       imageUrl.searchParams.set("sig", chuKy);
-      imageUrl.searchParams.set("maNV", maNV);
+      if (maNV) imageUrl.searchParams.set("maNV", maNV);
+      imageUrl.searchParams.set("sid", sieuThiId);
       urlAnhCuoi = imageUrl.toString();
     }
 
     return NextResponse.json(
       {
         // LINE chỉ gửi một tiêu đề ngắn; toàn bộ số liệu nằm trong ảnh báo cáo.
-        text: !urlAnhCuoi && !maNV
-          ? `Ảnh “${baoCao.tieuDe}” chưa được đồng bộ từ app DMX. Hãy mở app sau khi nhập số để app tải lại ảnh.`
-          : `${baoCao.tieuDe} ngày ${baoCao.ngayHienThi}`,
+        text: `${baoCao.tieuDe} ngày ${baoCao.ngayHienThi}`,
         fullText: baoCao.noiDung,
         imageUrl: urlAnhCuoi,
         previewImageUrl: urlAnhCuoi,
