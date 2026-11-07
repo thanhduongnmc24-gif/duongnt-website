@@ -131,7 +131,13 @@ export async function POST(request: Request) {
           if (soPhut(String(item.gio || "00:00")) > phutHienTai) return false;
           return !item.lan_gui_cuoi || ngayVietNam(String(item.lan_gui_cuoi)) !== ngay;
         });
-        return NextResponse.json({ lich: denHan });
+        // Gắn mã siêu thị vào từng loại báo cáo để cả Worker phiên bản cũ (chưa
+        // gửi header X-DMX-Store-ID) vẫn lấy đúng dữ liệu của lịch.
+        const lichTuongThich = denHan.map(item => ({
+          ...item,
+          cac_noi_dung: (item.cac_noi_dung || []).map((loai: string) => `${loai}~${item.sieu_thi_id}`),
+        }));
+        return NextResponse.json({ lich: lichTuongThich });
       }
 
       if (hanhDong === "anh_da_gui") {

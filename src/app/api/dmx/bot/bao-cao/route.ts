@@ -21,7 +21,9 @@ export async function GET(request: Request) {
 
   try {
     const url = new URL(request.url);
-    const loai = docLoaiBaoCaoBot(url.searchParams.get("loai"));
+    const loaiRaw = url.searchParams.get("loai") || "tongquan";
+    const [maLoai, sieuThiTrongLoai = ""] = loaiRaw.split("~", 2);
+    const loai = docLoaiBaoCaoBot(maLoai);
     const ngay = url.searchParams.get("ngay")?.trim() || undefined;
     const maNV = url.searchParams.get("maNV")?.trim() || "";
     const lineUserId = request.headers.get("x-line-user-id")?.trim() || "";
@@ -29,7 +31,10 @@ export async function GET(request: Request) {
     const userId = /^[0-9a-f-]{36}$/i.test(userIdTinCay)
       ? userIdTinCay
       : lineUserId ? await layNguoiDungTheoLine(lineUserId) : await layNguoiDungBot();
-    const sieuThiId = await laySieuThiBaoCao(userId, request.headers.get("x-dmx-store-id")?.trim() || "");
+    const sieuThiId = await laySieuThiBaoCao(
+      userId,
+      request.headers.get("x-dmx-store-id")?.trim() || sieuThiTrongLoai
+    );
     const baoCao = await taoBaoCaoBot(loai, ngay, userId, maNV, sieuThiId);
     const anhDaTao = maNV ? null : await layAnhBaoCaoDaTaoSan(userId, loai, sieuThiId);
     let urlAnhCuoi = anhDaTao?.url || "";
