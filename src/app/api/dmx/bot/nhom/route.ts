@@ -128,30 +128,13 @@ export async function POST(request: Request) {
         if (!(CAC_LOAI_LICH as readonly string[]).includes(loai) || !/^U[0-9a-f]{20,64}$/i.test(lineUserId)) {
           return NextResponse.json({ loi: "Thông tin ảnh vừa gửi không hợp lệ." }, { status: 400 });
         }
-        const { data: lienKet } = await admin.from("dmx_line_lien_ket")
-          .select("nguoi_dung_id").eq("line_user_id", lineUserId).maybeSingle();
-        if (lienKet?.nguoi_dung_id) {
-          await admin.from("dmx_line_anh_bao_cao")
-            .update({ xoa_sau: new Date(Date.now() + 5 * 60_000).toISOString() })
-            .eq("nguoi_dung_id", lienKet.nguoi_dung_id)
-            .eq("loai", loai)
-            .eq("nha_cung_cap", "supabase");
-        }
+        // Giữ lại đúng một ảnh mới nhất cho mỗi loại để lần tra cứu/lịch sau không rơi về ảnh web khác mẫu.
+        // Ảnh mới từ app luôn ghi đè cùng đường dẫn nên dung lượng không tăng theo lịch sử.
         return NextResponse.json({ ok: true });
       }
 
       const id = String(body.id || "");
-      const { data: lichDaGui } = await admin.from("dmx_line_lich_gui")
-        .select("nguoi_dung_id,cac_noi_dung,kieu_gui").eq("id", id).maybeSingle();
       await admin.from("dmx_line_lich_gui").update({ lan_gui_cuoi: new Date().toISOString() }).eq("id", id);
-      if (lichDaGui?.kieu_gui === "anh" && lichDaGui?.nguoi_dung_id && Array.isArray(lichDaGui.cac_noi_dung)) {
-        // LINE nhận URL trước rồi mới tải ảnh, nên giữ đệm 5 phút để tránh ảnh lỗi.
-        const xoaSau = new Date(Date.now() + 5 * 60_000).toISOString();
-        await admin.from("dmx_line_anh_bao_cao").update({ xoa_sau: xoaSau })
-          .eq("nguoi_dung_id", lichDaGui.nguoi_dung_id)
-          .eq("nha_cung_cap", "supabase")
-          .in("loai", lichDaGui.cac_noi_dung);
-      }
       return NextResponse.json({ ok: true });
     }
 

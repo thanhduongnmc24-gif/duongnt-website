@@ -104,6 +104,25 @@ function tinhPhanTram(thucHien: number, target: number, giaTriGoc?: unknown): nu
   return target !== 0 ? (thucHien / target) * 100 : 0;
 }
 
+function khoaMonThiDua(value: unknown): string {
+  return chuoi(value)
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase().replace(/^T\d{1,2}\s*[-–]\s*/, "")
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+function locMonTheoDoi(items: Record<string, unknown>[], caiDat: Record<string, unknown>, realtime: boolean) {
+  const khoa = realtime ? "monThiDuaTheoDoiRealtime" : "monThiDuaTheoDoiLuyKe";
+  const tap = new Set((Array.isArray(caiDat[khoa]) ? caiDat[khoa] as unknown[] : []).map(khoaMonThiDua).filter(Boolean));
+  if (!tap.size) return items;
+  return items.filter(item => tap.has(khoaMonThiDua(item.tenNganhHangGoc || item.tenNganhHang)));
+}
+
+function phanTramTarget(caiDat: Record<string, unknown>, realtime: boolean): number {
+  const raw = so(caiDat[realtime ? "phanTramTargetRealtime" : "phanTramTargetLuyKe"]) || 100;
+  return Math.min(200, Math.max(50, raw));
+}
+
 function mauTheoPhanTram(value: number): string {
   if (value >= 100) return "#059669";
   if (value >= 80) return "#d97706";
@@ -120,7 +139,11 @@ function laLoaiBaoCao(value: string): value is LoaiBaoCaoBot {
 }
 
 export function docLoaiBaoCaoBot(value: string | null): LoaiBaoCaoBot {
-  const chuanHoa = (value || "tongquan").trim().toLowerCase().replaceAll("_", "");
+  const raw = (value || "tongquan").trim().toLowerCase();
+  // Giữ nguyên mã loại mới có dấu gạch dưới. Trước đây xoá "_" quá sớm làm mọi
+  // lựa chọn như luyke_du_kien, xep_hang_nv_*... rơi về cùng ảnh tongquan.
+  if (laLoaiBaoCao(raw)) return raw;
+  const chuanHoa = raw.replaceAll("_", "");
   if (chuanHoa === "doanhthu") return "doanhthu";
   if (chuanHoa === "tongquan") return "tongquan";
   if (chuanHoa === "realtime") return "realtime";
@@ -129,7 +152,7 @@ export function docLoaiBaoCaoBot(value: string | null): LoaiBaoCaoBot {
   if (chuanHoa === "nhanvien") return "nhanvien";
   if (chuanHoa === "suckhoe") return "suckhoe";
   if (chuanHoa === "msnv") return "msnv";
-  return laLoaiBaoCao(chuanHoa) ? chuanHoa : "tongquan";
+  return "tongquan";
 }
 
 export function kiemTraBearer(request: Request): boolean {
@@ -373,7 +396,8 @@ function thongKeSucKhoe(duLieu: DuLieuNgayBot, caiDat: Record<string, unknown>) 
 function taoBaoCaoDoanhThu(
   loai: LoaiBaoCaoBot,
   ngay: string,
-  duLieu: DuLieuNgayBot
+  duLieu: DuLieuNgayBot,
+  caiDat: Record<string, unknown>
 ): BaoCaoBot {
   const luyKe = doiTuong(duLieu.doanhThu);
   const realtime = doiTuong(duLieu.doanhThuRealtime);
@@ -385,11 +409,15 @@ function taoBaoCaoDoanhThu(
   const qdLuyKe = so(luyKe.doanhThuQuyDoi);
   const dtRealtime = so(realtime.doanhThuThuc);
   const qdRealtime = so(realtime.doanhThuQuyDoi);
-  const phanTramLuyKe = tinhPhanTram(dtLuyKe, so(luyKe.targetThuc), luyKe.phanTramHTThuc);
-  const phanTramRealtime = tinhPhanTram(dtRealtime, so(realtime.targetThuc), realtime.phanTramHTThuc);
+  const targetLuyKeThuc = so(luyKe.targetThuc) * phanTramTarget(caiDat, false) / 100;
+  const targetLuyKeQD = so(luyKe.targetQuyDoi) * phanTramTarget(caiDat, false) / 100;
+  const targetRealtimeThuc = so(realtime.targetThuc) * phanTramTarget(caiDat, true) / 100;
+  const targetRealtimeQD = so(realtime.targetQuyDoi) * phanTramTarget(caiDat, true) / 100;
+  const phanTramLuyKe = tinhPhanTram(dtLuyKe, targetLuyKeThuc);
+  const phanTramRealtime = tinhPhanTram(dtRealtime, targetRealtimeThuc);
   const duKienLuyKe = so(luyKe.duKienQuyDoi) || so(luyKe.duKienThuc);
-  const targetDuKien = so(luyKe.targetQuyDoi) || so(luyKe.targetThuc);
-  const phanTramDuKien = tinhPhanTram(duKienLuyKe, targetDuKien, luyKe.phanTramHTQuyDoi);
+  const targetDuKien = targetLuyKeQD || targetLuyKeThuc;
+  const phanTramDuKien = tinhPhanTram(duKienLuyKe, targetDuKien);
 
   const chiSo: ChiSoBaoCaoBot[] = [
     { nhan: "DT lũy kế", giaTri: dinhDangSo(dtLuyKe), mau: "#2563eb" },
@@ -402,13 +430,13 @@ function taoBaoCaoDoanhThu(
     {
       ten: "Hoàn thành lũy kế",
       giaTri: dinhDangPhanTram(phanTramLuyKe),
-      chiTiet: `Target ${dinhDangSo(so(luyKe.targetThuc))}`,
+      chiTiet: `Target ${dinhDangSo(targetLuyKeThuc)}`,
       mau: mauTheoPhanTram(phanTramLuyKe),
     },
     {
       ten: "Hoàn thành realtime",
       giaTri: dinhDangPhanTram(phanTramRealtime),
-      chiTiet: `Target ${dinhDangSo(so(realtime.targetThuc))}`,
+      chiTiet: `Target ${dinhDangSo(targetRealtimeThuc)}`,
       mau: mauTheoPhanTram(phanTramRealtime),
     },
     {
@@ -428,9 +456,9 @@ function taoBaoCaoDoanhThu(
   const noiDung = [
     `BÁO CÁO DOANH THU ${ngayHienThi}`,
     donVi,
-    `• Lũy kế: DT ${dinhDangSo(dtLuyKe)}/${dinhDangSo(so(luyKe.targetThuc))} | QĐ ${dinhDangSo(qdLuyKe)}/${dinhDangSo(so(luyKe.targetQuyDoi))} | HT ${dinhDangPhanTram(phanTramLuyKe)}`,
+    `• Lũy kế: DT ${dinhDangSo(dtLuyKe)}/${dinhDangSo(targetLuyKeThuc)} | QĐ ${dinhDangSo(qdLuyKe)}/${dinhDangSo(targetLuyKeQD)} | HT ${dinhDangPhanTram(phanTramLuyKe)}`,
     `• Dự kiến: ${dinhDangSo(duKienLuyKe)}/${dinhDangSo(targetDuKien)} | ${dinhDangPhanTram(phanTramDuKien)}`,
-    `• Realtime: DT ${dinhDangSo(dtRealtime)}/${dinhDangSo(so(realtime.targetThuc))} | QĐ ${dinhDangSo(qdRealtime)}/${dinhDangSo(so(realtime.targetQuyDoi))} | HT ${dinhDangPhanTram(phanTramRealtime)}`,
+    `• Realtime: DT ${dinhDangSo(dtRealtime)}/${dinhDangSo(targetRealtimeThuc)} | QĐ ${dinhDangSo(qdRealtime)}/${dinhDangSo(targetRealtimeQD)} | HT ${dinhDangPhanTram(phanTramRealtime)}`,
     `• Khách/Bill: ${dinhDangSo(so(realtime.luotKhach), 0)}/${dinhDangSo(so(realtime.soBill), 0)}`,
     `Cập nhật: ${capNhatLuc}`,
   ].join("\n");
@@ -461,8 +489,11 @@ export async function taoBaoCaoBot(
 ): Promise<BaoCaoBot> {
   const userIdThuc = userId || await layNguoiDungBot();
   const { ngay, duLieu } = await docDuLieuNgay(ngayYeuCau, userIdThuc);
+  const admin = taoSupabaseQuanTri();
+  const { data: hoSo } = await admin.from("dmx_ho_so").select("cai_dat").eq("nguoi_dung_id", userIdThuc).maybeSingle();
+  const caiDat = doiTuong(hoSo?.cai_dat);
   if (["tongquan", "doanhthu", "realtime", "luyke", "luyke_du_kien", "bieu_do_realtime_thang"].includes(loai)) {
-    return taoBaoCaoDoanhThu(loai, ngay, duLieu);
+    return taoBaoCaoDoanhThu(loai, ngay, duLieu, caiDat);
   }
 
   const ngayHienThi = hienThiNgay(ngay);
@@ -470,9 +501,7 @@ export async function taoBaoCaoBot(
   const donVi = chuoi(duLieu.thongTinDonVi).trim() || "ĐIỆN MÁY XANH";
 
   if (["suckhoe", "msnv", "bieu_do_suc_khoe_nv", "chi_tiet_nhan_vien"].includes(loai)) {
-    const admin = taoSupabaseQuanTri();
-    const { data: hoSo } = await admin.from("dmx_ho_so").select("cai_dat").eq("nguoi_dung_id", userIdThuc).maybeSingle();
-    const ds = thongKeSucKhoe(duLieu, doiTuong(hoSo?.cai_dat));
+    const ds = thongKeSucKhoe(duLieu, caiDat);
     if (loai === "msnv") {
       const item = ds.find(x => x.maNV.toLowerCase() === maNV.trim().toLowerCase());
       if (!maNV || !item) throw new Error(`Không tìm thấy nhân viên có mã ${maNV || "đã nhập"}.`);
@@ -533,8 +562,8 @@ export async function taoBaoCaoBot(
     };
   }
 
-  const luyKe = danhSach(duLieu.danhSachThiDua);
-  const realtime = danhSach(duLieu.danhSachThiDuaRealtime);
+  const luyKe = locMonTheoDoi(danhSach(duLieu.danhSachThiDua), caiDat, false);
+  const realtime = locMonTheoDoi(danhSach(duLieu.danhSachThiDuaRealtime), caiDat, true);
   const cacDongLuyKe = taoDongThiDua(luyKe, 12).map(item => ({ ...item, ten: `Lũy kế • ${item.ten}` }));
   const cacDongRealtime = taoDongThiDua(realtime, 12).map(item => ({ ...item, ten: `Realtime • ${item.ten}` }));
   const chiLuyKe = loai === "doanhthu_thidua_luyke";

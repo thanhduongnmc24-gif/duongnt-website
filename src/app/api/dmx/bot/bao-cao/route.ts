@@ -30,16 +30,21 @@ export async function GET(request: Request) {
       : lineUserId ? await layNguoiDungTheoLine(lineUserId) : await layNguoiDungBot();
     const baoCao = await taoBaoCaoBot(loai, ngay, userId, maNV);
     const anhDaTao = maNV ? null : await layAnhBaoCaoDaTaoSan(userId, loai);
-    const hetHan = Math.floor(Date.now() / 1000) + 15 * 60;
-    const chuKy = taoChuKyAnh(loai, baoCao.ngay, userId, hetHan, maNV);
-    const imageUrl = taoUrlWebsite("/api/dmx/bot/anh", request);
-    imageUrl.searchParams.set("loai", loai);
-    imageUrl.searchParams.set("ngay", baoCao.ngay);
-    imageUrl.searchParams.set("uid", userId);
-    imageUrl.searchParams.set("exp", String(hetHan));
-    imageUrl.searchParams.set("sig", chuKy);
-    if (maNV) imageUrl.searchParams.set("maNV", maNV);
-    const urlAnhCuoi = anhDaTao?.url || imageUrl.toString();
+    let urlAnhCuoi = anhDaTao?.url || "";
+    // Ảnh báo cáo thường phải là ảnh do app iOS xuất và lưu đúng loại trong Supabase/Drive.
+    // Chỉ báo cáo chi tiết một nhân viên mới cần máy chủ dựng động vì không thể lưu sẵn cho mọi mã NV.
+    if (!urlAnhCuoi && maNV) {
+      const hetHan = Math.floor(Date.now() / 1000) + 15 * 60;
+      const chuKy = taoChuKyAnh(loai, baoCao.ngay, userId, hetHan, maNV);
+      const imageUrl = taoUrlWebsite("/api/dmx/bot/anh", request);
+      imageUrl.searchParams.set("loai", loai);
+      imageUrl.searchParams.set("ngay", baoCao.ngay);
+      imageUrl.searchParams.set("uid", userId);
+      imageUrl.searchParams.set("exp", String(hetHan));
+      imageUrl.searchParams.set("sig", chuKy);
+      imageUrl.searchParams.set("maNV", maNV);
+      urlAnhCuoi = imageUrl.toString();
+    }
 
     return NextResponse.json(
       {
