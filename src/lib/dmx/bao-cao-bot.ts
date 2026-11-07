@@ -230,13 +230,27 @@ export async function layNguoiDungTheoLine(lineUserId: string): Promise<string> 
   return String(data.nguoi_dung_id);
 }
 
+export async function laySieuThiBaoCao(userId: string, storeIdYeuCau = ""): Promise<string> {
+  const admin = taoSupabaseQuanTri();
+  if (storeIdYeuCau) {
+    const { data } = await admin.from("dmx_sieu_thi").select("id").eq("id", storeIdYeuCau).eq("nguoi_dung_id", userId).maybeSingle();
+    if (data?.id) return String(data.id);
+  }
+  const { data: profile } = await admin.from("dmx_ho_so").select("sieu_thi_dang_chon").eq("nguoi_dung_id", userId).maybeSingle();
+  if (profile?.sieu_thi_dang_chon) return String(profile.sieu_thi_dang_chon);
+  const { data: first } = await admin.from("dmx_sieu_thi").select("id").eq("nguoi_dung_id", userId).order("ngay_tao").limit(1).maybeSingle();
+  if (!first?.id) throw new Error("Tài khoản chưa có siêu thị để tạo báo cáo.");
+  return String(first.id);
+}
+
 /**
  * Ảnh do chính app iOS vẽ và tải lên ngay sau khi nhập số. Worker chỉ lấy URL
  * này để LINE gửi tức thì, không phải chờ máy chủ dựng lại ảnh.
  */
 export async function layAnhBaoCaoDaTaoSan(
   userId: string,
-  loai: LoaiBaoCaoBot
+  loai: LoaiBaoCaoBot,
+  sieuThiId: string
 ): Promise<AnhBaoCaoDaTaoSan | null> {
   if (loai === "msnv") return null;
   const loaiAnh = ({
@@ -253,6 +267,7 @@ export async function layAnhBaoCaoDaTaoSan(
     .from("dmx_line_anh_bao_cao")
     .select("ngay,nha_cung_cap,duong_dan_luu_tru,url_ben_ngoai,ngay_cap_nhat")
     .eq("nguoi_dung_id", userId)
+    .eq("sieu_thi_id", sieuThiId)
     .eq("loai", loaiAnh)
     .maybeSingle();
   if (error || !data) return null;
@@ -274,9 +289,9 @@ export async function layAnhBaoCaoDaTaoSan(
   return { loai: loaiAnh, url: signed.signedUrl, ngay: String(data.ngay), ngayCapNhat: String(data.ngay_cap_nhat || ""), nhaCungCap: "supabase" };
 }
 
-async function docTuStorage(userId: string, ngayYeuCau?: string): Promise<BanGhiNgay | null> {
+async function docTuStorage(userId: string, sieuThiId: string, ngayYeuCau?: string): Promise<BanGhiNgay | null> {
   const admin = taoSupabaseQuanTri();
-  const { data, error } = await admin.storage.from("dmx-du-lieu").download(`${userId}.json`);
+  const { data, error } = await admin.storage.from("dmx-du-lieu").download(`${userId}/${sieuThiId}.json`);
   if (error || !data) return null;
   const parsed = JSON.parse(await data.text()) as { cacNgay?: Record<string, DuLieuNgayBot> };
   const cacNgay = parsed.cacNgay || {};
@@ -286,13 +301,15 @@ async function docTuStorage(userId: string, ngayYeuCau?: string): Promise<BanGhi
   return ngay && cacNgay[ngay] ? { ngay, duLieu: cacNgay[ngay] } : null;
 }
 
-async function docDuLieuNgay(ngayYeuCau?: string, userIdYeuCau?: string): Promise<BanGhiNgay> {
+async function docDuLieuNgay(ngayYeuCau?: string, userIdYeuCau?: string, sieuThiIdYeuCau = ""): Promise<BanGhiNgay> {
   const userId = userIdYeuCau || await layNguoiDungBot();
+  const sieuThiId = await laySieuThiBaoCao(userId, sieuThiIdYeuCau);
   const admin = taoSupabaseQuanTri();
   let query = admin
     .from("dmx_du_lieu_ngay")
     .select("ngay,du_lieu,ngay_cap_nhat")
-    .eq("nguoi_dung_id", userId);
+    .eq("nguoi_dung_id", userId)
+    .eq("sieu_thi_id", sieuThiId);
   query = ngayYeuCau
     ? query.eq("ngay", ngayYeuCau)
     : query.order("ngay_cap_nhat", { ascending: false }).limit(1);
@@ -304,7 +321,7 @@ async function docDuLieuNgay(ngayYeuCau?: string, userIdYeuCau?: string): Promis
     return { ngay: String(data.ngay), duLieu, ngayCapNhat: String(data.ngay_cap_nhat || "") };
   }
 
-  const storage = await docTuStorage(userId, ngayYeuCau);
+  const storage = await docTuStorage(userId, sieuThiId, ngayYeuCau);
   if (storage) return storage;
   throw new Error("Chưa có dữ liệu DMX để tạo báo cáo.");
 }
@@ -485,13 +502,15 @@ export async function taoBaoCaoBot(
   loai: LoaiBaoCaoBot,
   ngayYeuCau?: string,
   userId?: string,
-  maNV = ""
+  maNV = "",
+  sieuThiIdYeuCau = ""
 ): Promise<BaoCaoBot> {
   const userIdThuc = userId || await layNguoiDungBot();
-  const { ngay, duLieu } = await docDuLieuNgay(ngayYeuCau, userIdThuc);
+  const sieuThiId = await laySieuThiBaoCao(userIdThuc, sieuThiIdYeuCau);
+  const { ngay, duLieu } = await docDuLieuNgay(ngayYeuCau, userIdThuc, sieuThiId);
   const admin = taoSupabaseQuanTri();
-  const { data: hoSo } = await admin.from("dmx_ho_so").select("cai_dat").eq("nguoi_dung_id", userIdThuc).maybeSingle();
-  const caiDat = doiTuong(hoSo?.cai_dat);
+  const { data: sieuThi } = await admin.from("dmx_sieu_thi").select("cai_dat").eq("id", sieuThiId).eq("nguoi_dung_id", userIdThuc).maybeSingle();
+  const caiDat = doiTuong(sieuThi?.cai_dat);
   if (["tongquan", "doanhthu", "realtime", "luyke", "luyke_du_kien", "bieu_do_realtime_thang"].includes(loai)) {
     return taoBaoCaoDoanhThu(loai, ngay, duLieu, caiDat);
   }

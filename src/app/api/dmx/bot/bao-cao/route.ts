@@ -5,6 +5,7 @@ import {
   layAnhBaoCaoDaTaoSan,
   layNguoiDungBot,
   layNguoiDungTheoLine,
+  laySieuThiBaoCao,
   taoBaoCaoBot,
   taoChuKyAnh,
 } from "@/lib/dmx/bao-cao-bot";
@@ -28,8 +29,9 @@ export async function GET(request: Request) {
     const userId = /^[0-9a-f-]{36}$/i.test(userIdTinCay)
       ? userIdTinCay
       : lineUserId ? await layNguoiDungTheoLine(lineUserId) : await layNguoiDungBot();
-    const baoCao = await taoBaoCaoBot(loai, ngay, userId, maNV);
-    const anhDaTao = maNV ? null : await layAnhBaoCaoDaTaoSan(userId, loai);
+    const sieuThiId = await laySieuThiBaoCao(userId, request.headers.get("x-dmx-store-id")?.trim() || "");
+    const baoCao = await taoBaoCaoBot(loai, ngay, userId, maNV, sieuThiId);
+    const anhDaTao = maNV ? null : await layAnhBaoCaoDaTaoSan(userId, loai, sieuThiId);
     let urlAnhCuoi = anhDaTao?.url || "";
     // Ảnh báo cáo thường phải là ảnh do app iOS xuất và lưu đúng loại trong Supabase/Drive.
     // Chỉ báo cáo chi tiết một nhân viên mới cần máy chủ dựng động vì không thể lưu sẵn cho mọi mã NV.

@@ -121,7 +121,7 @@ async function handleLineEvent(event, env) {
   if (!groupId && daPhanHoi) await markCachedImageSent(env, baoCaoGoc, lineUserId);
 }
 
-async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", maNV = "") {
+async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", maNV = "", storeId = "") {
   if (!env.DMX_REPORT_API_URL || !env.DMX_API_TOKEN) {
     return { text: "Bot đã kết nối LINE nhưng chưa cấu hình nguồn dữ liệu DMX." };
   }
@@ -137,6 +137,7 @@ async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", m
         Authorization: `Bearer ${env.DMX_API_TOKEN}`,
         ...(lineUserId ? { "X-Line-User-ID": lineUserId } : {}),
         ...(dmxUserId ? { "X-DMX-User-ID": dmxUserId } : {}),
+        ...(storeId ? { "X-DMX-Store-ID": storeId } : {}),
       },
     });
     if (!response.ok) {
@@ -272,7 +273,7 @@ async function sendScheduledReport(env) {
     for (const lich of (data.lich || [])) {
       let thanhCong = true;
       for (const loai of (lich.cac_noi_dung || ["doanhthu"])) {
-        const report = await loadDmxReport(env, loai, "", lich.nguoi_dung_id);
+        const report = await loadDmxReport(env, loai, "", lich.nguoi_dung_id, "", lich.sieu_thi_id || "");
         const reportCanGui = lich.kieu_gui === "text"
           ? { ...report, text: report.fullText || report.text, imageUrl: "", previewImageUrl: "" }
           : report;

@@ -33,6 +33,17 @@ function gioHopLe(value: unknown): value is string {
   return typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
+async function laySieuThiDangChon(admin: ReturnType<typeof taoSupabaseQuanTri>, userId: string, request: Request) {
+  const tuHeader = request.headers.get("x-dmx-store-id")?.trim() || "";
+  if (tuHeader) {
+    const { data } = await admin.from("dmx_sieu_thi").select("id").eq("id", tuHeader).eq("nguoi_dung_id", userId).maybeSingle();
+    if (data?.id) return String(data.id);
+  }
+  const { data } = await admin.from("dmx_ho_so").select("sieu_thi_dang_chon").eq("nguoi_dung_id", userId).maybeSingle();
+  if (!data?.sieu_thi_dang_chon) throw new Error("Tài khoản chưa chọn siêu thị.");
+  return String(data.sieu_thi_dang_chon);
+}
+
 function layGioVietNam() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Ho_Chi_Minh", weekday: "short", year: "numeric", month: "2-digit", day: "2-digit",
@@ -59,7 +70,7 @@ function soPhut(gio: string) {
 
 async function donAnhSupabaseDaGui(admin: ReturnType<typeof taoSupabaseQuanTri>) {
   const { data, error } = await admin.from("dmx_line_anh_bao_cao")
-    .select("nguoi_dung_id,loai,duong_dan_luu_tru")
+    .select("nguoi_dung_id,sieu_thi_id,loai,duong_dan_luu_tru")
     .eq("nha_cung_cap", "supabase")
     .not("xoa_sau", "is", null)
     .lte("xoa_sau", new Date().toISOString())
@@ -71,6 +82,7 @@ async function donAnhSupabaseDaGui(admin: ReturnType<typeof taoSupabaseQuanTri>)
   for (const item of data) {
     await admin.from("dmx_line_anh_bao_cao").delete()
       .eq("nguoi_dung_id", item.nguoi_dung_id)
+      .eq("sieu_thi_id", item.sieu_thi_id)
       .eq("loai", item.loai)
       .eq("nha_cung_cap", "supabase");
   }
@@ -108,7 +120,7 @@ export async function POST(request: Request) {
         await donAnhSupabaseDaGui(admin);
         const { thu, gio, ngay } = layGioVietNam();
         const { data, error } = await admin.from("dmx_line_lich_gui")
-          .select("id,line_group_id,nguoi_dung_id,gio,cac_thu,cac_noi_dung,kieu_gui,lan_gui_cuoi,dmx_line_nhom!inner(dang_hoat_dong)")
+          .select("id,line_group_id,nguoi_dung_id,sieu_thi_id,gio,cac_thu,cac_noi_dung,kieu_gui,lan_gui_cuoi,dmx_line_nhom!inner(dang_hoat_dong)")
           .eq("dang_hoat_dong", true).eq("dmx_line_nhom.dang_hoat_dong", true)
           .contains("cac_thu", [thu]);
         if (error) throw error;
@@ -155,14 +167,16 @@ export async function POST(request: Request) {
     }
 
     if (hanhDong === "danh_sach") {
+      const sieuThiId = await laySieuThiDangChon(admin, user.id, request);
       const [{ data: nhom }, { data: lich }] = await Promise.all([
         admin.from("dmx_line_nhom").select("line_group_id,ten_nhom,dang_hoat_dong").eq("nguoi_dung_id", user.id).order("ngay_tao"),
-        admin.from("dmx_line_lich_gui").select("id,line_group_id,gio,cac_thu,cac_noi_dung,kieu_gui,dang_hoat_dong").eq("nguoi_dung_id", user.id).order("gio"),
+        admin.from("dmx_line_lich_gui").select("id,line_group_id,sieu_thi_id,gio,cac_thu,cac_noi_dung,kieu_gui,dang_hoat_dong").eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId).order("gio"),
       ]);
-      return NextResponse.json({ nhom: nhom || [], lich: lich || [] });
+      return NextResponse.json({ nhom: nhom || [], lich: lich || [], sieuThiId });
     }
 
     if (hanhDong === "luu_lich") {
+      const sieuThiId = await laySieuThiDangChon(admin, user.id, request);
       const groupId = String(body.lineGroupId || "");
       const gio = String(body.gio || "");
       const cacThu = Array.isArray(body.cacThu) ? body.cacThu.map(Number).filter(v => v >= 1 && v <= 7) : [];
@@ -176,31 +190,35 @@ export async function POST(request: Request) {
         .eq("line_group_id", groupId).eq("nguoi_dung_id", user.id).maybeSingle();
       if (!nhom) return NextResponse.json({ loi: "Nhóm LINE không thuộc tài khoản này." }, { status: 403 });
       const id = String(body.id || "");
-      const payload = { line_group_id: groupId, nguoi_dung_id: user.id, gio: `${gio}:00`, cac_thu: cacThu,
+      const payload = { line_group_id: groupId, nguoi_dung_id: user.id, sieu_thi_id: sieuThiId, gio: `${gio}:00`, cac_thu: cacThu,
         cac_noi_dung: cacNoiDung, kieu_gui: kieuGui, dang_hoat_dong: body.dangHoatDong !== false, ngay_cap_nhat: new Date().toISOString() };
       const query = id ? admin.from("dmx_line_lich_gui").update(payload).eq("id", id).eq("nguoi_dung_id", user.id)
         : admin.from("dmx_line_lich_gui").insert(payload);
-      const { error } = await query;
+      const { data: lichDaLuu, error } = await query
+        .select("id,line_group_id,sieu_thi_id,gio,cac_thu,cac_noi_dung,kieu_gui,dang_hoat_dong")
+        .single();
       if (error) throw error;
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, lich: lichDaLuu });
     }
 
     if (hanhDong === "xoa_lich") {
       const id = String(body.id || "");
       const { data: lichBiXoa } = await admin.from("dmx_line_lich_gui")
-        .select("cac_noi_dung").eq("id", id).eq("nguoi_dung_id", user.id).maybeSingle();
+        .select("cac_noi_dung,sieu_thi_id").eq("id", id).eq("nguoi_dung_id", user.id).maybeSingle();
       await admin.from("dmx_line_lich_gui").delete().eq("id", id).eq("nguoi_dung_id", user.id);
       if (Array.isArray(lichBiXoa?.cac_noi_dung)) {
         for (const loai of lichBiXoa.cac_noi_dung) {
           const { count } = await admin.from("dmx_line_lich_gui")
             .select("id", { count: "exact", head: true })
             .eq("nguoi_dung_id", user.id).eq("dang_hoat_dong", true)
+            .eq("sieu_thi_id", lichBiXoa.sieu_thi_id)
             .eq("kieu_gui", "anh")
             .contains("cac_noi_dung", [loai]);
           if ((count || 0) === 0) {
             await admin.from("dmx_line_anh_bao_cao")
               .update({ xoa_sau: new Date(Date.now() + 5 * 60_000).toISOString() })
-              .eq("nguoi_dung_id", user.id).eq("loai", loai).eq("nha_cung_cap", "supabase");
+              .eq("nguoi_dung_id", user.id).eq("sieu_thi_id", lichBiXoa.sieu_thi_id)
+              .eq("loai", loai).eq("nha_cung_cap", "supabase");
           }
         }
       }

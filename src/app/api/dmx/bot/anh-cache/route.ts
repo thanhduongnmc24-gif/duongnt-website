@@ -41,20 +41,31 @@ export async function POST(request: Request) {
     }
 
     const admin = taoSupabaseQuanTri();
+    const storeHeader = request.headers.get("x-dmx-store-id")?.trim() || "";
+    let sieuThiId = storeHeader;
+    if (sieuThiId) {
+      const { data } = await admin.from("dmx_sieu_thi").select("id").eq("id", sieuThiId).eq("nguoi_dung_id", user.id).maybeSingle();
+      if (!data?.id) sieuThiId = "";
+    }
+    if (!sieuThiId) {
+      const { data } = await admin.from("dmx_ho_so").select("sieu_thi_dang_chon").eq("nguoi_dung_id", user.id).maybeSingle();
+      sieuThiId = String(data?.sieu_thi_dang_chon || "");
+    }
+    if (!sieuThiId) return NextResponse.json({ loi: "Tài khoản chưa chọn siêu thị." }, { status: 409 });
     // Dọn ảnh theo bộ mã cũ bằng Storage API để không để lại tệp mồ côi.
     const { data: anhCu } = await admin.from("dmx_line_anh_bao_cao")
-      .select("duong_dan_luu_tru").eq("nguoi_dung_id", user.id).in("loai", CAC_LOAI_ANH_CU);
+      .select("duong_dan_luu_tru").eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId).in("loai", CAC_LOAI_ANH_CU);
     const tepCu = (anhCu || []).map(item => String(item.duong_dan_luu_tru || "")).filter(Boolean);
     if (tepCu.length) await admin.storage.from("dmx-du-lieu").remove(tepCu);
     if (anhCu?.length) await admin.from("dmx_line_anh_bao_cao")
-      .delete().eq("nguoi_dung_id", user.id).in("loai", CAC_LOAI_ANH_CU);
+      .delete().eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId).in("loai", CAC_LOAI_ANH_CU);
 
     const { data: anhCungLoai } = await admin.from("dmx_line_anh_bao_cao")
-      .select("loai").eq("nguoi_dung_id", user.id).eq("loai", loai).maybeSingle();
+      .select("loai").eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId).eq("loai", loai).maybeSingle();
     if (!anhCungLoai) {
-      const { count } = await admin.from("dmx_line_anh_bao_cao")
-        .select("loai", { count: "exact", head: true }).eq("nguoi_dung_id", user.id);
-      if ((count || 0) >= GIOI_HAN_ANH_MOI_TAI_KHOAN) {
+      const { count: countStore } = await admin.from("dmx_line_anh_bao_cao")
+        .select("loai", { count: "exact", head: true }).eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId);
+      if ((countStore || 0) >= GIOI_HAN_ANH_MOI_TAI_KHOAN) {
         return NextResponse.json({ loi: "Mỗi tài khoản chỉ được lưu tối đa 10 ảnh báo cáo mới nhất." }, { status: 409 });
       }
     }
@@ -73,7 +84,7 @@ export async function POST(request: Request) {
       if (!buffer.length || buffer.length > GIOI_HAN_ANH) {
         return NextResponse.json({ loi: "Ảnh vượt quá giới hạn 3 MB." }, { status: 413 });
       }
-      duongDanLuuTru = `bot-anh/${user.id}/${loai}.jpg`;
+      duongDanLuuTru = `bot-anh/${user.id}/${sieuThiId}/${loai}.jpg`;
       const { error: loiTai } = await admin.storage.from("dmx-du-lieu").upload(duongDanLuuTru, buffer, {
         contentType: "image/jpeg",
         cacheControl: "60",
@@ -84,6 +95,7 @@ export async function POST(request: Request) {
 
     const { error } = await admin.from("dmx_line_anh_bao_cao").upsert({
       nguoi_dung_id: user.id,
+      sieu_thi_id: sieuThiId,
       loai,
       ngay,
       nha_cung_cap: nhaCungCap === "google_drive" ? "google_drive" : "supabase",
@@ -91,7 +103,7 @@ export async function POST(request: Request) {
       url_ben_ngoai: urlBenNgoai,
       ngay_cap_nhat: new Date().toISOString(),
       xoa_sau: null,
-    }, { onConflict: "nguoi_dung_id,loai" });
+    }, { onConflict: "nguoi_dung_id,sieu_thi_id,loai" });
     if (error) throw error;
 
     return NextResponse.json({ ok: true, loai, ngay, nhaCungCap });
