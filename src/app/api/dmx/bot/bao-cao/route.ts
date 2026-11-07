@@ -49,7 +49,9 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         // LINE chỉ gửi một tiêu đề ngắn; toàn bộ số liệu nằm trong ảnh báo cáo.
-        text: `${baoCao.tieuDe} ngày ${baoCao.ngayHienThi}`,
+        text: !urlAnhCuoi && !maNV
+          ? `Ảnh “${baoCao.tieuDe}” chưa được đồng bộ từ app DMX. Hãy mở app sau khi nhập số để app tải lại ảnh.`
+          : `${baoCao.tieuDe} ngày ${baoCao.ngayHienThi}`,
         fullText: baoCao.noiDung,
         imageUrl: urlAnhCuoi,
         previewImageUrl: urlAnhCuoi,
