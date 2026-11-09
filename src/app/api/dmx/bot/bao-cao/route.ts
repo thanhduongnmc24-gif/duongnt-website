@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     // Trước đây lệnh trực tiếp có X-Line-User-ID lại cố tình bỏ qua ảnh cache,
     // khiến bot dựng ảnh web từ dữ liệu khác dù người dùng vừa bấm "Xuất tất cả".
     // Riêng /msnv vẫn dựng động vì không lưu sẵn ảnh cho từng mã nhân viên.
-    const anhDaTao = maNV ? null : await layAnhBaoCaoDaTaoSan(userId, loai, sieuThiId);
+    const anhDaTao = maNV ? null : await layAnhBaoCaoDaTaoSan(userId, loai, sieuThiId, baoCao.ngay);
     let urlAnhCuoi = anhDaTao?.url || "";
     // Ảnh báo cáo thường phải là ảnh do app iOS xuất và lưu đúng loại trong Supabase/Drive.
     // Chỉ báo cáo chi tiết một nhân viên mới cần máy chủ dựng động vì không thể lưu sẵn cho mọi mã NV.

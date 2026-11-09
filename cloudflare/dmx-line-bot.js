@@ -274,12 +274,23 @@ async function sendScheduledReport(env) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.loi || `HTTP ${response.status}`);
     for (const lich of (data.lich || [])) {
+      if (!await scheduleStillActive(env, lich.id)) continue;
       let thanhCong = true;
       for (const loai of (lich.cac_noi_dung || ["doanhthu"])) {
+        if (!await scheduleStillActive(env, lich.id)) {
+          thanhCong = false;
+          break;
+        }
         const report = await loadDmxReport(env, loai, "", lich.nguoi_dung_id, "", lich.sieu_thi_id || "");
         const reportCanGui = lich.kieu_gui === "text"
           ? { ...report, text: report.fullText || report.text, imageUrl: "", previewImageUrl: "" }
           : report;
+        // Kiểm tra lần cuối sau khi lấy ảnh. Nếu người dùng vừa xóa lịch trong
+        // lúc API chuẩn bị báo cáo thì tuyệt đối không push ảnh đã lấy trước đó.
+        if (!await scheduleStillActive(env, lich.id)) {
+          thanhCong = false;
+          break;
+        }
         if (!await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lich.line_group_id, reportCanGui)) thanhCong = false;
       }
       if (thanhCong) {
@@ -292,6 +303,23 @@ async function sendScheduledReport(env) {
     }
   } catch (error) {
     console.error("Scheduled report error", error);
+  }
+}
+
+async function scheduleStillActive(env, id) {
+  if (!id) return false;
+  try {
+    const response = await fetch(groupApiUrl(env), {
+      method: "POST",
+      headers: { Accept: "application/json", Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ hanhDong: "kiem_tra_lich", id }),
+    });
+    if (!response.ok) return false;
+    const data = await response.json();
+    return data.conHieuLuc === true;
+  } catch (error) {
+    console.error("Schedule validation error", error);
+    return false;
   }
 }
 

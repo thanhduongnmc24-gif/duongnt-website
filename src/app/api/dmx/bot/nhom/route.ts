@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     const hanhDong = String(body.hanhDong || "").trim().toLowerCase();
     const admin = taoSupabaseQuanTri();
 
-    if (["gan_nhom", "lich_den_han", "da_gui", "anh_da_gui"].includes(hanhDong)) {
+    if (["gan_nhom", "lich_den_han", "kiem_tra_lich", "da_gui", "anh_da_gui"].includes(hanhDong)) {
       if (!kiemTraBearer(request)) return NextResponse.json({ loi: "Không có quyền quản lý bot." }, { status: 401 });
 
       if (hanhDong === "gan_nhom") {
@@ -138,6 +138,19 @@ export async function POST(request: Request) {
           cac_noi_dung: (item.cac_noi_dung || []).map((loai: string) => `${loai}~${item.sieu_thi_id}`),
         }));
         return NextResponse.json({ lich: lichTuongThich });
+      }
+
+      if (hanhDong === "kiem_tra_lich") {
+        const id = String(body.id || "").trim();
+        if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ conHieuLuc: false });
+        const { data, error } = await admin.from("dmx_line_lich_gui")
+          .select("id,dmx_line_nhom!inner(dang_hoat_dong)")
+          .eq("id", id)
+          .eq("dang_hoat_dong", true)
+          .eq("dmx_line_nhom.dang_hoat_dong", true)
+          .maybeSingle();
+        if (error) throw error;
+        return NextResponse.json({ conHieuLuc: Boolean(data?.id) });
       }
 
       if (hanhDong === "anh_da_gui") {
@@ -209,9 +222,21 @@ export async function POST(request: Request) {
 
     if (hanhDong === "xoa_lich") {
       const id = String(body.id || "");
-      const { data: lichBiXoa } = await admin.from("dmx_line_lich_gui")
+      const { data: lichBiXoa, error: loiDoc } = await admin.from("dmx_line_lich_gui")
         .select("cac_noi_dung,sieu_thi_id").eq("id", id).eq("nguoi_dung_id", user.id).maybeSingle();
-      await admin.from("dmx_line_lich_gui").delete().eq("id", id).eq("nguoi_dung_id", user.id);
+      if (loiDoc) throw loiDoc;
+      if (!lichBiXoa) {
+        return NextResponse.json({ loi: "Lịch này không còn tồn tại trên máy chủ." }, { status: 404 });
+      }
+      // Tắt trước rồi mới xóa: Cron đã lấy danh sách ở nhịp trước sẽ bị bước
+      // kiểm tra ngay trước khi gửi chặn lại, kể cả lúc xóa trùng đúng phút gửi.
+      const { error: loiTat } = await admin.from("dmx_line_lich_gui")
+        .update({ dang_hoat_dong: false, ngay_cap_nhat: new Date().toISOString() })
+        .eq("id", id).eq("nguoi_dung_id", user.id);
+      if (loiTat) throw loiTat;
+      const { error: loiXoa } = await admin.from("dmx_line_lich_gui")
+        .delete().eq("id", id).eq("nguoi_dung_id", user.id);
+      if (loiXoa) throw loiXoa;
       if (Array.isArray(lichBiXoa?.cac_noi_dung)) {
         for (const loai of lichBiXoa.cac_noi_dung) {
           const { count } = await admin.from("dmx_line_lich_gui")
@@ -228,7 +253,7 @@ export async function POST(request: Request) {
           }
         }
       }
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, id });
     }
 
     return NextResponse.json({ loi: "Hành động không hợp lệ." }, { status: 400 });
