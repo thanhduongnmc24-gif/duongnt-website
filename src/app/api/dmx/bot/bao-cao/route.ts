@@ -36,10 +36,11 @@ export async function GET(request: Request) {
       request.headers.get("x-dmx-store-id")?.trim() || sieuThiTrongLoai
     );
     const baoCao = await taoBaoCaoBot(loai, ngay, userId, maNV, sieuThiId);
-    // Lệnh tương tác phải dùng mẫu web mới ngay lập tức, không tái dùng ảnh cũ
-    // còn lưu từ phiên bản app trước. Lịch tự động vẫn ưu tiên ảnh app đã tạo sẵn.
-    const laLenhTrucTiep = Boolean(lineUserId);
-    const anhDaTao = maNV || laLenhTrucTiep ? null : await layAnhBaoCaoDaTaoSan(userId, loai, sieuThiId);
+    // Luôn ưu tiên ảnh mới nhất do app đã xuất cho đúng tài khoản + siêu thị.
+    // Trước đây lệnh trực tiếp có X-Line-User-ID lại cố tình bỏ qua ảnh cache,
+    // khiến bot dựng ảnh web từ dữ liệu khác dù người dùng vừa bấm "Xuất tất cả".
+    // Riêng /msnv vẫn dựng động vì không lưu sẵn ảnh cho từng mã nhân viên.
+    const anhDaTao = maNV ? null : await layAnhBaoCaoDaTaoSan(userId, loai, sieuThiId);
     let urlAnhCuoi = anhDaTao?.url || "";
     // Ảnh báo cáo thường phải là ảnh do app iOS xuất và lưu đúng loại trong Supabase/Drive.
     // Chỉ báo cáo chi tiết một nhân viên mới cần máy chủ dựng động vì không thể lưu sẵn cho mọi mã NV.

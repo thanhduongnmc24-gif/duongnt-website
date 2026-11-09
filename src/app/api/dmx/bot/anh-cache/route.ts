@@ -71,6 +71,17 @@ export async function POST(request: Request) {
     }
     let duongDanLuuTru: string | null = null;
     let urlBenNgoai: string | null = null;
+    let duongDanCu: string | null = null;
+
+    const { data: banGhiCu } = await admin.from("dmx_line_anh_bao_cao")
+      .select("duong_dan_luu_tru")
+      .eq("nguoi_dung_id", user.id)
+      .eq("sieu_thi_id", sieuThiId)
+      .eq("loai", loai)
+      .maybeSingle();
+    duongDanCu = typeof banGhiCu?.duong_dan_luu_tru === "string"
+      ? banGhiCu.duong_dan_luu_tru
+      : null;
 
     if (nhaCungCap === "google_drive") {
       urlBenNgoai = String(body.urlBenNgoai || "").trim();
@@ -84,11 +95,14 @@ export async function POST(request: Request) {
       if (!buffer.length || buffer.length > GIOI_HAN_ANH) {
         return NextResponse.json({ loi: "Ảnh vượt quá giới hạn 3 MB." }, { status: 413 });
       }
-      duongDanLuuTru = `bot-anh/${user.id}/${sieuThiId}/${loai}.jpg`;
+      // Mỗi lần tải tạo một đường dẫn mới. Nếu ghi đè cùng tên tệp, CDN của
+      // Supabase có thể tiếp tục trả ảnh cũ dù bản ghi DB đã có thời gian mới.
+      const phienBan = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+      duongDanLuuTru = `bot-anh/${user.id}/${sieuThiId}/${loai}-${phienBan}.jpg`;
       const { error: loiTai } = await admin.storage.from("dmx-du-lieu").upload(duongDanLuuTru, buffer, {
         contentType: "image/jpeg",
-        cacheControl: "60",
-        upsert: true,
+        cacheControl: "31536000",
+        upsert: false,
       });
       if (loiTai) throw loiTai;
     }
@@ -104,9 +118,24 @@ export async function POST(request: Request) {
       ngay_cap_nhat: new Date().toISOString(),
       xoa_sau: null,
     }, { onConflict: "nguoi_dung_id,sieu_thi_id,loai" });
-    if (error) throw error;
+    if (error) {
+      // Không để lại tệp mồ côi nếu cập nhật bản ghi thất bại.
+      if (duongDanLuuTru) await admin.storage.from("dmx-du-lieu").remove([duongDanLuuTru]);
+      throw error;
+    }
 
-    return NextResponse.json({ ok: true, loai, ngay, nhaCungCap });
+    // Chỉ xóa ảnh cũ sau khi bản ghi đã trỏ chắc chắn sang ảnh mới.
+    if (duongDanCu && duongDanCu !== duongDanLuuTru) {
+      await admin.storage.from("dmx-du-lieu").remove([duongDanCu]);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      loai,
+      ngay,
+      nhaCungCap,
+      ngayCapNhat: new Date().toISOString(),
+    });
   } catch (error) {
     console.error("POST /api/dmx/bot/anh-cache error", error);
     return NextResponse.json({ loi: "Chưa lưu được ảnh báo cáo mới nhất." }, { status: 500 });
