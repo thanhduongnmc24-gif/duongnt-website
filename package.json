@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next build --webpack",
-    "start": "next start --hostname 0.0.0.0",
+    "start": "node scripts/start-production.mjs",
     "lint": "eslint",
     "test:congdoan": "node --test scripts/test-congdoan-pwa.mjs",
     "test:lichlamviec": "node --test scripts/test-lichlamviec-pwa.mjs",
