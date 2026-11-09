@@ -36,6 +36,7 @@ export async function POST(request: Request) {
     const loai = String(body.loai || "").trim().toLowerCase();
     const ngay = String(body.ngay || "").trim();
     const nhaCungCap = String(body.nhaCungCap || "supabase").trim().toLowerCase();
+    const hanhDong = String(body.hanhDong || "").trim().toLowerCase();
     if (!(CAC_LOAI_ANH as readonly string[]).includes(loai) || !/^\d{4}-\d{2}-\d{2}$/.test(ngay)) {
       return NextResponse.json({ loi: "Loại báo cáo hoặc ngày báo cáo không hợp lệ." }, { status: 400 });
     }
@@ -83,7 +84,40 @@ export async function POST(request: Request) {
       ? banGhiCu.duong_dan_luu_tru
       : null;
 
-    if (nhaCungCap === "google_drive") {
+    if (hanhDong === "tao_url_tai_len") {
+      // App tải thẳng JPEG lên Supabase bằng URL ký tạm thời. Ảnh không còn
+      // phải đi vòng qua Render và không bị phình thêm 33% vì Base64.
+      const phienBan = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+      const duongDanMoi = `bot-anh/${user.id}/${sieuThiId}/${loai}-${phienBan}.jpg`;
+      const { data: signed, error: signedError } = await admin.storage
+        .from("dmx-du-lieu")
+        .createSignedUploadUrl(duongDanMoi);
+      if (signedError || !signed?.signedUrl) throw signedError || new Error("Không tạo được URL tải ảnh.");
+      return NextResponse.json({
+        ok: true,
+        loai,
+        ngay,
+        nhaCungCap: "supabase",
+        duongDanLuuTru: duongDanMoi,
+        signedUrl: signed.signedUrl,
+      });
+    }
+
+    if (hanhDong === "xac_nhan_tai_len") {
+      const duongDanDaTai = String(body.duongDanLuuTru || "").trim();
+      const tienToHopLe = `bot-anh/${user.id}/${sieuThiId}/${loai}-`;
+      if (!duongDanDaTai.startsWith(tienToHopLe) || !duongDanDaTai.endsWith(".jpg")) {
+        return NextResponse.json({ loi: "Đường dẫn ảnh tải lên không hợp lệ." }, { status: 400 });
+      }
+      const { data: thongTinTep, error: loiTep } = await admin.storage
+        .from("dmx-du-lieu")
+        .info(duongDanDaTai);
+      const kichThuoc = Number(thongTinTep?.metadata?.size || thongTinTep?.size || 0);
+      if (loiTep || !thongTinTep || kichThuoc <= 0 || kichThuoc > GIOI_HAN_ANH) {
+        return NextResponse.json({ loi: "Ảnh tải trực tiếp chưa tồn tại hoặc vượt quá 3 MB." }, { status: 400 });
+      }
+      duongDanLuuTru = duongDanDaTai;
+    } else if (nhaCungCap === "google_drive") {
       urlBenNgoai = String(body.urlBenNgoai || "").trim();
       if (!laHttps(urlBenNgoai)) {
         return NextResponse.json({ loi: "Google Drive chưa trả về đường dẫn ảnh HTTPS hợp lệ." }, { status: 400 });
