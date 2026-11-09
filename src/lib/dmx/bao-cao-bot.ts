@@ -271,12 +271,26 @@ export async function layAnhBaoCaoDaTaoSan(
     .eq("nguoi_dung_id", userId)
     .eq("sieu_thi_id", sieuThiId)
     .eq("loai", loaiAnh)
-    // Không dùng ảnh cũ của ngày trước và không nhận URL ImgBB/Drive được
-    // ghi dưới nhãn nhà cung cấp khác. Bot chỉ lấy file thật trong Supabase.
+    // Chỉ dùng ảnh đúng ngày báo cáo. Nơi lưu ảnh vẫn theo lựa chọn trong app:
+    // Supabase dùng đường dẫn Storage, ImgBB/Drive dùng URL HTTPS bên ngoài.
     .eq("ngay", ngayBaoCao)
-    .eq("nha_cung_cap", "supabase")
     .maybeSingle();
   if (error || !data) return null;
+
+  if (data.nha_cung_cap === "google_drive" && typeof data.url_ben_ngoai === "string") {
+    try {
+      const url = new URL(data.url_ben_ngoai);
+      if (url.protocol === "https:") {
+        return {
+          loai: loaiAnh,
+          url: url.toString(),
+          ngay: String(data.ngay),
+          ngayCapNhat: String(data.ngay_cap_nhat || ""),
+          nhaCungCap: "google_drive",
+        };
+      }
+    } catch { /* URL ngoài không hợp lệ thì không dùng ảnh cũ hoặc sai ngày. */ }
+  }
 
   if (typeof data.duong_dan_luu_tru !== "string" || !data.duong_dan_luu_tru) return null;
   const { data: signed, error: signedError } = await admin.storage
