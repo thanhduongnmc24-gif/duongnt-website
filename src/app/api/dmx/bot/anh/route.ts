@@ -166,12 +166,12 @@ export async function GET(request: Request) {
   try {
     const baoCao = await taoBaoCaoBot(loai, ngay, userId, maNV, sieuThiId);
     const gioiHanDong = 24;
-    const laBang = ["nhanvien", "suckhoe", "msnv"].includes(loai);
+    const laBang = ["nhanvien", "suckhoe", "sk", "msnv"].includes(loai);
     const soDong = Math.min(baoCao.cacDong.length, gioiHanDong);
     const chieuCaoNoiDung = laBang ? soDong * 70 : Math.ceil(soDong / 2) * 122;
     const chieuCao = Math.max(760, Math.min(2400, 390 + chieuCaoNoiDung));
     const nhanCheDo = loai === "realtime" ? "REALTIME" : "LŨY KẾ";
-    const bieuTuong = loai === "nhanvien" ? "🏆" : loai === "suckhoe" || loai === "msnv" ? "❤️‍🩹" : loai === "thidua" ? "🎯" : "📊";
+    const bieuTuong = loai === "nhanvien" ? "🏆" : ["suckhoe", "sk", "msnv"].includes(loai) ? "❤️‍🩹" : loai === "thidua" ? "🎯" : "📊";
     const element = h(
       "div",
       {

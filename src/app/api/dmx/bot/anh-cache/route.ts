@@ -6,11 +6,15 @@ import { taoSupabaseQuanTri } from "@/lib/supabase/quan-tri";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const CAC_LOAI_ANH = CAC_LOAI_BAO_CAO_BOT.filter(loai => loai !== "msnv");
-// Giới hạn cứng để không một ảnh báo cáo nào chiếm quá nhiều dung lượng.
-const GIOI_HAN_ANH = 3 * 1024 * 1024;
-const GIOI_HAN_ANH_MOI_TAI_KHOAN = 10;
+const CAC_LOAI_ANH = CAC_LOAI_BAO_CAO_BOT.filter(loai => loai !== "msnv" && loai !== "sk");
+// Giới hạn dung lượng mỗi ảnh và giới hạn số lượng ảnh báo cáo lưu cho mỗi siêu thị (đã nâng từ 10 lên 50).
+const GIOI_HAN_ANH = 10 * 1024 * 1024;
+const GIOI_HAN_ANH_MOI_TAI_KHOAN = 50;
 const CAC_LOAI_ANH_CU = ["tongquan", "doanhthu", "realtime", "luyke", "thidua", "nhanvien", "suckhoe"];
+
+function laLoaiAnhHopLe(loai: string): boolean {
+  return (CAC_LOAI_ANH as readonly string[]).includes(loai) || /^sk_[a-z0-9_-]{1,32}$/i.test(loai);
+}
 
 async function layNguoiDung(request: Request) {
   const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
@@ -37,7 +41,7 @@ export async function POST(request: Request) {
     const ngay = String(body.ngay || "").trim();
     const nhaCungCap = String(body.nhaCungCap || "supabase").trim().toLowerCase();
     const hanhDong = String(body.hanhDong || "").trim().toLowerCase();
-    if (!(CAC_LOAI_ANH as readonly string[]).includes(loai) || !/^\d{4}-\d{2}-\d{2}$/.test(ngay)) {
+    if (!laLoaiAnhHopLe(loai) || !/^\d{4}-\d{2}-\d{2}$/.test(ngay)) {
       return NextResponse.json({ loi: "Loại báo cáo hoặc ngày báo cáo không hợp lệ." }, { status: 400 });
     }
 
@@ -53,6 +57,7 @@ export async function POST(request: Request) {
       sieuThiId = String(data?.sieu_thi_dang_chon || "");
     }
     if (!sieuThiId) return NextResponse.json({ loi: "Tài khoản chưa chọn siêu thị." }, { status: 409 });
+
     // Dọn ảnh theo bộ mã cũ bằng Storage API để không để lại tệp mồ côi.
     const { data: anhCu } = await admin.from("dmx_line_anh_bao_cao")
       .select("duong_dan_luu_tru").eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId).in("loai", CAC_LOAI_ANH_CU);
@@ -61,15 +66,19 @@ export async function POST(request: Request) {
     if (anhCu?.length) await admin.from("dmx_line_anh_bao_cao")
       .delete().eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId).in("loai", CAC_LOAI_ANH_CU);
 
-    const { data: anhCungLoai } = await admin.from("dmx_line_anh_bao_cao")
-      .select("loai").eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId).eq("loai", loai).maybeSingle();
-    if (!anhCungLoai) {
-      const { count: countStore } = await admin.from("dmx_line_anh_bao_cao")
-        .select("loai", { count: "exact", head: true }).eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId);
-      if ((countStore || 0) >= GIOI_HAN_ANH_MOI_TAI_KHOAN) {
-        return NextResponse.json({ loi: "Mỗi tài khoản chỉ được lưu tối đa 10 ảnh báo cáo mới nhất." }, { status: 409 });
+    const laAnhSucKhoeNV = loai.startsWith("sk_");
+    if (!laAnhSucKhoeNV) {
+      const { data: anhCungLoai } = await admin.from("dmx_line_anh_bao_cao")
+        .select("loai").eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId).eq("loai", loai).maybeSingle();
+      if (!anhCungLoai) {
+        const { count: countStore } = await admin.from("dmx_line_anh_bao_cao")
+          .select("loai", { count: "exact", head: true }).eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId);
+        if ((countStore || 0) >= GIOI_HAN_ANH_MOI_TAI_KHOAN) {
+          return NextResponse.json({ loi: "Mỗi tài khoản chỉ được lưu tối đa 50 ảnh báo cáo mới nhất." }, { status: 409 });
+        }
       }
     }
+
     let duongDanLuuTru: string | null = null;
     let urlBenNgoai: string | null = null;
     let duongDanCu: string | null = null;
@@ -84,9 +93,19 @@ export async function POST(request: Request) {
       ? banGhiCu.duong_dan_luu_tru
       : null;
 
+    if (!duongDanCu && laAnhSucKhoeNV) {
+      const { data: metaCuBlob } = await admin.storage.from("dmx-du-lieu").download(`bot-anh/${user.id}/${sieuThiId}/meta-${loai}.json`);
+      if (metaCuBlob) {
+        try {
+          const metaCu = JSON.parse(await metaCuBlob.text()) as { duongDanLuuTru?: string };
+          if (typeof metaCu.duongDanLuuTru === "string" && metaCu.duongDanLuuTru) {
+            duongDanCu = metaCu.duongDanLuuTru;
+          }
+        } catch { /* Bỏ qua nếu chưa có metadata cũ */ }
+      }
+    }
+
     if (hanhDong === "tao_url_tai_len") {
-      // App tải thẳng JPEG lên Supabase bằng URL ký tạm thời. Ảnh không còn
-      // phải đi vòng qua Render và không bị phình thêm 33% vì Base64.
       const phienBan = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
       const duongDanMoi = `bot-anh/${user.id}/${sieuThiId}/${loai}-${phienBan}.jpg`;
       const { data: signed, error: signedError } = await admin.storage
@@ -114,23 +133,21 @@ export async function POST(request: Request) {
         .info(duongDanDaTai);
       const kichThuoc = Number(thongTinTep?.metadata?.size || thongTinTep?.size || 0);
       if (loiTep || !thongTinTep || kichThuoc <= 0 || kichThuoc > GIOI_HAN_ANH) {
-        return NextResponse.json({ loi: "Ảnh tải trực tiếp chưa tồn tại hoặc vượt quá 3 MB." }, { status: 400 });
+        return NextResponse.json({ loi: "Ảnh tải trực tiếp chưa tồn tại hoặc vượt quá dung lượng cho phép." }, { status: 400 });
       }
       duongDanLuuTru = duongDanDaTai;
     } else if (nhaCungCap === "google_drive") {
       urlBenNgoai = String(body.urlBenNgoai || "").trim();
       if (!laHttps(urlBenNgoai)) {
-        return NextResponse.json({ loi: "Google Drive chưa trả về đường dẫn ảnh HTTPS hợp lệ." }, { status: 400 });
+        return NextResponse.json({ loi: "Kho ảnh ngoài chưa trả về đường dẫn HTTPS hợp lệ." }, { status: 400 });
       }
     } else {
       const base64 = String(body.duLieuAnhBase64 || "").replace(/^data:image\/\w+;base64,/, "");
       if (!base64) return NextResponse.json({ loi: "Thiếu dữ liệu ảnh." }, { status: 400 });
       const buffer = Buffer.from(base64, "base64");
       if (!buffer.length || buffer.length > GIOI_HAN_ANH) {
-        return NextResponse.json({ loi: "Ảnh vượt quá giới hạn 3 MB." }, { status: 413 });
+        return NextResponse.json({ loi: "Ảnh vượt quá giới hạn dung lượng." }, { status: 413 });
       }
-      // Mỗi lần tải tạo một đường dẫn mới. Nếu ghi đè cùng tên tệp, CDN của
-      // Supabase có thể tiếp tục trả ảnh cũ dù bản ghi DB đã có thời gian mới.
       const phienBan = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
       duongDanLuuTru = `bot-anh/${user.id}/${sieuThiId}/${loai}-${phienBan}.jpg`;
       const { error: loiTai } = await admin.storage.from("dmx-du-lieu").upload(duongDanLuuTru, buffer, {
@@ -141,6 +158,24 @@ export async function POST(request: Request) {
       if (loiTai) throw loiTai;
     }
 
+    const ngayCapNhatMoi = new Date().toISOString();
+
+    if (laAnhSucKhoeNV) {
+      const metaPayload = JSON.stringify({
+        loai,
+        ngay,
+        nhaCungCap: nhaCungCap === "google_drive" ? "google_drive" : "supabase",
+        duongDanLuuTru,
+        urlBenNgoai,
+        ngayCapNhat: ngayCapNhatMoi,
+      });
+      await admin.storage.from("dmx-du-lieu").upload(
+        `bot-anh/${user.id}/${sieuThiId}/meta-${loai}.json`,
+        Buffer.from(metaPayload, "utf-8"),
+        { contentType: "application/json", cacheControl: "0", upsert: true }
+      );
+    }
+
     const { error } = await admin.from("dmx_line_anh_bao_cao").upsert({
       nguoi_dung_id: user.id,
       sieu_thi_id: sieuThiId,
@@ -149,16 +184,14 @@ export async function POST(request: Request) {
       nha_cung_cap: nhaCungCap === "google_drive" ? "google_drive" : "supabase",
       duong_dan_luu_tru: duongDanLuuTru,
       url_ben_ngoai: urlBenNgoai,
-      ngay_cap_nhat: new Date().toISOString(),
+      ngay_cap_nhat: ngayCapNhatMoi,
       xoa_sau: null,
     }, { onConflict: "nguoi_dung_id,sieu_thi_id,loai" });
-    if (error) {
-      // Không để lại tệp mồ côi nếu cập nhật bản ghi thất bại.
+    if (error && !laAnhSucKhoeNV) {
       if (duongDanLuuTru) await admin.storage.from("dmx-du-lieu").remove([duongDanLuuTru]);
       throw error;
     }
 
-    // Chỉ xóa ảnh cũ sau khi bản ghi đã trỏ chắc chắn sang ảnh mới.
     if (duongDanCu && duongDanCu !== duongDanLuuTru) {
       await admin.storage.from("dmx-du-lieu").remove([duongDanCu]);
     }
@@ -168,7 +201,7 @@ export async function POST(request: Request) {
       loai,
       ngay,
       nhaCungCap,
-      ngayCapNhat: new Date().toISOString(),
+      ngayCapNhat: ngayCapNhatMoi,
     });
   } catch (error) {
     console.error("POST /api/dmx/bot/anh-cache error", error);

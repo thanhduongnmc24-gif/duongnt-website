@@ -27,23 +27,22 @@ export async function GET(request: Request) {
     const ngay = url.searchParams.get("ngay")?.trim() || undefined;
     const maNV = url.searchParams.get("maNV")?.trim() || "";
     const lineUserId = request.headers.get("x-line-user-id")?.trim() || "";
+    const lineGroupId = request.headers.get("x-line-group-id")?.trim() || "";
     const userIdTinCay = request.headers.get("x-dmx-user-id")?.trim() || "";
     const userId = /^[0-9a-f-]{36}$/i.test(userIdTinCay)
       ? userIdTinCay
-      : lineUserId ? await layNguoiDungTheoLine(lineUserId) : await layNguoiDungBot();
+      : (lineUserId || lineGroupId)
+        ? await layNguoiDungTheoLine(lineUserId, lineGroupId)
+        : await layNguoiDungBot();
     const sieuThiId = await laySieuThiBaoCao(
       userId,
-      request.headers.get("x-dmx-store-id")?.trim() || sieuThiTrongLoai
+      request.headers.get("x-dmx-store-id")?.trim() || sieuThiTrongLoai,
+      lineGroupId
     );
     const baoCao = await taoBaoCaoBot(loai, ngay, userId, maNV, sieuThiId);
-    // Luôn ưu tiên ảnh mới nhất do app đã xuất cho đúng tài khoản + siêu thị.
-    // Trước đây lệnh trực tiếp có X-Line-User-ID lại cố tình bỏ qua ảnh cache,
-    // khiến bot dựng ảnh web từ dữ liệu khác dù người dùng vừa bấm "Xuất tất cả".
-    // Riêng /msnv vẫn dựng động vì không lưu sẵn ảnh cho từng mã nhân viên.
-    const anhDaTao = maNV ? null : await layAnhBaoCaoDaTaoSan(userId, loai, sieuThiId, baoCao.ngay);
+    // Luôn ưu tiên ảnh mới nhất do app đã xuất cho đúng tài khoản + siêu thị (bao gồm cả ảnh sk_<maNV>).
+    const anhDaTao = await layAnhBaoCaoDaTaoSan(userId, loai, sieuThiId, baoCao.ngay, maNV);
     let urlAnhCuoi = anhDaTao?.url || "";
-    // Ảnh báo cáo thường phải là ảnh do app iOS xuất và lưu đúng loại trong Supabase/Drive.
-    // Chỉ báo cáo chi tiết một nhân viên mới cần máy chủ dựng động vì không thể lưu sẵn cho mọi mã NV.
     if (!urlAnhCuoi) {
       const hetHan = Math.floor(Date.now() / 1000) + 15 * 60;
       const chuKy = taoChuKyAnh(loai, baoCao.ngay, userId, hetHan, maNV, sieuThiId);
@@ -60,7 +59,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json(
       {
-        // LINE chỉ gửi một tiêu đề ngắn; toàn bộ số liệu nằm trong ảnh báo cáo.
         text: `${baoCao.tieuDe} ngày ${baoCao.ngayHienThi}`,
         fullText: baoCao.noiDung,
         imageUrl: urlAnhCuoi,

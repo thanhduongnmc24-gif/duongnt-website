@@ -51,65 +51,78 @@ async function handleLineEvent(event, env) {
   if (event.type !== "message" || event.message?.type !== "text" || !event.replyToken) return;
 
   const sourceType = event.source?.type || "";
-  const groupId = event.source?.groupId || "";
+  const groupId = event.source?.groupId || event.source?.roomId || "";
   const lineUserId = event.source?.userId || "";
   const rawCommand = event.message.text.trim();
-  const command = rawCommand.toLowerCase();
+  const normalizedRaw = rawCommand.replace(/^\/+/, "").trim();
+  const command = normalizedRaw.toLowerCase();
 
   if ((sourceType === "group" || sourceType === "room") && groupId && lineUserId) {
     await recordGroupResponse(env, groupId, lineUserId);
     await trackMentionedUsers(env, event, groupId, lineUserId);
   }
 
-  // /gannhom được xử lý ngay trong nhóm. Các lệnh báo cáo tiếp tục đi xuống
-  // và kết quả riêng tư sẽ được push cho đúng người gửi lệnh.
+  // gannhom (hoặc /gannhom) được xử lý ngay trong nhóm.
   if (sourceType === "group" || sourceType === "room") {
-    const match = /^\/gannhom\s+(\d{6})$/i.exec(rawCommand);
-    if (match && groupId) {
+    const matchGanNhom = /^(?:\/)?gannhom\s+(\d{6})$/i.exec(rawCommand);
+    if (matchGanNhom && groupId) {
       const tenNhom = await getGroupName(env.LINE_CHANNEL_ACCESS_TOKEN, groupId);
-      const report = await bindGroup(env, groupId, match[1], tenNhom);
+      const report = await bindGroup(env, groupId, matchGanNhom[1], tenNhom);
       await replyReport(env.LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, report);
       return;
     }
   }
+
   let report = null;
 
-  if (command === "/" || command === "/help") {
+  if (rawCommand === "/" || ["menu", "help", "trogiup", "lenh"].includes(command)) {
     report = commandMenuReport();
-  } else if (command === "/ping") {
+  } else if (command === "ping") {
     report = { text: "DMX Bot đang hoạt động." };
-  } else if (command === "/id" || command === "/groupid") {
+  } else if (command === "id" || command === "groupid") {
     report = {
       text: groupId ? `LINE_GROUP_ID: ${groupId}` : `LINE_USER_ID: ${lineUserId || "Không đọc được"}`,
     };
-  } else if (["/lienket", "/taikhoan", "/huyketnoi"].includes(command)) {
-    report = await handleAccountCommand(env, command, lineUserId);
-  } else if (/^\/msnv\s+\S+$/i.test(rawCommand)) {
-    const maNV = rawCommand.split(/\s+/)[1] || "";
-    report = await loadDmxReport(env, "msnv", lineUserId, "", maNV);
-  } else if (["/tongquan", "/doanhthu", "/realtime", "/luyke", "/nhanvien", "/thidua", "/suckhoe"].includes(command)) {
-    report = await loadDmxReport(env, command.slice(1), lineUserId);
+  } else if (["lienket", "taikhoan", "huyketnoi"].includes(command)) {
+    report = await handleAccountCommand(env, `/${command}`, lineUserId);
+  } else if (/^(?:\/)?sk\s+\S+$/i.test(rawCommand)) {
+    const maNV = normalizedRaw.split(/\s+/)[1] || "";
+    report = await loadDmxReport(env, "sk", lineUserId, "", maNV, "", groupId);
+  } else if (/^(?:\/)?msnv\s+\S+$/i.test(rawCommand)) {
+    const maNV = normalizedRaw.split(/\s+/)[1] || "";
+    report = await loadDmxReport(env, "msnv", lineUserId, "", maNV, "", groupId);
+  } else if ([
+    "tongquan", "doanhthu", "realtime", "luyke", "nhanvien",
+    "nvrealtime", "thidua", "suckhoe", "bieudo", "bieudorealtime",
+  ].includes(command)) {
+    const loaiMap = {
+      nvrealtime: "xep_hang_nv_realtime",
+      bieudo: "bieu_do_realtime_thang",
+      bieudorealtime: "bieu_do_realtime_thang",
+    };
+    const loaiBaoCao = loaiMap[command] || command;
+    report = await loadDmxReport(env, loaiBaoCao, lineUserId, "", "", "", groupId);
   } else {
     return;
   }
 
-  const laLenhRieng = [
-    "/lienket", "/taikhoan", "/huyketnoi",
-    "/tongquan", "/doanhthu", "/realtime", "/luyke", "/nhanvien", "/thidua", "/suckhoe",
-  ].includes(command) || command.startsWith("/msnv ");
+  // Chỉ các lệnh quản lý liên kết tài khoản cá nhân mới gửi riêng để bảo mật mã 6 số.
+  // Tất cả các lệnh báo cáo (doanhthu, realtime, luyke, nhanvien, thidua, suckhoe, sk xxxx, msnv xxxx,...)
+  // đều trả kết quả trực tiếp ngay trong nhóm.
+  const laLenhRieng = ["lienket", "taikhoan", "huyketnoi"].includes(command);
   const baoCaoGoc = report;
   if (groupId && lineUserId && laLenhRieng) {
     const daGuiRieng = await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lineUserId, report);
     if (daGuiRieng) await markCachedImageSent(env, baoCaoGoc, lineUserId);
     report = daGuiRieng
-      ? { text: "Bot đã gửi kết quả riêng cho bạn để bảo vệ dữ liệu tài khoản." }
+      ? { text: "Bot đã gửi thông tin liên kết tài khoản riêng cho bạn." }
       : { text: "Chưa gửi riêng được. Hãy kết bạn với bot, mở chat riêng rồi gõ lại lệnh." };
   }
   const daPhanHoi = await replyReport(env.LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, report);
-  if (!groupId && daPhanHoi) await markCachedImageSent(env, baoCaoGoc, lineUserId);
+  if (daPhanHoi && !laLenhRieng) await markCachedImageSent(env, baoCaoGoc, lineUserId);
 }
 
-async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", maNV = "", storeId = "") {
+async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", maNV = "", storeId = "", lineGroupId = "") {
   if (!env.DMX_REPORT_API_URL || !env.DMX_API_TOKEN) {
     return { text: "Bot đã kết nối LINE nhưng chưa cấu hình nguồn dữ liệu DMX." };
   }
@@ -124,6 +137,7 @@ async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", m
         Accept: "application/json",
         Authorization: `Bearer ${env.DMX_API_TOKEN}`,
         ...(lineUserId ? { "X-Line-User-ID": lineUserId } : {}),
+        ...(lineGroupId ? { "X-Line-Group-ID": lineGroupId } : {}),
         ...(dmxUserId ? { "X-DMX-User-ID": dmxUserId } : {}),
         ...(storeId ? { "X-DMX-Store-ID": storeId } : {}),
       },
@@ -136,8 +150,8 @@ async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", m
     const data = await response.json();
     const fullText = data.fullText || data.noiDung || data.text || "Báo cáo không có nội dung.";
     return {
-      // Chi tiết một nhân viên luôn kèm toàn bộ số liệu dạng chữ để người dùng
-      // vẫn tra cứu được ngay cả khi LINE tải ảnh chậm hoặc lỗi.
+      // Lệnh sk xxxx chỉ trả về file ảnh sức khỏe nhân viên kèm tiêu đề ngắn gọn;
+      // lệnh msnv xxxx trả về cả ảnh kèm toàn bộ số liệu dạng chữ.
       text: reportType === "msnv" ? fullText : (data.text || data.noiDung || data.message || "Báo cáo không có nội dung."),
       fullText,
       imageUrl: isHttpsUrl(data.imageUrl) ? data.imageUrl : "",
@@ -245,7 +259,7 @@ async function handleAccountCommand(env, command, lineUserId) {
     if (hanhDong === "trang_thai") {
       return data.daLienKet
         ? { text: `LINE đang kết nối với tài khoản DMX: ${data.tenDangNhap || "đã xác nhận"}.` }
-        : { text: "LINE chưa kết nối tài khoản DMX. Gõ /lienket để bắt đầu." };
+        : { text: "LINE chưa kết nối tài khoản DMX. Gõ lienket để bắt đầu." };
     }
     return { text: "Đã ngắt kết nối tài khoản DMX khỏi LINE." };
   } catch (error) {
@@ -276,8 +290,6 @@ async function sendScheduledReport(env) {
         const reportCanGui = lich.kieu_gui === "text"
           ? { ...report, text: report.fullText || report.text, imageUrl: "", previewImageUrl: "" }
           : report;
-        // Kiểm tra lần cuối sau khi lấy ảnh. Nếu người dùng vừa xóa lịch trong
-        // lúc API chuẩn bị báo cáo thì tuyệt đối không push ảnh đã lấy trước đó.
         if (!await scheduleStillActive(env, lich.id)) {
           thanhCong = false;
           break;
@@ -502,14 +514,34 @@ async function pushMentionReminder(accessToken, item) {
 
 function commandMenuReport() {
   const commands = [
-    ["Doanh thu", "/doanhthu"], ["Realtime", "/realtime"], ["Lũy kế", "/luyke"],
-    ["Nhân viên", "/nhanvien"], ["Thi đua", "/thidua"], ["Sức khỏe", "/suckhoe"],
-    ["Tổng quan", "/tongquan"], ["Tài khoản", "/taikhoan"], ["Liên kết", "/lienket"],
-    ["Mã nhóm", "/id"], ["Kiểm tra bot", "/ping"], ["Trợ giúp", "/help"],
+    ["Doanh thu", "doanhthu"],
+    ["Realtime", "realtime"],
+    ["Lũy kế", "luyke"],
+    ["NV Lũy kế", "nhanvien"],
+    ["NV Realtime", "nvrealtime"],
+    ["Thi đua", "thidua"],
+    ["Sức khỏe ĐN", "suckhoe"],
+    ["Biểu đồ RT", "bieudo"],
+    ["Tổng quan", "tongquan"],
+    ["Tài khoản", "taikhoan"],
+    ["Liên kết", "lienket"],
+    ["Mã nhóm", "id"],
+    ["Kiểm tra bot", "ping"],
   ];
   return {
-    text: "Chọn lệnh DMX bên dưới. Tra cứu cá nhân: /msnv 123456",
-    quickReply: { items: commands.map(([label, text]) => ({ type: "action", action: { type: "message", label, text } })) },
+    text: [
+      "📋 DANH SÁCH LỆNH DMX BOT",
+      "• Chọn nút gợi ý bên dưới hoặc gõ trực tiếp tên lệnh (không cần dấu /):",
+      "• Ảnh sức khỏe 1 NV: sk MÃ_NV (VD: sk 116719)",
+      "• Chi tiết chữ + ảnh 1 NV: msnv MÃ_NV (VD: msnv 116719)",
+      "• Gắn nhóm LINE: gannhom MÃ_6_SỐ",
+    ].join("\n"),
+    quickReply: {
+      items: commands.map(([label, text]) => ({
+        type: "action",
+        action: { type: "message", label, text },
+      })),
+    },
   };
 }
 
