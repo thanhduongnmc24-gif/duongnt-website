@@ -94,7 +94,11 @@ export async function POST(request: Request) {
     const hanhDong = String(body.hanhDong || "").trim().toLowerCase();
     const admin = taoSupabaseQuanTri();
 
-    if (["gan_nhom", "lich_den_han", "kiem_tra_lich", "da_gui", "anh_da_gui"].includes(hanhDong)) {
+    if ([
+      "gan_nhom", "lich_den_han", "kiem_tra_lich", "da_gui", "anh_da_gui",
+      "kiem_tra_anh_moi", "danh_dau_anh_da_gui", "tao_theo_doi_tag",
+      "ghi_nhan_phan_hoi", "nhac_den_han", "da_nhac_tag",
+    ].includes(hanhDong)) {
       if (!kiemTraBearer(request)) return NextResponse.json({ loi: "Không có quyền quản lý bot." }, { status: 401 });
 
       if (hanhDong === "gan_nhom") {
@@ -164,6 +168,104 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
+      if (hanhDong === "kiem_tra_anh_moi" || hanhDong === "danh_dau_anh_da_gui") {
+        const groupId = String(body.lineGroupId || "").trim();
+        const nguoiDungId = String(body.nguoiDungId || "").trim();
+        const sieuThiId = String(body.sieuThiId || "").trim();
+        const loai = String(body.loai || "").split("~", 1)[0].trim().toLowerCase();
+        const phienBanAnh = String(body.phienBanAnh || "").trim().slice(0, 1000);
+        if (!groupId || !/^[0-9a-f-]{36}$/i.test(nguoiDungId) || !/^[0-9a-f-]{36}$/i.test(sieuThiId)
+          || !(CAC_LOAI_LICH as readonly string[]).includes(loai) || !phienBanAnh) {
+          return NextResponse.json({ loi: "Thông tin nhận diện ảnh không hợp lệ." }, { status: 400 });
+        }
+        if (hanhDong === "kiem_tra_anh_moi") {
+          const { data, error } = await admin.from("dmx_line_anh_da_gui")
+            .select("phien_ban_anh")
+            .eq("line_group_id", groupId).eq("nguoi_dung_id", nguoiDungId)
+            .eq("sieu_thi_id", sieuThiId).eq("loai", loai).maybeSingle();
+          if (error) throw error;
+          return NextResponse.json({ ok: true, canGui: data?.phien_ban_anh !== phienBanAnh });
+        }
+        const { error } = await admin.from("dmx_line_anh_da_gui").upsert({
+          line_group_id: groupId, nguoi_dung_id: nguoiDungId, sieu_thi_id: sieuThiId,
+          loai, phien_ban_anh: phienBanAnh, ngay_gui: new Date().toISOString(),
+        }, { onConflict: "line_group_id,nguoi_dung_id,sieu_thi_id,loai" });
+        if (error) throw error;
+        return NextResponse.json({ ok: true });
+      }
+
+      if (hanhDong === "tao_theo_doi_tag") {
+        const groupId = String(body.lineGroupId || "").trim();
+        const messageId = String(body.lineMessageId || "").trim();
+        const nguoiGuiId = String(body.nguoiGuiId || "").trim();
+        const dsTagGoc = Array.isArray(body.nguoiDuocTag) ? body.nguoiDuocTag : [];
+        const dsTag = dsTagGoc.map(item => {
+          const value = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+          return { userId: String(value.userId || "").trim(), ten: String(value.ten || "Người dùng").trim().slice(0, 120) };
+        }).filter(item => /^U[0-9a-f]{20,64}$/i.test(item.userId) && item.userId !== nguoiGuiId).slice(0, 20);
+        if (!groupId || !messageId || !nguoiGuiId || !dsTag.length) return NextResponse.json({ ok: true, daTheoDoi: false });
+        const { data: cauHinh, error: loiCauHinh } = await admin.from("dmx_line_cau_hinh_nhac")
+          .select("bat_nhac_phan_hoi,so_phut_cho").eq("line_group_id", groupId).maybeSingle();
+        if (loiCauHinh) throw loiCauHinh;
+        if (!cauHinh?.bat_nhac_phan_hoi) return NextResponse.json({ ok: true, daTheoDoi: false });
+        const tenDuocTag = Object.fromEntries(dsTag.map(item => [item.userId, item.ten]));
+        const { error } = await admin.from("dmx_line_tin_nhac").upsert({
+          line_group_id: groupId, line_message_id: messageId,
+          quote_token: String(body.quoteToken || "").trim() || null,
+          nguoi_gui_id: nguoiGuiId,
+          ten_nguoi_gui: String(body.tenNguoiGui || "Người gửi").trim().slice(0, 120),
+          user_ids_duoc_tag: dsTag.map(item => item.userId), ten_duoc_tag: tenDuocTag,
+          user_ids_da_phan_hoi: [], noi_dung_goc: String(body.noiDungGoc || "").slice(0, 2000),
+          het_han: new Date(Date.now() + Math.max(1, Number(cauHinh.so_phut_cho || 30)) * 60_000).toISOString(),
+          da_nhac: false, ngay_cap_nhat: new Date().toISOString(),
+        }, { onConflict: "line_message_id" });
+        if (error) throw error;
+        return NextResponse.json({ ok: true, daTheoDoi: true, soPhutCho: cauHinh.so_phut_cho });
+      }
+
+      if (hanhDong === "ghi_nhan_phan_hoi") {
+        const groupId = String(body.lineGroupId || "").trim();
+        const userId = String(body.lineUserId || "").trim();
+        if (!groupId || !userId) return NextResponse.json({ ok: true });
+        const { data, error } = await admin.from("dmx_line_tin_nhac")
+          .select("id,user_ids_duoc_tag,user_ids_da_phan_hoi")
+          .eq("line_group_id", groupId).eq("da_nhac", false)
+          .contains("user_ids_duoc_tag", [userId]).limit(50);
+        if (error) throw error;
+        for (const item of data || []) {
+          const daPhanHoi = Array.from(new Set([...(item.user_ids_da_phan_hoi || []), userId]));
+          const hoanTat = (item.user_ids_duoc_tag || []).every((id: string) => daPhanHoi.includes(id));
+          const { error: loiCapNhat } = await admin.from("dmx_line_tin_nhac").update({
+            user_ids_da_phan_hoi: daPhanHoi, da_nhac: hoanTat, ngay_cap_nhat: new Date().toISOString(),
+          }).eq("id", item.id);
+          if (loiCapNhat) throw loiCapNhat;
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      if (hanhDong === "nhac_den_han") {
+        const { data, error } = await admin.from("dmx_line_tin_nhac")
+          .select("id,line_group_id,quote_token,nguoi_gui_id,ten_nguoi_gui,user_ids_duoc_tag,ten_duoc_tag,user_ids_da_phan_hoi")
+          .eq("da_nhac", false).lte("het_han", new Date().toISOString()).order("het_han").limit(50);
+        if (error) throw error;
+        const nhac = (data || []).map(item => ({
+          ...item,
+          user_ids_chua_phan_hoi: (item.user_ids_duoc_tag || []).filter((id: string) => !(item.user_ids_da_phan_hoi || []).includes(id)),
+        })).filter(item => item.user_ids_chua_phan_hoi.length > 0);
+        const idsDaDu = (data || []).filter(item => (item.user_ids_duoc_tag || []).every((id: string) => (item.user_ids_da_phan_hoi || []).includes(id))).map(item => item.id);
+        if (idsDaDu.length) await admin.from("dmx_line_tin_nhac").update({ da_nhac: true, ngay_cap_nhat: new Date().toISOString() }).in("id", idsDaDu);
+        return NextResponse.json({ nhac });
+      }
+
+      if (hanhDong === "da_nhac_tag") {
+        const id = String(body.id || "").trim();
+        if (/^[0-9a-f-]{36}$/i.test(id)) {
+          const { error } = await admin.from("dmx_line_tin_nhac").update({ da_nhac: true, ngay_cap_nhat: new Date().toISOString() }).eq("id", id);
+          if (error) throw error;
+        }
+        return NextResponse.json({ ok: true });
+      }
+
       const id = String(body.id || "");
       await admin.from("dmx_line_lich_gui").update({ lan_gui_cuoi: new Date().toISOString() }).eq("id", id);
       return NextResponse.json({ ok: true });
@@ -187,11 +289,32 @@ export async function POST(request: Request) {
 
     if (hanhDong === "danh_sach") {
       const sieuThiId = await laySieuThiDangChon(admin, user.id, request);
-      const [{ data: nhom }, { data: lich }] = await Promise.all([
+      const [{ data: nhom }, { data: lich }, { data: cauHinhNhac }] = await Promise.all([
         admin.from("dmx_line_nhom").select("line_group_id,ten_nhom,dang_hoat_dong").eq("nguoi_dung_id", user.id).order("ngay_tao"),
         admin.from("dmx_line_lich_gui").select("id,line_group_id,sieu_thi_id,gio,cac_thu,cac_noi_dung,kieu_gui,dang_hoat_dong").eq("nguoi_dung_id", user.id).eq("sieu_thi_id", sieuThiId).order("gio"),
+        admin.from("dmx_line_cau_hinh_nhac").select("line_group_id,bat_nhac_phan_hoi,so_phut_cho"),
       ]);
-      return NextResponse.json({ nhom: nhom || [], lich: lich || [], sieuThiId });
+      const cauHinhTheoNhom = new Map((cauHinhNhac || []).map(item => [item.line_group_id, item]));
+      const nhomDayDu = (nhom || []).map(item => ({
+        ...item,
+        bat_nhac_phan_hoi: cauHinhTheoNhom.get(item.line_group_id)?.bat_nhac_phan_hoi ?? false,
+        so_phut_cho: cauHinhTheoNhom.get(item.line_group_id)?.so_phut_cho ?? 30,
+      }));
+      return NextResponse.json({ nhom: nhomDayDu, lich: lich || [], sieuThiId });
+    }
+
+    if (hanhDong === "luu_nhac_nhom") {
+      const groupId = String(body.lineGroupId || "").trim();
+      const soPhutCho = Math.max(1, Math.min(1440, Math.round(Number(body.soPhutCho || 30))));
+      const { data: nhom } = await admin.from("dmx_line_nhom").select("line_group_id")
+        .eq("line_group_id", groupId).eq("nguoi_dung_id", user.id).maybeSingle();
+      if (!nhom) return NextResponse.json({ loi: "Nhóm LINE không thuộc tài khoản này." }, { status: 403 });
+      const { error } = await admin.from("dmx_line_cau_hinh_nhac").upsert({
+        line_group_id: groupId, bat_nhac_phan_hoi: body.batNhacPhanHoi === true,
+        so_phut_cho: soPhutCho, ngay_cap_nhat: new Date().toISOString(),
+      }, { onConflict: "line_group_id" });
+      if (error) throw error;
+      return NextResponse.json({ ok: true, batNhacPhanHoi: body.batNhacPhanHoi === true, soPhutCho });
     }
 
     if (hanhDong === "luu_lich") {

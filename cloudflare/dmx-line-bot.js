@@ -43,7 +43,7 @@ export default {
   },
 
   async scheduled(controller, env, ctx) {
-    ctx.waitUntil(sendScheduledReport(env));
+    ctx.waitUntil(Promise.all([sendScheduledReport(env), sendDueMentionReminders(env)]));
   },
 };
 
@@ -55,6 +55,11 @@ async function handleLineEvent(event, env) {
   const lineUserId = event.source?.userId || "";
   const rawCommand = event.message.text.trim();
   const command = rawCommand.toLowerCase();
+
+  if ((sourceType === "group" || sourceType === "room") && groupId && lineUserId) {
+    await recordGroupResponse(env, groupId, lineUserId);
+    await trackMentionedUsers(env, event, groupId, lineUserId);
+  }
 
   // /gannhom được xử lý ngay trong nhóm. Các lệnh báo cáo tiếp tục đi xuống
   // và kết quả riêng tư sẽ được push cho đúng người gửi lệnh.
@@ -69,7 +74,9 @@ async function handleLineEvent(event, env) {
   }
   let report = null;
 
-  if (command === "/ping") {
+  if (command === "/" || command === "/help") {
+    report = commandMenuReport();
+  } else if (command === "/ping") {
     report = { text: "DMX Bot đang hoạt động." };
   } else if (command === "/id" || command === "/groupid") {
     report = {
@@ -77,25 +84,6 @@ async function handleLineEvent(event, env) {
     };
   } else if (["/lienket", "/taikhoan", "/huyketnoi"].includes(command)) {
     report = await handleAccountCommand(env, command, lineUserId);
-  } else if (command === "/help") {
-    report = {
-      text: [
-        "LỆNH DMX BOT",
-        "/ping - Kiểm tra bot",
-        "/id - Lấy mã nhóm LINE",
-        "/doanhthu - Báo cáo doanh thu",
-        "/realtime - Số liệu realtime",
-        "/luyke - Số liệu lũy kế",
-        "/nhanvien - Xếp hạng nhân viên",
-        "/thidua - Báo cáo thi đua",
-        "/suckhoe - Sức khỏe toàn bộ nhân viên",
-        "/msnv 123456 - Sức khỏe chi tiết một nhân viên",
-        "/tongquan - Tổng quan kinh doanh",
-        "/lienket - Lấy mã kết nối tài khoản DMX (chỉ chat riêng)",
-        "/taikhoan - Xem tài khoản DMX đã kết nối",
-        "/huyketnoi - Ngắt kết nối tài khoản DMX",
-      ].join("\n"),
-    };
   } else if (/^\/msnv\s+\S+$/i.test(rawCommand)) {
     const maNV = rawCommand.split(/\s+/)[1] || "";
     report = await loadDmxReport(env, "msnv", lineUserId, "", maNV);
@@ -156,6 +144,9 @@ async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", m
       previewImageUrl: isHttpsUrl(data.previewImageUrl) ? data.previewImageUrl : data.imageUrl,
       reportType: data.reportType || reportType,
       cacheSupabase: data.cachedSupabase === true,
+      reportDate: String(data.date || ""),
+      updatedAt: String(data.updatedAt || ""),
+      imageVersion: [data.reportType || reportType, data.date || "", data.updatedAt || "", data.updatedAt ? "" : data.imageUrl || ""].join("|"),
     };
   } catch (error) {
     console.error("DMX report error", error);
@@ -291,7 +282,15 @@ async function sendScheduledReport(env) {
           thanhCong = false;
           break;
         }
-        if (!await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lich.line_group_id, reportCanGui)) thanhCong = false;
+        if (lich.kieu_gui !== "text" && reportCanGui.imageUrl) {
+          const canGui = await canSendLatestImage(env, lich, reportCanGui);
+          if (!canGui) continue;
+        }
+        if (!await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lich.line_group_id, reportCanGui)) {
+          thanhCong = false;
+        } else if (lich.kieu_gui !== "text" && reportCanGui.imageUrl) {
+          await markLatestImageSent(env, lich, reportCanGui);
+        }
       }
       if (thanhCong) {
         await fetch(groupApiUrl(env), {
@@ -304,6 +303,159 @@ async function sendScheduledReport(env) {
   } catch (error) {
     console.error("Scheduled report error", error);
   }
+}
+
+async function canSendLatestImage(env, lich, report) {
+  if (!report?.imageVersion) return true;
+  try {
+    const response = await fetch(groupApiUrl(env), {
+      method: "POST",
+      headers: { Accept: "application/json", Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hanhDong: "kiem_tra_anh_moi", lineGroupId: lich.line_group_id,
+        nguoiDungId: lich.nguoi_dung_id, sieuThiId: lich.sieu_thi_id,
+        loai: report.reportType, phienBanAnh: report.imageVersion,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    return response.ok && data.canGui === true;
+  } catch (error) {
+    console.error("Latest image validation error", error);
+    return false;
+  }
+}
+
+async function markLatestImageSent(env, lich, report) {
+  if (!report?.imageVersion) return;
+  try {
+    await fetch(groupApiUrl(env), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hanhDong: "danh_dau_anh_da_gui", lineGroupId: lich.line_group_id,
+        nguoiDungId: lich.nguoi_dung_id, sieuThiId: lich.sieu_thi_id,
+        loai: report.reportType, phienBanAnh: report.imageVersion,
+      }),
+    });
+  } catch (error) {
+    console.error("Mark latest image error", error);
+  }
+}
+
+async function recordGroupResponse(env, groupId, lineUserId) {
+  if (!groupApiUrl(env)) return;
+  try {
+    await fetch(groupApiUrl(env), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ hanhDong: "ghi_nhan_phan_hoi", lineGroupId: groupId, lineUserId }),
+    });
+  } catch (error) {
+    console.error("Record group response error", error);
+  }
+}
+
+async function trackMentionedUsers(env, event, groupId, senderId) {
+  const mentionees = Array.isArray(event.message?.mention?.mentionees) ? event.message.mention.mentionees : [];
+  const userIds = [...new Set(mentionees
+    .filter(item => item?.type === "user" && !item?.isSelf && /^U[0-9a-f]{20,64}$/i.test(String(item?.userId || "")))
+    .map(item => String(item.userId))
+    .filter(id => id !== senderId))].slice(0, 20);
+  if (!userIds.length || !groupApiUrl(env)) return;
+  const [tenNguoiGui, ...tenDuocTag] = await Promise.all([
+    getGroupMemberName(env.LINE_CHANNEL_ACCESS_TOKEN, groupId, senderId),
+    ...userIds.map(id => getGroupMemberName(env.LINE_CHANNEL_ACCESS_TOKEN, groupId, id)),
+  ]);
+  try {
+    await fetch(groupApiUrl(env), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hanhDong: "tao_theo_doi_tag", lineGroupId: groupId,
+        lineMessageId: event.message.id, quoteToken: event.message.quoteToken || "",
+        nguoiGuiId: senderId, tenNguoiGui, noiDungGoc: event.message.text,
+        nguoiDuocTag: userIds.map((userId, index) => ({ userId, ten: tenDuocTag[index] || "Người dùng" })),
+      }),
+    });
+  } catch (error) {
+    console.error("Track mentioned users error", error);
+  }
+}
+
+async function getGroupMemberName(accessToken, groupId, userId) {
+  try {
+    const response = await fetch(`https://api.line.me/v2/bot/group/${encodeURIComponent(groupId)}/member/${encodeURIComponent(userId)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = await response.json().catch(() => ({}));
+    return response.ok && data.displayName ? String(data.displayName) : "Người dùng";
+  } catch {
+    return "Người dùng";
+  }
+}
+
+async function sendDueMentionReminders(env) {
+  if (!env.LINE_CHANNEL_ACCESS_TOKEN || !env.DMX_API_TOKEN || !groupApiUrl(env)) return;
+  try {
+    const response = await fetch(groupApiUrl(env), {
+      method: "POST",
+      headers: { Accept: "application/json", Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ hanhDong: "nhac_den_han" }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.loi || `HTTP ${response.status}`);
+    for (const item of data.nhac || []) {
+      const sent = await pushMentionReminder(env.LINE_CHANNEL_ACCESS_TOKEN, item);
+      if (sent) {
+        await fetch(groupApiUrl(env), {
+          method: "POST",
+          headers: { Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ hanhDong: "da_nhac_tag", id: item.id }),
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Mention reminder error", error);
+  }
+}
+
+async function pushMentionReminder(accessToken, item) {
+  const missing = (item.user_ids_chua_phan_hoi || []).slice(0, 20);
+  if (!missing.length) return true;
+  const substitutions = {
+    sender: { type: "mention", mentionee: { type: "user", userId: item.nguoi_gui_id } },
+  };
+  const placeholders = missing.map((userId, index) => {
+    const key = `user${index}`;
+    substitutions[key] = { type: "mention", mentionee: { type: "user", userId } };
+    return `{${key}}`;
+  });
+  const message = {
+    type: "textV2",
+    text: `Những bạn sau đây chưa phản hồi lại tin nhắn của {sender}: ${placeholders.join(", ")}`,
+    substitution: substitutions,
+    ...(item.quote_token ? { quoteToken: item.quote_token } : {}),
+  };
+  const response = await fetch(LINE_PUSH_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "X-Line-Retry-Key": crypto.randomUUID() },
+    body: JSON.stringify({ to: item.line_group_id, messages: [message] }),
+  });
+  if (!response.ok) console.error("LINE mention reminder failed", response.status, await response.text());
+  return response.ok;
+}
+
+function commandMenuReport() {
+  const commands = [
+    ["Doanh thu", "/doanhthu"], ["Realtime", "/realtime"], ["Lũy kế", "/luyke"],
+    ["Nhân viên", "/nhanvien"], ["Thi đua", "/thidua"], ["Sức khỏe", "/suckhoe"],
+    ["Tổng quan", "/tongquan"], ["Tài khoản", "/taikhoan"], ["Liên kết", "/lienket"],
+    ["Mã nhóm", "/id"], ["Kiểm tra bot", "/ping"], ["Trợ giúp", "/help"],
+  ];
+  return {
+    text: "Chọn lệnh DMX bên dưới. Tra cứu cá nhân: /msnv 123456",
+    quickReply: { items: commands.map(([label, text]) => ({ type: "action", action: { type: "message", label, text } })) },
+  };
 }
 
 async function scheduleStillActive(env, id) {
@@ -324,7 +476,6 @@ async function scheduleStillActive(env, id) {
 }
 
 function createMessages(report) {
-  /** @type {Array<Record<string, string>>} */
   const messages = [];
   if (isHttpsUrl(report.imageUrl)) {
     messages.push({
@@ -334,7 +485,11 @@ function createMessages(report) {
     });
   }
   const tieuDe = String(report.text || "").trim();
-  if (tieuDe) messages.push({ type: "text", text: tieuDe.slice(0, 5000) });
+  if (tieuDe) {
+    const textMessage = { type: "text", text: tieuDe.slice(0, 5000) };
+    if (report.quickReply) textMessage.quickReply = report.quickReply;
+    messages.push(textMessage);
+  }
   if (!messages.length) messages.push({ type: "text", text: "Báo cáo hiện chưa có nội dung." });
   return messages;
 }
