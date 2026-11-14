@@ -201,14 +201,14 @@ async function bindGroup(env, groupId, ma, tenNhom) {
   }
 }
 
-async function getGroupName(accessToken, groupId) {
+async function getGroupName(accessToken, groupId, fallbackName = "Nhóm LINE") {
   try {
     const response = await fetch(`https://api.line.me/v2/bot/group/${encodeURIComponent(groupId)}/summary`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const data = await response.json();
-    return response.ok && data.groupName ? String(data.groupName) : "Nhóm LINE";
-  } catch { return "Nhóm LINE"; }
+    return response.ok && data.groupName ? String(data.groupName) : (fallbackName || "Nhóm LINE");
+  } catch { return fallbackName || "Nhóm LINE"; }
 }
 
 async function handleAccountCommand(env, command, lineUserId) {
@@ -366,17 +366,39 @@ async function trackMentionedUsers(env, event, groupId, senderId) {
     getGroupMemberName(env.LINE_CHANNEL_ACCESS_TOKEN, groupId, senderId),
     ...userIds.map(id => getGroupMemberName(env.LINE_CHANNEL_ACCESS_TOKEN, groupId, id)),
   ]);
+  const basePayload = {
+    hanhDong: "tao_theo_doi_tag",
+    lineGroupId: groupId,
+    lineMessageId: event.message.id,
+    nguoiGuiId: senderId,
+    tenNguoiGui,
+    noiDungGoc: event.message.text,
+    nguoiDuocTag: userIds.map((userId, index) => ({ userId, ten: tenDuocTag[index] || "Người dùng" })),
+  };
   try {
-    await fetch(groupApiUrl(env), {
+    const res = await fetch(groupApiUrl(env), {
       method: "POST",
       headers: { Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        hanhDong: "tao_theo_doi_tag", lineGroupId: groupId,
-        lineMessageId: event.message.id, quoteToken: event.message.quoteToken || "",
-        nguoiGuiId: senderId, tenNguoiGui, noiDungGoc: event.message.text,
-        nguoiDuocTag: userIds.map((userId, index) => ({ userId, ten: tenDuocTag[index] || "Người dùng" })),
+        ...basePayload,
+        quoteToken: JSON.stringify({ q: event.message.quoteToken || "", text: event.message.text || "" }),
       }),
     });
+    const data = await res.json().catch(() => ({}));
+    if (data?.daTheoDoi && data?.soPhutCho) {
+      await fetch(groupApiUrl(env), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...basePayload,
+          quoteToken: JSON.stringify({
+            q: event.message.quoteToken || "",
+            text: event.message.text || "",
+            soPhutCho: Number(data.soPhutCho) || 30,
+          }),
+        }),
+      });
+    }
   } catch (error) {
     console.error("Track mentioned users error", error);
   }
@@ -422,27 +444,60 @@ async function sendDueMentionReminders(env) {
 async function pushMentionReminder(accessToken, item) {
   const missing = (item.user_ids_chua_phan_hoi || []).slice(0, 20);
   if (!missing.length) return true;
-  const substitutions = {
-    sender: { type: "mention", mentionee: { type: "user", userId: item.nguoi_gui_id } },
-  };
-  const placeholders = missing.map((userId, index) => {
-    const key = `user${index}`;
-    substitutions[key] = { type: "mention", mentionee: { type: "user", userId } };
-    return `{${key}}`;
-  });
+
+  const recipients = [...new Set([
+    item.nguoi_gui_id,
+    ...(Array.isArray(item.line_user_ids_nhan_rieng) ? item.line_user_ids_nhan_rieng : []),
+  ].map(id => String(id || "").trim()).filter(id => /^U[0-9a-f]{20,64}$/i.test(id)))];
+  if (!recipients.length) return false;
+
+  let metaQuote = {};
+  if (typeof item.quote_token === "string" && item.quote_token.trim().startsWith("{")) {
+    try {
+      metaQuote = JSON.parse(item.quote_token);
+    } catch { /* Bỏ qua nếu quote_token là chuỗi thông thường */ }
+  }
+
+  const tenDuocTagMap = (item.ten_duoc_tag && typeof item.ten_duoc_tag === "object") ? item.ten_duoc_tag : {};
+  const [tenNhomRaw, ...tenChuaPhanHoi] = await Promise.all([
+    getGroupName(accessToken, item.line_group_id, String(item.ten_nhom || "").trim() || "Nhóm LINE"),
+    ...missing.map(async userId => {
+      const tenDaLuu = String(tenDuocTagMap[userId] || "").trim();
+      const ten = tenDaLuu || await getGroupMemberName(accessToken, item.line_group_id, userId);
+      return ten.startsWith("@") ? ten : `@${ten}`;
+    }),
+  ]);
+
+  const soPhutTuHan = item.het_han && item.ngay_tao
+    ? Math.max(1, Math.round((new Date(item.het_han).getTime() - new Date(item.ngay_tao).getTime()) / 60000))
+    : 0;
+  const soPhut = Math.max(1, Number(item.so_phut_cho || metaQuote.soPhutCho || soPhutTuHan || 30));
+  const noiDungGoc = String(item.noi_dung_goc || metaQuote.text || "").trim();
+  const nhanNhom = tenNhomRaw.startsWith("@") ? tenNhomRaw : `@${tenNhomRaw}`;
+
   const message = {
-    type: "textV2",
-    text: `Những bạn sau đây chưa phản hồi lại tin nhắn của {sender}: ${placeholders.join(", ")}`,
-    substitution: substitutions,
-    ...(item.quote_token ? { quoteToken: item.quote_token } : {}),
+    type: "text",
+    text: `Sau ${soPhut} phút các bạn không phản hồi tin nhắn: "${noiDungGoc}" trong nhóm ${nhanNhom} là: ${tenChuaPhanHoi.join(", ")}`.slice(0, 5000),
   };
-  const response = await fetch(LINE_PUSH_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "X-Line-Retry-Key": crypto.randomUUID() },
-    body: JSON.stringify({ to: item.line_group_id, messages: [message] }),
-  });
-  if (!response.ok) console.error("LINE mention reminder failed", response.status, await response.text());
-  return response.ok;
+
+  let sentAny = false;
+  for (const userId of recipients) {
+    const response = await fetch(LINE_PUSH_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "X-Line-Retry-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({ to: userId, messages: [message] }),
+    });
+    if (response.ok) {
+      sentAny = true;
+    } else {
+      console.error("LINE private mention reminder failed", userId, response.status, await response.text());
+    }
+  }
+  return sentAny;
 }
 
 function commandMenuReport() {

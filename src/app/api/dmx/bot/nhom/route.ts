@@ -208,6 +208,8 @@ export async function POST(request: Request) {
           .select("bat_nhac_phan_hoi,so_phut_cho").eq("line_group_id", groupId).maybeSingle();
         if (loiCauHinh) throw loiCauHinh;
         if (!cauHinh?.bat_nhac_phan_hoi) return NextResponse.json({ ok: true, daTheoDoi: false });
+        const soPhutCho = Math.max(1, Number(cauHinh.so_phut_cho || 30));
+        const nowMs = Date.now();
         const tenDuocTag = Object.fromEntries(dsTag.map(item => [item.userId, item.ten]));
         const { error } = await admin.from("dmx_line_tin_nhac").upsert({
           line_group_id: groupId, line_message_id: messageId,
@@ -216,11 +218,12 @@ export async function POST(request: Request) {
           ten_nguoi_gui: String(body.tenNguoiGui || "Người gửi").trim().slice(0, 120),
           user_ids_duoc_tag: dsTag.map(item => item.userId), ten_duoc_tag: tenDuocTag,
           user_ids_da_phan_hoi: [], noi_dung_goc: String(body.noiDungGoc || "").slice(0, 2000),
-          het_han: new Date(Date.now() + Math.max(1, Number(cauHinh.so_phut_cho || 30)) * 60_000).toISOString(),
-          da_nhac: false, ngay_cap_nhat: new Date().toISOString(),
+          ngay_tao: new Date(nowMs).toISOString(),
+          het_han: new Date(nowMs + soPhutCho * 60_000).toISOString(),
+          da_nhac: false, ngay_cap_nhat: new Date(nowMs).toISOString(),
         }, { onConflict: "line_message_id" });
         if (error) throw error;
-        return NextResponse.json({ ok: true, daTheoDoi: true, soPhutCho: cauHinh.so_phut_cho });
+        return NextResponse.json({ ok: true, daTheoDoi: true, soPhutCho });
       }
 
       if (hanhDong === "ghi_nhan_phan_hoi") {
@@ -245,13 +248,59 @@ export async function POST(request: Request) {
 
       if (hanhDong === "nhac_den_han") {
         const { data, error } = await admin.from("dmx_line_tin_nhac")
-          .select("id,line_group_id,quote_token,nguoi_gui_id,ten_nguoi_gui,user_ids_duoc_tag,ten_duoc_tag,user_ids_da_phan_hoi")
+          .select("id,line_group_id,quote_token,nguoi_gui_id,ten_nguoi_gui,user_ids_duoc_tag,ten_duoc_tag,user_ids_da_phan_hoi,noi_dung_goc,ngay_tao,het_han")
           .eq("da_nhac", false).lte("het_han", new Date().toISOString()).order("het_han").limit(50);
         if (error) throw error;
-        const nhac = (data || []).map(item => ({
-          ...item,
-          user_ids_chua_phan_hoi: (item.user_ids_duoc_tag || []).filter((id: string) => !(item.user_ids_da_phan_hoi || []).includes(id)),
-        })).filter(item => item.user_ids_chua_phan_hoi.length > 0);
+        const groupIds = Array.from(new Set((data || []).map(item => String(item.line_group_id || "")).filter(Boolean)));
+        const [{ data: dsCauHinh }, { data: dsNhom }] = groupIds.length
+          ? await Promise.all([
+              admin.from("dmx_line_cau_hinh_nhac").select("line_group_id,so_phut_cho").in("line_group_id", groupIds),
+              admin.from("dmx_line_nhom").select("line_group_id,nguoi_dung_id,ten_nhom,dang_hoat_dong").in("line_group_id", groupIds).eq("dang_hoat_dong", true),
+            ])
+          : [{ data: [] }, { data: [] }];
+        const nguoiDungIds = Array.from(new Set((dsNhom || []).map(item => String(item.nguoi_dung_id || "")).filter(Boolean)));
+        const { data: dsLienKet } = nguoiDungIds.length
+          ? await admin.from("dmx_line_lien_ket").select("nguoi_dung_id,line_user_id").in("nguoi_dung_id", nguoiDungIds)
+          : { data: [] };
+
+        const soPhutTheoNhom = new Map((dsCauHinh || []).map(item => [String(item.line_group_id), Number(item.so_phut_cho || 30)]));
+        const tenNhomTheoId = new Map<string, string>();
+        const lineUsersTheoNhom = new Map<string, string[]>();
+        const lineUserTheoNguoiDung = new Map<string, string[]>();
+        for (const lk of dsLienKet || []) {
+          const uid = String(lk.nguoi_dung_id || "");
+          const lid = String(lk.line_user_id || "").trim();
+          if (uid && /^U[0-9a-f]{20,64}$/i.test(lid)) {
+            lineUserTheoNguoiDung.set(uid, [...(lineUserTheoNguoiDung.get(uid) || []), lid]);
+          }
+        }
+        for (const nhom of dsNhom || []) {
+          const gid = String(nhom.line_group_id || "");
+          const ten = String(nhom.ten_nhom || "").trim();
+          if (gid && ten && !tenNhomTheoId.has(gid)) tenNhomTheoId.set(gid, ten);
+          const lids = lineUserTheoNguoiDung.get(String(nhom.nguoi_dung_id || "")) || [];
+          if (gid && lids.length) {
+            lineUsersTheoNhom.set(gid, Array.from(new Set([...(lineUsersTheoNhom.get(gid) || []), ...lids])));
+          }
+        }
+
+        const nhac = (data || []).map(item => {
+          const soPhutTuHan = item.het_han && item.ngay_tao
+            ? Math.max(1, Math.round((new Date(String(item.het_han)).getTime() - new Date(String(item.ngay_tao)).getTime()) / 60_000))
+            : 0;
+          const soPhutCho = soPhutTuHan || soPhutTheoNhom.get(item.line_group_id) || 30;
+          const lineUserIdsNhanRieng = Array.from(new Set([
+            ...(/^U[0-9a-f]{20,64}$/i.test(String(item.nguoi_gui_id || "")) ? [String(item.nguoi_gui_id)] : []),
+            ...(lineUsersTheoNhom.get(item.line_group_id) || []),
+          ]));
+          return {
+            ...item,
+            so_phut_cho: soPhutCho,
+            ten_nhom: tenNhomTheoId.get(item.line_group_id) || "Nhóm LINE",
+            line_user_ids_nhan_rieng: lineUserIdsNhanRieng,
+            user_ids_chua_phan_hoi: (item.user_ids_duoc_tag || []).filter((id: string) => !(item.user_ids_da_phan_hoi || []).includes(id)),
+          };
+        }).filter(item => item.user_ids_chua_phan_hoi.length > 0);
         const idsDaDu = (data || []).filter(item => (item.user_ids_duoc_tag || []).every((id: string) => (item.user_ids_da_phan_hoi || []).includes(id))).map(item => item.id);
         if (idsDaDu.length) await admin.from("dmx_line_tin_nhac").update({ da_nhac: true, ngay_cap_nhat: new Date().toISOString() }).in("id", idsDaDu);
         return NextResponse.json({ nhac });
