@@ -180,11 +180,21 @@ export async function POST(request: Request) {
         }
         if (hanhDong === "kiem_tra_anh_moi") {
           const { data, error } = await admin.from("dmx_line_anh_da_gui")
-            .select("phien_ban_anh")
+            .select("phien_ban_anh,ngay_gui")
             .eq("line_group_id", groupId).eq("nguoi_dung_id", nguoiDungId)
             .eq("sieu_thi_id", sieuThiId).eq("loai", loai).maybeSingle();
           if (error) throw error;
-          return NextResponse.json({ ok: true, canGui: data?.phien_ban_anh !== phienBanAnh });
+          // Chỉ chặn Cron gửi lại cùng một ảnh trong CÙNG NGÀY (ví dụ Worker
+          // chạy lại sau khi chưa kịp đánh dấu lịch hoàn tất). Trước đây chỉ
+          // so phiên bản ảnh nên một báo cáo không đổi sẽ bị chặn vĩnh viễn ở
+          // mọi ngày sau; vì vậy lịch thường chỉ còn gửi Lũy kế/Dự kiến là hai
+          // ảnh được cập nhật thường xuyên.
+          const ngayHienTai = layGioVietNam().ngay;
+          const ngayGuiGanNhat = data?.ngay_gui;
+          const daGuiHomNay = Boolean(ngayGuiGanNhat)
+            && ngayVietNam(String(ngayGuiGanNhat)) === ngayHienTai;
+          const trungAnhDaGuiHomNay = daGuiHomNay && data?.phien_ban_anh === phienBanAnh;
+          return NextResponse.json({ ok: true, canGui: !trungAnhDaGuiHomNay });
         }
         const { error } = await admin.from("dmx_line_anh_da_gui").upsert({
           line_group_id: groupId, nguoi_dung_id: nguoiDungId, sieu_thi_id: sieuThiId,
