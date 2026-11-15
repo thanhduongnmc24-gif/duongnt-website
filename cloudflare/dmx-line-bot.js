@@ -1,5 +1,6 @@
 const LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply";
 const LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push";
+let lineMonthlyQuotaReached = false;
 
 export default {
   async fetch(request, env, ctx) {
@@ -277,6 +278,7 @@ async function handleAccountCommand(env, command, lineUserId) {
 
 async function sendScheduledReport(env) {
   if (!env.LINE_CHANNEL_ACCESS_TOKEN || !env.DMX_API_TOKEN || !groupApiUrl(env)) return;
+  lineMonthlyQuotaReached = false;
   try {
     const response = await fetch(groupApiUrl(env), {
       method: "POST",
@@ -286,6 +288,7 @@ async function sendScheduledReport(env) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.loi || `HTTP ${response.status}`);
     for (const lich of (data.lich || [])) {
+      if (lineMonthlyQuotaReached) break;
       if (!await scheduleStillActive(env, lich.id)) continue;
       let thanhCong = true;
       for (const loai of (lich.cac_noi_dung || ["doanhthu"])) {
@@ -313,6 +316,7 @@ async function sendScheduledReport(env) {
         }
         if (!await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lich.line_group_id, reportCanGui)) {
           thanhCong = false;
+          if (lineMonthlyQuotaReached) break;
         } else if (lich.kieu_gui !== "text" && reportCanGui.imageUrl
           && !await markLatestImageSent(env, lich, reportCanGui)) {
           thanhCong = false;
@@ -632,7 +636,13 @@ async function pushReport(accessToken, to, report) {
     body: JSON.stringify({ to, messages: createMessages(report) }),
   });
   if (!response.ok) {
-    console.error("LINE push failed", response.status, await response.text());
+    const responseBody = await response.text();
+    if (response.status === 429 && /monthly limit/i.test(responseBody)) {
+      lineMonthlyQuotaReached = true;
+      console.error("LINE monthly message quota reached; scheduled reports remain pending", responseBody);
+    } else {
+      console.error("LINE push failed", response.status, responseBody);
+    }
     return false;
   }
   return true;
