@@ -392,7 +392,10 @@ export async function POST(request: Request) {
       if (!nhom) return NextResponse.json({ loi: "Nhóm LINE không thuộc tài khoản này." }, { status: 403 });
       const id = String(body.id || "");
       const payload = { line_group_id: groupId, nguoi_dung_id: user.id, sieu_thi_id: sieuThiId, gio: `${gio}:00`, cac_thu: cacThu,
-        cac_noi_dung: cacNoiDung, kieu_gui: kieuGui, dang_hoat_dong: body.dangHoatDong !== false, ngay_cap_nhat: new Date().toISOString() };
+        cac_noi_dung: cacNoiDung, kieu_gui: kieuGui, dang_hoat_dong: body.dangHoatDong !== false,
+        // Mỗi lần người dùng lưu lại lịch là một yêu cầu gửi mới. Xóa dấu đã
+        // gửi trong ngày để có thể thử lại ngay sau khi sửa giờ/nội dung.
+        lan_gui_cuoi: null, ngay_cap_nhat: new Date().toISOString() };
       const query = id ? admin.from("dmx_line_lich_gui").update(payload).eq("id", id).eq("nguoi_dung_id", user.id)
         : admin.from("dmx_line_lich_gui").insert(payload);
       const { data: lichDaLuu, error } = await query

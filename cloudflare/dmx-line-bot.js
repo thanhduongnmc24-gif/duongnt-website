@@ -303,12 +303,19 @@ async function sendScheduledReport(env) {
         }
         if (lich.kieu_gui !== "text" && reportCanGui.imageUrl) {
           const canGui = await canSendLatestImage(env, lich, reportCanGui);
+          if (canGui === null) {
+            // Không xác minh được trạng thái ảnh thì không được đánh dấu lịch
+            // hoàn tất; Cron phút sau sẽ thử lại.
+            thanhCong = false;
+            break;
+          }
           if (!canGui) continue;
         }
         if (!await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lich.line_group_id, reportCanGui)) {
           thanhCong = false;
-        } else if (lich.kieu_gui !== "text" && reportCanGui.imageUrl) {
-          await markLatestImageSent(env, lich, reportCanGui);
+        } else if (lich.kieu_gui !== "text" && reportCanGui.imageUrl
+          && !await markLatestImageSent(env, lich, reportCanGui)) {
+          thanhCong = false;
         }
       }
       if (thanhCong) {
@@ -337,17 +344,21 @@ async function canSendLatestImage(env, lich, report) {
       }),
     });
     const data = await response.json().catch(() => ({}));
-    return response.ok && data.canGui === true;
+    if (!response.ok || typeof data.canGui !== "boolean") {
+      console.error("Latest image validation failed", response.status, JSON.stringify(data));
+      return null;
+    }
+    return data.canGui;
   } catch (error) {
     console.error("Latest image validation error", error);
-    return false;
+    return null;
   }
 }
 
 async function markLatestImageSent(env, lich, report) {
-  if (!report?.imageVersion) return;
+  if (!report?.imageVersion) return true;
   try {
-    await fetch(groupApiUrl(env), {
+    const response = await fetch(groupApiUrl(env), {
       method: "POST",
       headers: { Authorization: `Bearer ${env.DMX_API_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -356,8 +367,14 @@ async function markLatestImageSent(env, lich, report) {
         loai: report.reportType, phienBanAnh: report.imageVersion,
       }),
     });
+    if (!response.ok) {
+      console.error("Mark latest image failed", response.status, await response.text());
+      return false;
+    }
+    return true;
   } catch (error) {
     console.error("Mark latest image error", error);
+    return false;
   }
 }
 
