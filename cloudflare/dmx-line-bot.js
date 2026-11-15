@@ -48,17 +48,24 @@ export default {
 };
 
 async function handleLineEvent(event, env) {
-  if (event.type !== "message" || event.message?.type !== "text" || !event.replyToken) return;
-
   const sourceType = event.source?.type || "";
   const groupId = event.source?.groupId || event.source?.roomId || "";
   const lineUserId = event.source?.userId || "";
+
+  // Mọi tin nhắn (chữ, emoji, sticker, ảnh...) đều được tính là phản hồi.
+  // Nhánh reaction được đón sẵn nếu LINE cung cấp webhook loại này.
+  if ((sourceType === "group" || sourceType === "room") && groupId && lineUserId
+    && (event.type === "message" || event.type === "reaction")) {
+    await recordGroupResponse(env, groupId, lineUserId);
+  }
+  if (event.type === "reaction") return;
+  if (event.type !== "message" || event.message?.type !== "text" || !event.replyToken) return;
+
   const rawCommand = event.message.text.trim();
   const normalizedRaw = rawCommand.replace(/^\/+/, "").trim();
   const command = normalizedRaw.toLowerCase();
 
   if ((sourceType === "group" || sourceType === "room") && groupId && lineUserId) {
-    await recordGroupResponse(env, groupId, lineUserId);
     await trackMentionedUsers(env, event, groupId, lineUserId);
   }
 
