@@ -124,7 +124,7 @@ export async function POST(request: Request) {
         await donAnhSupabaseDaGui(admin);
         const { thu, gio, ngay } = layGioVietNam();
         const { data, error } = await admin.from("dmx_line_lich_gui")
-          .select("id,line_group_id,nguoi_dung_id,sieu_thi_id,gio,cac_thu,cac_noi_dung,kieu_gui,lan_gui_cuoi,dmx_line_nhom!inner(dang_hoat_dong)")
+          .select("id,line_group_id,nguoi_dung_id,sieu_thi_id,gio,cac_thu,cac_noi_dung,kieu_gui,lan_gui_cuoi,dmx_line_nhom!inner(dang_hoat_dong,ten_nhom)")
           .eq("dang_hoat_dong", true).eq("dmx_line_nhom.dang_hoat_dong", true)
           .contains("cac_thu", [thu]);
         if (error) throw error;
