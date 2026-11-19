@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, createPublicKey, timingSafeEqual, verify } from "node:crypto";
 import { taoSupabaseQuanTri } from "@/lib/supabase/quan-tri";
 
 export const CAC_LOAI_BAO_CAO_BOT = [
@@ -160,10 +160,32 @@ export function docLoaiBaoCaoBot(value: string | null): LoaiBaoCaoBot {
 export function kiemTraBearer(request: Request): boolean {
   const expected = process.env.DMX_BOT_API_TOKEN?.trim() || "";
   const actual = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1] || "";
-  if (!expected || !actual) return false;
-  const left = Buffer.from(actual);
-  const right = Buffer.from(expected);
-  return left.length === right.length && timingSafeEqual(left, right);
+  if (expected && actual) {
+    const left = Buffer.from(actual);
+    const right = Buffer.from(expected);
+    if (left.length === right.length && timingSafeEqual(left, right)) return true;
+  }
+
+  // VPS gửi báo cáo dùng chữ ký Ed25519 riêng, để không phải sao chép khóa
+  // toàn quyền của Worker sang máy chủ. Khóa dưới đây là khóa công khai.
+  const timestamp = request.headers.get("x-dmx-vps-timestamp")?.trim() || "";
+  const signature = request.headers.get("x-dmx-vps-signature")?.trim() || "";
+  if (!/^\d{10,13}$/.test(timestamp) || !signature) return false;
+  const timestampMs = timestamp.length === 10 ? Number(timestamp) * 1000 : Number(timestamp);
+  if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > 90_000) return false;
+
+  try {
+    const url = new URL(request.url);
+    const payload = `${timestamp}\n${request.method.toUpperCase()}\n${url.pathname}${url.search}`;
+    const publicKey = createPublicKey({
+      key: Buffer.from("MCowBQYDK2VwAyEAPfBpAxtxusLBnmlhBGYBEJAGbb6HB/9HFatm79o+e40=", "base64"),
+      format: "der",
+      type: "spki",
+    });
+    return verify(null, Buffer.from(payload), publicKey, Buffer.from(signature, "base64"));
+  } catch {
+    return false;
+  }
 }
 
 function khoaKyAnh(): string {
