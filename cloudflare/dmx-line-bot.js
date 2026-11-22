@@ -502,6 +502,23 @@ async function layAnhBaoCaoDaTaoSan(env, userId, loai, sieuThiId, ngayBaoCao, ma
       if (kq) return kq;
     }
 
+    if (env.R2_IMAGES) {
+      const r2MetaObj = await env.R2_IMAGES.get(`bot-anh/${userId}/${sieuThiId}/meta-${loaiSK}.json`);
+      if (r2MetaObj) {
+        try {
+          const r2Meta = await r2MetaObj.json();
+          const kq = await taoKetQuaAnhTuBanGhi(env, loaiSK, {
+            ngay: r2Meta.ngay,
+            nha_cung_cap: r2Meta.nhaCungCap,
+            duong_dan_luu_tru: r2Meta.duongDanLuuTru,
+            url_ben_ngoai: r2Meta.urlBenNgoai,
+            ngay_cap_nhat: r2Meta.ngayCapNhat,
+          });
+          if (kq) return kq;
+        } catch { /* Bỏ qua nếu tệp metadata R2 lỗi */ }
+      }
+    }
+
     const meta = await sbStorageDownloadJson(env, `bot-anh/${userId}/${sieuThiId}/meta-${loaiSK}.json`);
     if (meta) {
       const kq = await taoKetQuaAnhTuBanGhi(env, loaiSK, {
@@ -1588,6 +1605,21 @@ async function handleR2ImageUpload(request, env, url) {
       single: true,
     });
 
+    const laAnhSK = loai.startsWith("sk_");
+    let oldUrl = String(banGhiCu?.url_ben_ngoai || "");
+    let oldSbPath = String(banGhiCu?.duong_dan_luu_tru || "");
+    const r2MetaKey = `bot-anh/${user.id}/${sieuThiId}/meta-${loai}.json`;
+    if (laAnhSK && !oldUrl) {
+      const oldMetaObj = await env.R2_IMAGES.get(r2MetaKey);
+      if (oldMetaObj) {
+        try {
+          const oldMeta = await oldMetaObj.json();
+          if (typeof oldMeta?.urlBenNgoai === "string") oldUrl = oldMeta.urlBenNgoai;
+          if (typeof oldMeta?.duongDanLuuTru === "string") oldSbPath = oldMeta.duongDanLuuTru;
+        } catch { /* Bỏ qua nếu metadata cũ lỗi */ }
+      }
+    }
+
     const phienBan = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
     const r2Key = `bot-anh/${user.id}/${sieuThiId}/${loai}-${phienBan}.jpg`;
     await env.R2_IMAGES.put(r2Key, bytes, {
@@ -1600,25 +1632,44 @@ async function handleR2ImageUpload(request, env, url) {
     const publicUrl = `${url.origin}/r2/img/${r2Key}`;
     const isoNow = new Date().toISOString();
 
-    await sbRest(env, "dmx_line_anh_bao_cao", {
-      method: "POST",
-      query: { on_conflict: "nguoi_dung_id,sieu_thi_id,loai" },
-      prefer: "resolution=merge-duplicates",
-      body: {
-        nguoi_dung_id: user.id,
-        sieu_thi_id: sieuThiId,
-        loai,
-        ngay,
-        nha_cung_cap: "google_drive",
-        duong_dan_luu_tru: null,
-        url_ben_ngoai: publicUrl,
-        ngay_cap_nhat: isoNow,
-        xoa_sau: null,
-      },
-    });
+    if (laAnhSK) {
+      await env.R2_IMAGES.put(
+        r2MetaKey,
+        JSON.stringify({
+          loai,
+          ngay,
+          nhaCungCap: "google_drive",
+          duongDanLuuTru: null,
+          urlBenNgoai: publicUrl,
+          ngayCapNhat: isoNow,
+        }),
+        { httpMetadata: { contentType: "application/json", cacheControl: "no-store" } }
+      );
+    }
+
+    try {
+      await sbRest(env, "dmx_line_anh_bao_cao", {
+        method: "POST",
+        query: { on_conflict: "nguoi_dung_id,sieu_thi_id,loai" },
+        prefer: "resolution=merge-duplicates",
+        body: {
+          nguoi_dung_id: user.id,
+          sieu_thi_id: sieuThiId,
+          loai,
+          ngay,
+          nha_cung_cap: "google_drive",
+          duong_dan_luu_tru: null,
+          url_ben_ngoai: publicUrl,
+          ngay_cap_nhat: isoNow,
+          xoa_sau: null,
+        },
+      });
+    } catch (dbErr) {
+      // Nếu bảng SQL chưa chạy migration cho phép loại `sk_*`, vẫn giữ bản lưu trên R2 metadata.
+      if (!laAnhSK) throw dbErr;
+    }
 
     // Dọn ảnh cũ trên R2 hoặc Supabase Storage để không phình dung lượng
-    const oldUrl = String(banGhiCu?.url_ben_ngoai || "");
     const idxR2 = oldUrl.indexOf("/r2/img/");
     if (idxR2 >= 0) {
       const oldR2Key = decodeURIComponent(oldUrl.slice(idxR2 + "/r2/img/".length));
@@ -1626,7 +1677,6 @@ async function handleR2ImageUpload(request, env, url) {
         await env.R2_IMAGES.delete(oldR2Key).catch(() => {});
       }
     }
-    const oldSbPath = String(banGhiCu?.duong_dan_luu_tru || "");
     if (oldSbPath && oldSbPath.startsWith(`bot-anh/${user.id}/`)) {
       await sbStorageRemove(env, [oldSbPath]);
     }
