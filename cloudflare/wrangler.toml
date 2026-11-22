@@ -5,6 +5,10 @@ compatibility_date = "2026-11-01"
 [vars]
 SUPABASE_URL = "https://isxrxeaxytyiydxiwvuc.supabase.co"
 
+[[r2_buckets]]
+binding = "R2_IMAGES"
+bucket_name = "dmx-anh-bao-cao"
+
 [triggers]
 crons = ["* * * * *"]
 

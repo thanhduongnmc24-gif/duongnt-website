@@ -168,15 +168,24 @@ export default {
       return jsonResponse({
         ok: true,
         service: "dmx-line-bot",
-        mode: "direct-supabase",
+        mode: "direct-supabase-r2",
         lineConfigured: Boolean(env.LINE_CHANNEL_SECRET && env.LINE_CHANNEL_ACCESS_TOKEN),
+        r2Configured: Boolean(env.R2_IMAGES),
         supabaseUrl: supabaseUrl(env),
         dataConfigured: Boolean(supabaseKey(env)),
       });
     }
 
     if (request.method === "GET" && url.pathname === "/") {
-      return new Response("DMX LINE Bot (Direct Supabase) is running", { status: 200 });
+      return new Response("DMX LINE Bot (Direct Supabase + Cloudflare R2) is running", { status: 200 });
+    }
+
+    if (request.method === "GET" && url.pathname.startsWith("/r2/img/")) {
+      return handleR2ImageGet(request, env, url);
+    }
+
+    if (request.method === "POST" && url.pathname === "/r2/upload") {
+      return handleR2ImageUpload(request, env, url);
     }
 
     if (request.method !== "POST" || url.pathname !== "/webhook") {
@@ -1497,9 +1506,141 @@ async function verifyLineSignature(body, signature, secret) {
   }
 }
 
-function jsonResponse(value) {
+function jsonResponse(value, status = 200) {
   return new Response(JSON.stringify(value), {
-    status: 200,
+    status,
     headers: { "Content-Type": "application/json; charset=utf-8" },
   });
+}
+
+// ==========================================
+// CLOUDFLARE R2 IMAGE UPLOAD & SERVING (MIỄN PHÍ 10GB + 0Đ EGRESS)
+// ==========================================
+
+async function verifySupabaseJwtUser(env, accessToken) {
+  if (!accessToken) return null;
+  const res = await fetch(`${supabaseUrl(env)}/auth/v1/user`, {
+    method: "GET",
+    headers: {
+      apikey: supabaseKey(env),
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  if (!res.ok) return null;
+  const user = await res.json().catch(() => null);
+  return user?.id ? user : null;
+}
+
+async function handleR2ImageGet(_request, env, url) {
+  if (!env.R2_IMAGES) {
+    return new Response("R2 storage is not bound", { status: 503 });
+  }
+  const key = decodeURIComponent(url.pathname.slice("/r2/img/".length));
+  if (!key || !key.startsWith("bot-anh/") || key.includes("..")) {
+    return new Response("Invalid key", { status: 400 });
+  }
+  const object = await env.R2_IMAGES.get(key);
+  if (!object) {
+    return new Response("Not found", { status: 404 });
+  }
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "image/jpeg");
+  headers.set("Cache-Control", "public, max-age=31536000, immutable");
+  headers.set("ETag", object.httpEtag);
+  return new Response(object.body, { status: 200, headers });
+}
+
+async function handleR2ImageUpload(request, env, url) {
+  if (!env.R2_IMAGES) {
+    return jsonResponse({ loi: "Worker chưa gắn R2 bucket (R2_IMAGES)." }, 503);
+  }
+  try {
+    const authHeader = request.headers.get("authorization") || "";
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const user = await verifySupabaseJwtUser(env, token);
+    if (!user?.id) {
+      return jsonResponse({ loi: "Phiên đăng nhập không hợp lệ." }, 401);
+    }
+
+    const loai = String(url.searchParams.get("loai") || "").trim().toLowerCase();
+    const ngay = String(url.searchParams.get("ngay") || "").trim();
+    let sieuThiId = String(url.searchParams.get("sid") || request.headers.get("x-dmx-store-id") || "").trim();
+    if (!loai || !/^[a-z0-9_-]{2,48}$/.test(loai) || !/^\d{4}-\d{2}-\d{2}$/.test(ngay)) {
+      return jsonResponse({ loi: "Loại báo cáo hoặc ngày không hợp lệ." }, 400);
+    }
+    if (!sieuThiId) {
+      sieuThiId = await laySieuThiBaoCao(env, user.id, "");
+    }
+
+    const bytes = await request.arrayBuffer();
+    if (!bytes || bytes.byteLength === 0 || bytes.byteLength > 10 * 1024 * 1024) {
+      return jsonResponse({ loi: "Dung lượng ảnh không hợp lệ (tối đa 10MB)." }, 413);
+    }
+
+    const banGhiCu = await sbRest(env, "dmx_line_anh_bao_cao", {
+      query: {
+        select: "duong_dan_luu_tru,url_ben_ngoai",
+        nguoi_dung_id: `eq.${user.id}`,
+        sieu_thi_id: `eq.${sieuThiId}`,
+        loai: `eq.${loai}`,
+      },
+      single: true,
+    });
+
+    const phienBan = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+    const r2Key = `bot-anh/${user.id}/${sieuThiId}/${loai}-${phienBan}.jpg`;
+    await env.R2_IMAGES.put(r2Key, bytes, {
+      httpMetadata: {
+        contentType: "image/jpeg",
+        cacheControl: "public, max-age=31536000, immutable",
+      },
+    });
+
+    const publicUrl = `${url.origin}/r2/img/${r2Key}`;
+    const isoNow = new Date().toISOString();
+
+    await sbRest(env, "dmx_line_anh_bao_cao", {
+      method: "POST",
+      query: { on_conflict: "nguoi_dung_id,sieu_thi_id,loai" },
+      prefer: "resolution=merge-duplicates",
+      body: {
+        nguoi_dung_id: user.id,
+        sieu_thi_id: sieuThiId,
+        loai,
+        ngay,
+        nha_cung_cap: "google_drive",
+        duong_dan_luu_tru: null,
+        url_ben_ngoai: publicUrl,
+        ngay_cap_nhat: isoNow,
+        xoa_sau: null,
+      },
+    });
+
+    // Dọn ảnh cũ trên R2 hoặc Supabase Storage để không phình dung lượng
+    const oldUrl = String(banGhiCu?.url_ben_ngoai || "");
+    const idxR2 = oldUrl.indexOf("/r2/img/");
+    if (idxR2 >= 0) {
+      const oldR2Key = decodeURIComponent(oldUrl.slice(idxR2 + "/r2/img/".length));
+      if (oldR2Key && oldR2Key !== r2Key && oldR2Key.startsWith(`bot-anh/${user.id}/`)) {
+        await env.R2_IMAGES.delete(oldR2Key).catch(() => {});
+      }
+    }
+    const oldSbPath = String(banGhiCu?.duong_dan_luu_tru || "");
+    if (oldSbPath && oldSbPath.startsWith(`bot-anh/${user.id}/`)) {
+      await sbStorageRemove(env, [oldSbPath]);
+    }
+
+    return jsonResponse({
+      ok: true,
+      url: publicUrl,
+      key: r2Key,
+      ngay,
+      loai,
+      ngayCapNhat: isoNow,
+    });
+  } catch (error) {
+    console.error("POST /r2/upload error", error);
+    return jsonResponse({ loi: error instanceof Error ? error.message : "Chưa tải được ảnh lên Cloudflare R2." }, 500);
+  }
 }
