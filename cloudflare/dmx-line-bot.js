@@ -252,7 +252,7 @@ async function handleLineEvent(event, env) {
   if (rawCommand === "/" || ["menu", "help", "trogiup", "lenh"].includes(command)) {
     report = commandMenuReport();
   } else if (command === "ping") {
-    report = { text: "DMX Bot đang hoạt động (kết nối trực tiếp Supabase)." };
+    report = { text: "DMX Bot đang hoạt động (Supabase + Cloudflare R2)." };
   } else if (command === "id" || command === "groupid") {
     report = {
       text: groupId ? `LINE_GROUP_ID: ${groupId}` : `LINE_USER_ID: ${lineUserId || "Không đọc được"}`,
@@ -845,7 +845,8 @@ async function loadDmxReport(env, reportType, lineUserId = "", dmxUserId = "", m
     const baoCao = await taoBaoCaoBot(env, loai, userId, sieuThiId, maNV);
     const anhDaTao = await layAnhBaoCaoDaTaoSan(env, userId, loai, sieuThiId, baoCao.ngay, maNV);
     const urlAnhCuoi = anhDaTao?.url || "";
-    const shortTitle = `${baoCao.tieuDe} ngày ${baoCao.ngayHienThi}`;
+    const ngayHienThiCuoi = anhDaTao?.ngay ? hienThiNgay(anhDaTao.ngay) : baoCao.ngayHienThi;
+    const shortTitle = `${baoCao.tieuDe} ngày ${ngayHienThiCuoi}`;
     const fullText = baoCao.noiDung || shortTitle;
     const reportDate = String(anhDaTao?.ngay || baoCao.ngay || "");
     const updatedAt = String(anhDaTao?.ngayCapNhat || baoCao.capNhatLuc || "");
