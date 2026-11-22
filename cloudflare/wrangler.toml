@@ -3,11 +3,11 @@ main = "dmx-line-bot.js"
 compatibility_date = "2026-11-01"
 
 [vars]
-DMX_REPORT_API_URL = "https://www.duongnt.io.vn/api/dmx/bot/bao-cao"
+SUPABASE_URL = "https://isxrxeaxytyiydxiwvuc.supabase.co"
 
 [triggers]
 crons = ["* * * * *"]
 
-# Secrets/variables are configured in Cloudflare Dashboard:
-# LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, DMX_API_TOKEN,
-# DMX_REPORT_API_URL=https://www.duongnt.io.vn/api/dmx/bot/bao-cao
+# Secrets configured in Cloudflare Dashboard:
+# LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN
+# (Optional) SUPABASE_SERVICE_ROLE_KEY, DMX_BOT_USERNAME
