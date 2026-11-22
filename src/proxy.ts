@@ -17,19 +17,16 @@ export function proxy(request: NextRequest) {
   requestHeaders.delete("x-duongtube-app");
   requestHeaders.delete("x-congdoan-app");
   requestHeaders.delete("x-lichlamviec-app");
-  requestHeaders.delete("x-toanlop1-app");
   requestHeaders.delete("x-demthep-app");
   requestHeaders.delete("x-dmx-app");
   const laYoutubePreview = pathname === "/youtube" || pathname.startsWith("/youtube/");
   const laCongDoanPreview = pathname === "/congdoan" || pathname.startsWith("/congdoan/");
   const laLichLamViec = pathname === "/lichlamviec" || pathname.startsWith("/lichlamviec/") || pathname === "/thongso" || pathname.startsWith("/thongso/");
-  const laToanLop1 = pathname === "/toanlop1" || pathname.startsWith("/toanlop1/");
   const laDemThep = pathname === "/demthep" || pathname.startsWith("/demthep/");
   const laDmxPreview = pathname === "/dmx" || pathname.startsWith("/dmx/");
   if (laYoutube || laYoutubePreview) requestHeaders.set("x-duongtube-app", "1");
   if (laCongDoanPreview) requestHeaders.set("x-congdoan-app", "1");
   if (laLichLamViec) requestHeaders.set("x-lichlamviec-app", "1");
-  if (laToanLop1) requestHeaders.set("x-toanlop1-app", "1");
   if (laDemThep) requestHeaders.set("x-demthep-app", "1");
   if (laDmx || laDmxPreview) requestHeaders.set("x-dmx-app", "1");
 
