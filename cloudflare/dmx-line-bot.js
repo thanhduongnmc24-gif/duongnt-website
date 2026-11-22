@@ -36,12 +36,13 @@ function supabaseKey(env) {
   return String(env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY || DEFAULT_SUPABASE_SERVICE_KEY).trim();
 }
 
-async function sbRest(env, table, { method = "GET", query = {}, body, prefer, single = false } = {}) {
+async function sbRest(env, table, { method = "GET", query = {}, body = undefined, prefer = "", single = false } = {}) {
   const url = new URL(`${supabaseUrl(env)}/rest/v1/${table}`);
   for (const [k, v] of Object.entries(query)) {
     if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
   }
   const key = supabaseKey(env);
+  /** @type {Record<string, string>} */
   const headers = {
     apikey: key,
     Authorization: `Bearer ${key}`,
