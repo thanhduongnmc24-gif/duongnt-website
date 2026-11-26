@@ -6,6 +6,13 @@ const DEFAULT_SUPABASE_URL = "https://isxrxeaxytyiydxiwvuc.supabase.co";
 const DEFAULT_SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzeHJ4ZWF4eXR5aXlkeGl3dnVjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDQ1OTY1OCwiZXhwIjoyMTAwMDM1NjU4fQ.V7zW8iMiwuKCHGY-1tG1ociK-aeUXwX0BnhqDf1rTo4";
 const BUCKET_NAME = "dmx-du-lieu";
 const THOI_HAN_MA_PHUT = 10;
+const CUSTOM_TEXT_PREFIX = "dmx_text_v1:";
+
+function customTextContent(value) {
+  const raw = String(value || "");
+  if (!raw.startsWith(CUSTOM_TEXT_PREFIX)) return null;
+  return raw.slice(CUSTOM_TEXT_PREFIX.length);
+}
 
 const CAC_LOAI_BAO_CAO_BOT = [
   "luyke_du_kien",
@@ -1042,27 +1049,32 @@ async function sendScheduledReport(env) {
           thanhCong = false;
           break;
         }
+        if (lich.kieu_gui === "text") {
+          const customText = customTextContent(loai);
+          if (!customText || !customText.trim()) continue;
+          if (!await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lich.line_group_id, { text: customText.slice(0, 5000) })) {
+            thanhCong = false;
+            if (lineMonthlyQuotaReached) break;
+          }
+          continue;
+        }
         const report = await loadDmxReport(env, loai, "", lich.nguoi_dung_id, "", lich.sieu_thi_id || "");
-        const reportCanGui = lich.kieu_gui === "text"
-          ? { ...report, text: report.fullText || report.text, imageUrl: "", previewImageUrl: "" }
-          : report;
         if (!await scheduleStillActive(env, lich.id)) {
           thanhCong = false;
           break;
         }
-        if (lich.kieu_gui !== "text" && reportCanGui.imageUrl) {
-          const canGui = await canSendLatestImage(env, lich, reportCanGui);
+        if (report.imageUrl) {
+          const canGui = await canSendLatestImage(env, lich, report);
           if (canGui === null) {
             thanhCong = false;
             break;
           }
           if (!canGui) continue;
         }
-        if (!await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lich.line_group_id, reportCanGui)) {
+        if (!await pushReport(env.LINE_CHANNEL_ACCESS_TOKEN, lich.line_group_id, report)) {
           thanhCong = false;
           if (lineMonthlyQuotaReached) break;
-        } else if (lich.kieu_gui !== "text" && reportCanGui.imageUrl
-          && !await markLatestImageSent(env, lich, reportCanGui)) {
+        } else if (report.imageUrl && !await markLatestImageSent(env, lich, report)) {
           thanhCong = false;
         }
       }

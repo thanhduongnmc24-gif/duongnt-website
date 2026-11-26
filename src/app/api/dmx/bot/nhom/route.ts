@@ -10,6 +10,8 @@ export const dynamic = "force-dynamic";
 
 const THOI_HAN_MA_PHUT = 10;
 const CAC_LOAI_LICH = CAC_LOAI_BAO_CAO_BOT.filter(loai => loai !== "msnv");
+const TIEN_TO_VAN_BAN_TUY_CHINH = "dmx_text_v1:";
+const GIOI_HAN_KY_TU_VAN_BAN = 5000;
 
 function bamMa(ma: string) {
   return createHash("sha256").update(ma.trim()).digest("hex");
@@ -139,7 +141,11 @@ export async function POST(request: Request) {
         // gửi header X-DMX-Store-ID) vẫn lấy đúng dữ liệu của lịch.
         const lichTuongThich = denHan.map(item => ({
           ...item,
-          cac_noi_dung: (item.cac_noi_dung || []).map((loai: string) => `${loai}~${item.sieu_thi_id}`),
+          cac_noi_dung: (item.cac_noi_dung || []).map((loai: string) =>
+            item.kieu_gui === "text" && loai.startsWith(TIEN_TO_VAN_BAN_TUY_CHINH)
+              ? loai
+              : `${loai}~${item.sieu_thi_id}`
+          ),
         }));
         return NextResponse.json({ lich: lichTuongThich });
       }
@@ -381,9 +387,27 @@ export async function POST(request: Request) {
       const groupId = String(body.lineGroupId || "");
       const gio = String(body.gio || "");
       const cacThu = Array.isArray(body.cacThu) ? body.cacThu.map(Number).filter(v => v >= 1 && v <= 7) : [];
-      const cacNoiDung = Array.isArray(body.cacNoiDung)
-        ? body.cacNoiDung.map(String).filter(v => (CAC_LOAI_LICH as readonly string[]).includes(v)) : [];
       const kieuGui = body.kieuGui === "text" ? "text" : "anh";
+      let cacNoiDung: string[];
+      if (kieuGui === "text") {
+        const rawFirst = typeof body.noiDungVanBan === "string"
+          ? body.noiDungVanBan
+          : (Array.isArray(body.cacNoiDung) ? String(body.cacNoiDung[0] || "") : "");
+        const vanBanGoc = rawFirst.startsWith(TIEN_TO_VAN_BAN_TUY_CHINH)
+          ? rawFirst.slice(TIEN_TO_VAN_BAN_TUY_CHINH.length)
+          : rawFirst;
+        const vanBanSach = vanBanGoc.trim();
+        if (!vanBanSach || vanBanSach.length > GIOI_HAN_KY_TU_VAN_BAN) {
+          return NextResponse.json({
+            loi: `Hãy nhập nội dung văn bản hợp lệ (tối đa ${GIOI_HAN_KY_TU_VAN_BAN} ký tự).`,
+          }, { status: 400 });
+        }
+        cacNoiDung = [`${TIEN_TO_VAN_BAN_TUY_CHINH}${vanBanSach}`];
+      } else {
+        cacNoiDung = Array.isArray(body.cacNoiDung)
+          ? body.cacNoiDung.map(String).filter(v => (CAC_LOAI_LICH as readonly string[]).includes(v))
+          : [];
+      }
       if (!gioHopLe(gio) || !cacThu.length || !cacNoiDung.length) {
         return NextResponse.json({ loi: "Hãy chọn giờ, ngày gửi và ít nhất một nội dung." }, { status: 400 });
       }
@@ -424,6 +448,7 @@ export async function POST(request: Request) {
       if (loiXoa) throw loiXoa;
       if (Array.isArray(lichBiXoa?.cac_noi_dung)) {
         for (const loai of lichBiXoa.cac_noi_dung) {
+          if (!(CAC_LOAI_LICH as readonly string[]).includes(loai)) continue;
           const { count } = await admin.from("dmx_line_lich_gui")
             .select("id", { count: "exact", head: true })
             .eq("nguoi_dung_id", user.id).eq("dang_hoat_dong", true)
